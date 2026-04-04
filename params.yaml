@@ -38,6 +38,7 @@ analyze:
   pca_dim: 128
   cv_random_state: 42
   n_bootstrap: 200
+  contrast_dim: 10
 
 prefix:
   prefix_lengths: "5,10,20,40"

@@ -14,6 +14,7 @@ import os
 import json
 import argparse
 import matplotlib.pyplot as plt
+from sklearn.covariance import LedoitWolf
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, average_precision_score
@@ -47,6 +48,10 @@ def parse_args():
                         help="Comma-separated layer indices to analyze (auto-detected from data if omitted)")
     parser.add_argument("--subject", action="store_true",
                         help="Run subject-category stratification (MATH-500 only)")
+    parser.add_argument("--contrast", action="store_true",
+                        help="Run low-rank contrast subspace Mahalanobis analysis")
+    parser.add_argument("--contrast_dim", type=int, default=10,
+                        help="Dimensionality of the contrast subspace (default: 10)")
     return parser.parse_args()
 
 
@@ -118,6 +123,18 @@ def load_all_traces(data_dir: str, layers: list[int]) -> list[dict]:
 # Mahalanobis fitting
 # ---------------------------------------------------------------------------
 
+def _fit_lw_precision(centered: np.ndarray) -> np.ndarray:
+    """Fit Ledoit-Wolf shrinkage covariance and return the precision matrix.
+
+    Replaces the old ``np.cov + 1e-4*I`` + ``np.linalg.inv`` pattern with an
+    analytically optimal shrinkage estimator.  Returns the precision matrix
+    (inverse covariance) of the same shape (d, d).
+    """
+    lw = LedoitWolf(assume_centered=True)
+    lw.fit(centered)
+    return lw.precision_
+
+
 def fit_mahalanobis_reference(correct_traces: list[dict], layer: int, pca_dim: int):
     correct_hiddens = np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0)
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
@@ -126,13 +143,10 @@ def fit_mahalanobis_reference(correct_traces: list[dict], layer: int, pca_dim: i
 
     projected = pca.transform(correct_hiddens)
     mu = projected.mean(axis=0)
-    cov = np.cov(projected - mu, rowvar=False)
-    cov_reg = cov + 1e-4 * np.eye(pca_dim)
-    cov_inv = np.linalg.inv(cov_reg)
+    cov_inv = _fit_lw_precision(projected - mu)
 
     print(f"  Layer {layer}: PCA var={pca.explained_variance_ratio_.sum():.3f}, "
-          f"cov cond={np.linalg.cond(cov_reg):.1f}, "
-          f"fit on {correct_hiddens.shape[0]} tokens")
+          f"fit on {correct_hiddens.shape[0]} tokens (LedoitWolf)")
     return pca, mu, cov_inv
 
 
@@ -156,13 +170,10 @@ def fit_mahalanobis_reference_narrow(
 
     projected = pca.transform(filtered_hiddens)
     mu = projected.mean(axis=0)
-    cov = np.cov(projected - mu, rowvar=False)
-    cov_reg = cov + 1e-4 * np.eye(pca_dim)
-    cov_inv = np.linalg.inv(cov_reg)
+    cov_inv = _fit_lw_precision(projected - mu)
 
     print(f"  Layer {layer} (narrow): PCA var={pca.explained_variance_ratio_.sum():.3f}, "
-          f"cov cond={np.linalg.cond(cov_reg):.1f}, "
-          f"fit on {filtered_hiddens.shape[0]} tokens (>{ent_percentile}th pctl entropy)")
+          f"fit on {filtered_hiddens.shape[0]} tokens (>{ent_percentile}th pctl entropy, LedoitWolf)")
     return pca, mu, cov_inv
 
 
@@ -192,6 +203,178 @@ def fit_mahalanobis_reference_narrow_safe(
         return fit_mahalanobis_reference_narrow(correct_traces, layer, pca_dim, ent_percentile)
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Low-rank contrast subspace Mahalanobis
+# ---------------------------------------------------------------------------
+
+def fit_contrast_subspace_reference(
+    correct_traces: list[dict],
+    incorrect_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    contrast_dim: int,
+):
+    """Fit a low-rank contrast subspace reference.
+
+    Steps:
+    1. PCA to pca_dim on correct-trace tokens (same as standard reference).
+    2. In PCA space: compute correct centroid mu_c and incorrect centroid mu_i.
+       The primary contrast direction is d = (mu_c - mu_i) / ||mu_c - mu_i||.
+    3. Supplement d with the top (contrast_dim - 1) eigenvectors of the
+       correct-class within-scatter, Gram-Schmidt orthogonalised against d.
+       Together these form a (contrast_dim, pca_dim) contrast basis.
+    4. Project correct tokens into the contrast subspace; fit Ledoit-Wolf
+       precision there.
+
+    Returns (pca, contrast_basis, mu_sub, cov_inv_sub).
+    """
+    correct_hiddens = np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0)
+    svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
+    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca.fit(correct_hiddens)
+
+    correct_proj = pca.transform(correct_hiddens)
+    incorrect_hiddens = np.concatenate([t["hiddens"][layer] for t in incorrect_traces], axis=0)
+    incorrect_proj = pca.transform(incorrect_hiddens)
+
+    mu_c = correct_proj.mean(axis=0)
+    mu_i = incorrect_proj.mean(axis=0)
+
+    diff = mu_c - mu_i
+    diff_norm = np.linalg.norm(diff)
+    if diff_norm < 1e-10:
+        raise ValueError("Correct and incorrect centroids are identical in PCA space")
+    primary = diff / diff_norm
+
+    # Scatter directions from correct-class PCA (clamped to available budget)
+    n_additional = min(contrast_dim - 1, correct_proj.shape[0] - 1, pca_dim - 1)
+    basis = [primary]
+    if n_additional > 0:
+        scatter_pca = PCA(n_components=n_additional, random_state=42)
+        scatter_pca.fit(correct_proj - mu_c)
+        for v in scatter_pca.components_:
+            for b in basis:
+                v = v - np.dot(v, b) * b
+            norm = np.linalg.norm(v)
+            if norm > 1e-10:
+                basis.append(v / norm)
+            if len(basis) >= contrast_dim:
+                break
+
+    contrast_basis = np.stack(basis, axis=0)  # (actual_dim, pca_dim)
+    actual_dim = contrast_basis.shape[0]
+
+    correct_sub = correct_proj @ contrast_basis.T  # (N, actual_dim)
+    mu_sub = correct_sub.mean(axis=0)
+    cov_inv_sub = _fit_lw_precision(correct_sub - mu_sub)
+
+    print(f"  Layer {layer} (contrast, dim={actual_dim}/{contrast_dim}): "
+          f"||mu_c-mu_i||={diff_norm:.3f}, "
+          f"fit on {correct_proj.shape[0]} correct / {incorrect_proj.shape[0]} incorrect tokens")
+    return pca, contrast_basis, mu_sub, cov_inv_sub
+
+
+def fit_contrast_subspace_reference_safe(
+    correct_traces: list[dict],
+    incorrect_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    contrast_dim: int,
+):
+    if not correct_traces or not incorrect_traces:
+        return None
+    try:
+        return fit_contrast_subspace_reference(
+            correct_traces, incorrect_traces, layer, pca_dim, contrast_dim
+        )
+    except Exception:
+        return None
+
+
+def compute_contrast_mahal_distances(
+    hiddens: np.ndarray,
+    pca,
+    contrast_basis: np.ndarray,
+    mu_sub: np.ndarray,
+    cov_inv_sub: np.ndarray,
+) -> np.ndarray:
+    projected = pca.transform(hiddens)
+    sub = projected @ contrast_basis.T
+    diff = sub - mu_sub
+    dists_sq = np.sum((diff @ cov_inv_sub) * diff, axis=1)
+    return np.sqrt(np.maximum(dists_sq, 0))
+
+
+def evaluate_foldwise_contrast_mahalanobis(
+    traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    contrast_dim: int,
+    y: np.ndarray,
+    fold_indices: list[tuple],
+    label_prefix: str = "",
+) -> dict:
+    """CV evaluation using the low-rank contrast subspace Mahalanobis distance."""
+    roc_mah, pr_mah = [], []
+    roc_comb, pr_comb = [], []
+
+    for fi, (train_idx, test_idx) in enumerate(fold_indices):
+        correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
+        incorrect_train = [traces[i] for i in train_idx if not traces[i]["is_correct"]]
+        ref = fit_contrast_subspace_reference_safe(
+            correct_train, incorrect_train, layer, pca_dim, contrast_dim
+        )
+        if ref is None:
+            print(f"    WARNING: skip fold {fi} — contrast ref failed (layer {layer})")
+            continue
+        pca, contrast_basis, mu_sub, cov_inv_sub = ref
+
+        X_mah, X_comb = [], []
+        for trace in traces:
+            m = compute_contrast_mahal_distances(
+                trace["hiddens"][layer], pca, contrast_basis, mu_sub, cov_inv_sub
+            )
+            e = trace["entropies"]
+            X_mah.append(mahal_features(e, m))
+            X_comb.append(entropy_features(e) + mahal_features(e, m))
+        X_mah = np.array(X_mah)
+        X_comb = np.array(X_comb)
+
+        for X, roc_list, pr_list in (
+            (X_mah, roc_mah, pr_mah),
+            (X_comb, roc_comb, pr_comb),
+        ):
+            out = _fold_clf_auc(X, y, train_idx, test_idx)
+            if out is None:
+                continue
+            roc_list.append(out[0])
+            pr_list.append(out[1])
+
+    def pack(roc_list, pr_list, name: str) -> dict:
+        if not roc_list:
+            print(f"    {label_prefix}{name}: no valid folds")
+            return {
+                "roc_auc_mean": float("nan"), "roc_auc_std": float("nan"),
+                "pr_auc_mean": float("nan"), "pr_auc_std": float("nan"),
+                "fold_roc_aucs": [],
+            }
+        r = {
+            "roc_auc_mean": float(np.mean(roc_list)),
+            "roc_auc_std": float(np.std(roc_list)),
+            "pr_auc_mean": float(np.mean(pr_list)),
+            "pr_auc_std": float(np.std(pr_list)),
+            "fold_roc_aucs": [float(v) for v in roc_list],
+        }
+        print(f"    {label_prefix}{name:30s}: ROC-AUC = {r['roc_auc_mean']:.4f} ± "
+              f"{r['roc_auc_std']:.4f} | PR-AUC = {r['pr_auc_mean']:.4f} ± {r['pr_auc_std']:.4f}")
+        return r
+
+    return {
+        "contrast_mahal_only": pack(roc_mah, pr_mah, f"contrast_mahal(k={contrast_dim})"),
+        "contrast_combined": pack(roc_comb, pr_comb, f"contrast_combined(k={contrast_dim})"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -726,8 +909,7 @@ def bootstrap_auc_ci(
                 [projected_per_trace[boot_idx[j]] for j in tr[train_correct_mask]]
             )
             mu = train_correct_projected.mean(axis=0)
-            cov = np.cov(train_correct_projected - mu, rowvar=False)
-            cov_inv = np.linalg.inv(cov + 1e-4 * np.eye(pca_dim))
+            cov_inv = _fit_lw_precision(train_correct_projected - mu)
 
             # Compute Mahalanobis features for all boot traces
             X_mah_b = np.array([
@@ -1224,6 +1406,21 @@ def main():
         if args.post_fork or args.all_analyses:
             post_fork = analyze_post_fork(traces, layer, args.pca_dim, fold_indices)
             layer_results[layer]["post_fork"] = post_fork
+
+        # --- Low-rank contrast subspace ---
+        if args.contrast or args.all_analyses:
+            print(f"\n  Contrast subspace (dim={args.contrast_dim})...")
+            cw = evaluate_foldwise_contrast_mahalanobis(
+                traces, layer, args.pca_dim, args.contrast_dim, y, fold_indices
+            )
+            contrast_delta = cw["contrast_combined"]["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+            global_delta = comb_result["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+            print(f"  Contrast delta vs entropy:    {contrast_delta:+.4f}  "
+                  f"(global Mahalanobis: {global_delta:+.4f})")
+            layer_results[layer]["contrast_mahal_only"] = cw["contrast_mahal_only"]
+            layer_results[layer]["contrast_combined"] = cw["contrast_combined"]
+            layer_results[layer]["contrast_delta_vs_entropy"] = float(contrast_delta)
+            layer_results[layer]["contrast_dim"] = args.contrast_dim
 
         # --- Narrow reference distribution ---
         if args.narrow_ref or args.all_analyses:
