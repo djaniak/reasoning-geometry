@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[oc]
+*.pyo
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# DVC-managed directories (tracked via dvc.yaml / .dvc files, not git)
+/data/
+/results/
+
+# DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
+.dvc/cache/
+.dvc/tmp/
+
+# Logs and metrics
+logs/
+metrics.json
+state
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# omx runtime state
+.omx/
+
+# codex
+.codex
+docs/superpowers
