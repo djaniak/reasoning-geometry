@@ -43,6 +43,7 @@ analyze:
   cv_random_state: 42
   n_bootstrap: 100
   contrast_dim: 10
+  subspace_ranks: "1,2,3,5,8,12"
 
 prefix:
   prefix_lengths: "5,10,20,40"
