@@ -25,6 +25,7 @@ from scipy.stats import mannwhitneyu
 OUTPUT_DIR = "collected_data"
 PCA_DIM = 128
 CV_RANDOM_STATE = 42
+DEFAULT_SUBSPACE_RANKS = "1,2,3,5,8,12"
 
 
 def parse_args():
@@ -32,9 +33,22 @@ def parse_args():
     parser.add_argument("--data_dir", type=str, default=OUTPUT_DIR)
     parser.add_argument("--output_dir", type=str, default=None,
                         help="Directory for results JSON and plots (defaults to data_dir)")
+    parser.add_argument(
+        "--output_name",
+        type=str,
+        default=None,
+        help="Filename for the results JSON (defaults to <dataset_label>_results.json)",
+    )
     parser.add_argument("--pca_dim", type=int, default=PCA_DIM)
     parser.add_argument("--dataset_label", type=str, default="gsm8k",
                         help="Label for output files (gsm8k or math500)")
+    parser.add_argument(
+        "--analysis_family",
+        type=str,
+        default="base",
+        choices=["base", "controls", "subspace", "post_fork", "narrow", "all"],
+        help="Subset of analyses to run for incremental DVC stages",
+    )
     parser.add_argument("--post_fork", action="store_true")
     parser.add_argument("--narrow_ref", action="store_true")
     parser.add_argument("--difficulty", action="store_true")
@@ -52,7 +66,22 @@ def parse_args():
                         help="Run low-rank contrast subspace Mahalanobis analysis")
     parser.add_argument("--contrast_dim", type=int, default=10,
                         help="Dimensionality of the contrast subspace (default: 10)")
+    parser.add_argument("--normalized_controls", action="store_true",
+                        help="Run normalized Mahalanobis and relative Mahalanobis controls")
+    parser.add_argument("--subspace_sweep", action="store_true",
+                        help="Run low-rank subspace sweep with centroid vs Mahalanobis scoring")
+    parser.add_argument("--subspace_ranks", type=str, default=DEFAULT_SUBSPACE_RANKS,
+                        help="Comma-separated ranks for the low-rank subspace sweep")
     return parser.parse_args()
+
+
+def parse_rank_list(raw_ranks: str) -> list[int]:
+    ranks = sorted({int(part.strip()) for part in raw_ranks.split(",") if part.strip()})
+    if not ranks:
+        raise ValueError("No valid subspace ranks were provided")
+    if any(rank <= 0 for rank in ranks):
+        raise ValueError("Subspace ranks must be positive integers")
+    return ranks
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +164,29 @@ def _fit_lw_precision(centered: np.ndarray) -> np.ndarray:
     return lw.precision_
 
 
-def fit_mahalanobis_reference(correct_traces: list[dict], layer: int, pca_dim: int):
-    correct_hiddens = np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0)
+def _l2_normalize_rows(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    norms = np.linalg.norm(x, axis=1, keepdims=True)
+    safe_norms = np.where(norms > eps, norms, 1.0)
+    return x / safe_norms
+
+
+def _prepare_hidden_tokens(hiddens: np.ndarray, normalize_input: bool = False) -> np.ndarray:
+    arr = np.asarray(hiddens, dtype=np.float64)
+    if normalize_input:
+        arr = _l2_normalize_rows(arr)
+    return arr
+
+
+def fit_mahalanobis_reference(
+    correct_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    normalize_input: bool = False,
+):
+    correct_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0),
+        normalize_input=normalize_input,
+    )
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
     pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
@@ -145,13 +195,18 @@ def fit_mahalanobis_reference(correct_traces: list[dict], layer: int, pca_dim: i
     mu = projected.mean(axis=0)
     cov_inv = _fit_lw_precision(projected - mu)
 
-    print(f"  Layer {layer}: PCA var={pca.explained_variance_ratio_.sum():.3f}, "
+    family = "normalized " if normalize_input else ""
+    print(f"  Layer {layer}: {family}PCA var={pca.explained_variance_ratio_.sum():.3f}, "
           f"fit on {correct_hiddens.shape[0]} tokens (LedoitWolf)")
     return pca, mu, cov_inv
 
 
 def fit_mahalanobis_reference_narrow(
-    correct_traces: list[dict], layer: int, pca_dim: int, ent_percentile: int = 50
+    correct_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    ent_percentile: int = 50,
+    normalize_input: bool = False,
 ):
     """Fit Mahalanobis reference using only high-entropy tokens from correct traces."""
     all_ent = np.concatenate([t["entropies"] for t in correct_traces])
@@ -162,7 +217,10 @@ def fit_mahalanobis_reference_narrow(
         mask = t["entropies"] > threshold
         if mask.any():
             filtered.append(t["hiddens"][layer][mask])
-    filtered_hiddens = np.concatenate(filtered, axis=0)
+    filtered_hiddens = _prepare_hidden_tokens(
+        np.concatenate(filtered, axis=0),
+        normalize_input=normalize_input,
+    )
 
     svd_solver = "randomized" if filtered_hiddens.shape[0] > 200_000 else "full"
     pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
@@ -172,37 +230,136 @@ def fit_mahalanobis_reference_narrow(
     mu = projected.mean(axis=0)
     cov_inv = _fit_lw_precision(projected - mu)
 
-    print(f"  Layer {layer} (narrow): PCA var={pca.explained_variance_ratio_.sum():.3f}, "
+    family = "normalized " if normalize_input else ""
+    print(f"  Layer {layer} (narrow): {family}PCA var={pca.explained_variance_ratio_.sum():.3f}, "
           f"fit on {filtered_hiddens.shape[0]} tokens (>{ent_percentile}th pctl entropy, LedoitWolf)")
     return pca, mu, cov_inv
 
 
-def compute_mahal_distances(hiddens: np.ndarray, pca, mu, cov_inv) -> np.ndarray:
-    projected = pca.transform(hiddens)
+def compute_mahal_distances(
+    hiddens: np.ndarray,
+    pca,
+    mu,
+    cov_inv,
+    normalize_input: bool = False,
+) -> np.ndarray:
+    projected = pca.transform(_prepare_hidden_tokens(hiddens, normalize_input=normalize_input))
     diff = projected - mu
     dists_sq = np.sum((diff @ cov_inv) * diff, axis=1)
     return np.sqrt(np.maximum(dists_sq, 0))
 
 
-def fit_mahalanobis_reference_safe(correct_traces: list[dict], layer: int, pca_dim: int):
+def fit_mahalanobis_reference_safe(
+    correct_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    normalize_input: bool = False,
+):
     """Like fit_mahalanobis_reference but returns None on failure (e.g. too few tokens)."""
     if not correct_traces:
         return None
     try:
-        return fit_mahalanobis_reference(correct_traces, layer, pca_dim)
+        return fit_mahalanobis_reference(
+            correct_traces, layer, pca_dim, normalize_input=normalize_input
+        )
     except Exception:
         return None
 
 
 def fit_mahalanobis_reference_narrow_safe(
-    correct_traces: list[dict], layer: int, pca_dim: int, ent_percentile: int = 50
+    correct_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    ent_percentile: int = 50,
+    normalize_input: bool = False,
 ):
     if not correct_traces:
         return None
     try:
-        return fit_mahalanobis_reference_narrow(correct_traces, layer, pca_dim, ent_percentile)
+        return fit_mahalanobis_reference_narrow(
+            correct_traces,
+            layer,
+            pca_dim,
+            ent_percentile,
+            normalize_input=normalize_input,
+        )
     except Exception:
         return None
+
+
+def fit_relative_mahalanobis_reference(
+    correct_traces: list[dict],
+    background_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    normalize_input: bool = False,
+):
+    correct_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0),
+        normalize_input=normalize_input,
+    )
+    background_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in background_traces], axis=0),
+        normalize_input=normalize_input,
+    )
+
+    svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
+    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca.fit(correct_hiddens)
+
+    correct_proj = pca.transform(correct_hiddens)
+    background_proj = pca.transform(background_hiddens)
+
+    mu = correct_proj.mean(axis=0)
+    cov_inv = _fit_lw_precision(correct_proj - mu)
+    bg_mu = background_proj.mean(axis=0)
+    bg_cov_inv = _fit_lw_precision(background_proj - bg_mu)
+
+    family = "normalized " if normalize_input else ""
+    print(
+        f"  Layer {layer}: {family}relative ref fit on "
+        f"{correct_hiddens.shape[0]} correct / {background_hiddens.shape[0]} background tokens"
+    )
+    return pca, mu, cov_inv, bg_mu, bg_cov_inv
+
+
+def fit_relative_mahalanobis_reference_safe(
+    correct_traces: list[dict],
+    background_traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    normalize_input: bool = False,
+):
+    if not correct_traces or not background_traces:
+        return None
+    try:
+        return fit_relative_mahalanobis_reference(
+            correct_traces,
+            background_traces,
+            layer,
+            pca_dim,
+            normalize_input=normalize_input,
+        )
+    except Exception:
+        return None
+
+
+def compute_relative_mahal_distances(
+    hiddens: np.ndarray,
+    pca,
+    mu,
+    cov_inv,
+    bg_mu,
+    bg_cov_inv,
+    normalize_input: bool = False,
+) -> np.ndarray:
+    target = compute_mahal_distances(
+        hiddens, pca, mu, cov_inv, normalize_input=normalize_input
+    )
+    background = compute_mahal_distances(
+        hiddens, pca, bg_mu, bg_cov_inv, normalize_input=normalize_input
+    )
+    return target - background
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +372,7 @@ def fit_contrast_subspace_reference(
     layer: int,
     pca_dim: int,
     contrast_dim: int,
+    normalize_input: bool = False,
 ):
     """Fit a low-rank contrast subspace reference.
 
@@ -230,13 +388,19 @@ def fit_contrast_subspace_reference(
 
     Returns (pca, contrast_basis, mu_sub, cov_inv_sub).
     """
-    correct_hiddens = np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0)
+    correct_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0),
+        normalize_input=normalize_input,
+    )
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
     pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
 
     correct_proj = pca.transform(correct_hiddens)
-    incorrect_hiddens = np.concatenate([t["hiddens"][layer] for t in incorrect_traces], axis=0)
+    incorrect_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in incorrect_traces], axis=0),
+        normalize_input=normalize_input,
+    )
     incorrect_proj = pca.transform(incorrect_hiddens)
 
     mu_c = correct_proj.mean(axis=0)
@@ -270,7 +434,8 @@ def fit_contrast_subspace_reference(
     mu_sub = correct_sub.mean(axis=0)
     cov_inv_sub = _fit_lw_precision(correct_sub - mu_sub)
 
-    print(f"  Layer {layer} (contrast, dim={actual_dim}/{contrast_dim}): "
+    family = "normalized " if normalize_input else ""
+    print(f"  Layer {layer} ({family}contrast, dim={actual_dim}/{contrast_dim}): "
           f"||mu_c-mu_i||={diff_norm:.3f}, "
           f"fit on {correct_proj.shape[0]} correct / {incorrect_proj.shape[0]} incorrect tokens")
     return pca, contrast_basis, mu_sub, cov_inv_sub
@@ -282,12 +447,18 @@ def fit_contrast_subspace_reference_safe(
     layer: int,
     pca_dim: int,
     contrast_dim: int,
+    normalize_input: bool = False,
 ):
     if not correct_traces or not incorrect_traces:
         return None
     try:
         return fit_contrast_subspace_reference(
-            correct_traces, incorrect_traces, layer, pca_dim, contrast_dim
+            correct_traces,
+            incorrect_traces,
+            layer,
+            pca_dim,
+            contrast_dim,
+            normalize_input=normalize_input,
         )
     except Exception:
         return None
@@ -299,12 +470,25 @@ def compute_contrast_mahal_distances(
     contrast_basis: np.ndarray,
     mu_sub: np.ndarray,
     cov_inv_sub: np.ndarray,
+    normalize_input: bool = False,
 ) -> np.ndarray:
-    projected = pca.transform(hiddens)
+    projected = pca.transform(_prepare_hidden_tokens(hiddens, normalize_input=normalize_input))
     sub = projected @ contrast_basis.T
     diff = sub - mu_sub
     dists_sq = np.sum((diff @ cov_inv_sub) * diff, axis=1)
     return np.sqrt(np.maximum(dists_sq, 0))
+
+
+def compute_contrast_centroid_distances(
+    hiddens: np.ndarray,
+    pca,
+    contrast_basis: np.ndarray,
+    mu_sub: np.ndarray,
+    normalize_input: bool = False,
+) -> np.ndarray:
+    projected = pca.transform(_prepare_hidden_tokens(hiddens, normalize_input=normalize_input))
+    sub = projected @ contrast_basis.T
+    return np.linalg.norm(sub - mu_sub, axis=1)
 
 
 def evaluate_foldwise_contrast_mahalanobis(
@@ -315,6 +499,7 @@ def evaluate_foldwise_contrast_mahalanobis(
     y: np.ndarray,
     fold_indices: list[tuple],
     label_prefix: str = "",
+    normalize_input: bool = False,
 ) -> dict:
     """CV evaluation using the low-rank contrast subspace Mahalanobis distance."""
     roc_mah, pr_mah = [], []
@@ -324,7 +509,12 @@ def evaluate_foldwise_contrast_mahalanobis(
         correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
         incorrect_train = [traces[i] for i in train_idx if not traces[i]["is_correct"]]
         ref = fit_contrast_subspace_reference_safe(
-            correct_train, incorrect_train, layer, pca_dim, contrast_dim
+            correct_train,
+            incorrect_train,
+            layer,
+            pca_dim,
+            contrast_dim,
+            normalize_input=normalize_input,
         )
         if ref is None:
             print(f"    WARNING: skip fold {fi} — contrast ref failed (layer {layer})")
@@ -334,7 +524,12 @@ def evaluate_foldwise_contrast_mahalanobis(
         X_mah, X_comb = [], []
         for trace in traces:
             m = compute_contrast_mahal_distances(
-                trace["hiddens"][layer], pca, contrast_basis, mu_sub, cov_inv_sub
+                trace["hiddens"][layer],
+                pca,
+                contrast_basis,
+                mu_sub,
+                cov_inv_sub,
+                normalize_input=normalize_input,
             )
             e = trace["entropies"]
             X_mah.append(mahal_features(e, m))
@@ -375,6 +570,228 @@ def evaluate_foldwise_contrast_mahalanobis(
         "contrast_mahal_only": pack(roc_mah, pr_mah, f"contrast_mahal(k={contrast_dim})"),
         "contrast_combined": pack(roc_comb, pr_comb, f"contrast_combined(k={contrast_dim})"),
     }
+
+
+def evaluate_foldwise_relative_mahalanobis(
+    traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    y: np.ndarray,
+    fold_indices: list[tuple],
+    label_prefix: str = "",
+    normalize_input: bool = False,
+) -> dict:
+    roc_rmd, pr_rmd = [], []
+    roc_comb, pr_comb = [], []
+    roc_lcomb, pr_lcomb = [], []
+
+    for fi, (train_idx, test_idx) in enumerate(fold_indices):
+        correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
+        background_train = [traces[i] for i in train_idx]
+        ref = fit_relative_mahalanobis_reference_safe(
+            correct_train,
+            background_train,
+            layer,
+            pca_dim,
+            normalize_input=normalize_input,
+        )
+        if ref is None:
+            print(f"    WARNING: skip fold {fi} — relative ref failed (layer {layer})")
+            continue
+        pca, mu, cov_inv, bg_mu, bg_cov_inv = ref
+
+        X_rmd, X_comb, X_lcomb = [], [], []
+        for trace in traces:
+            rmd = compute_relative_mahal_distances(
+                trace["hiddens"][layer],
+                pca,
+                mu,
+                cov_inv,
+                bg_mu,
+                bg_cov_inv,
+                normalize_input=normalize_input,
+            )
+            e = trace["entropies"]
+            ef = entropy_features(e)
+            rf = mahal_features(e, rmd)
+            log_len = [np.log1p(len(e))]
+            X_rmd.append(rf)
+            X_comb.append(ef + rf)
+            X_lcomb.append(ef + rf + log_len)
+        X_rmd = np.array(X_rmd)
+        X_comb = np.array(X_comb)
+        X_lcomb = np.array(X_lcomb)
+
+        for X, roc_list, pr_list in (
+            (X_rmd, roc_rmd, pr_rmd),
+            (X_comb, roc_comb, pr_comb),
+            (X_lcomb, roc_lcomb, pr_lcomb),
+        ):
+            out = _fold_clf_auc(X, y, train_idx, test_idx)
+            if out is None:
+                continue
+            roc, pr = out
+            roc_list.append(roc)
+            pr_list.append(pr)
+
+    def pack(roc_list, pr_list, name: str) -> dict:
+        if not roc_list:
+            print(f"    {label_prefix}{name}: no valid folds")
+            return {
+                "roc_auc_mean": float("nan"),
+                "roc_auc_std": float("nan"),
+                "pr_auc_mean": float("nan"),
+                "pr_auc_std": float("nan"),
+                "fold_roc_aucs": [],
+            }
+        r = {
+            "roc_auc_mean": float(np.mean(roc_list)),
+            "roc_auc_std": float(np.std(roc_list)),
+            "pr_auc_mean": float(np.mean(pr_list)),
+            "pr_auc_std": float(np.std(pr_list)),
+            "fold_roc_aucs": [float(v) for v in roc_list],
+        }
+        print(f"    {label_prefix}{name:30s}: ROC-AUC = {r['roc_auc_mean']:.4f} ± {r['roc_auc_std']:.4f} | "
+              f"PR-AUC = {r['pr_auc_mean']:.4f} ± {r['pr_auc_std']:.4f}")
+        return r
+
+    family = "normalized_" if normalize_input else "raw_"
+    return {
+        f"{family}rmd_only": pack(roc_rmd, pr_rmd, f"{family}rmd_only"),
+        f"{family}rmd_combined": pack(roc_comb, pr_comb, f"{family}rmd_combined"),
+        f"{family}rmd_combined_with_length": pack(
+            roc_lcomb,
+            pr_lcomb,
+            f"{family}rmd_combined+length",
+        ),
+    }
+
+
+def evaluate_foldwise_low_rank_subspace_sweep(
+    traces: list[dict],
+    layer: int,
+    pca_dim: int,
+    subspace_ranks: list[int],
+    y: np.ndarray,
+    fold_indices: list[tuple],
+    label_prefix: str = "",
+    normalize_input: bool = False,
+) -> dict:
+    results = {}
+
+    for rank in subspace_ranks:
+        roc_centroid, pr_centroid = [], []
+        roc_centroid_comb, pr_centroid_comb = [], []
+        roc_mah, pr_mah = [], []
+        roc_mah_comb, pr_mah_comb = [], []
+        actual_dims = []
+
+        for fi, (train_idx, test_idx) in enumerate(fold_indices):
+            correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
+            incorrect_train = [traces[i] for i in train_idx if not traces[i]["is_correct"]]
+            ref = fit_contrast_subspace_reference_safe(
+                correct_train,
+                incorrect_train,
+                layer,
+                pca_dim,
+                rank,
+                normalize_input=normalize_input,
+            )
+            if ref is None:
+                print(
+                    f"    WARNING: skip fold {fi} — low-rank subspace ref failed "
+                    f"(layer {layer}, rank {rank})"
+                )
+                continue
+            pca, contrast_basis, mu_sub, cov_inv_sub = ref
+            actual_dims.append(int(contrast_basis.shape[0]))
+
+            X_centroid, X_centroid_comb = [], []
+            X_mah, X_mah_comb = [], []
+            for trace in traces:
+                centroid_d = compute_contrast_centroid_distances(
+                    trace["hiddens"][layer],
+                    pca,
+                    contrast_basis,
+                    mu_sub,
+                    normalize_input=normalize_input,
+                )
+                mahal_d = compute_contrast_mahal_distances(
+                    trace["hiddens"][layer],
+                    pca,
+                    contrast_basis,
+                    mu_sub,
+                    cov_inv_sub,
+                    normalize_input=normalize_input,
+                )
+                e = trace["entropies"]
+                ef = entropy_features(e)
+                centroid_f = mahal_features(e, centroid_d)
+                mahal_f = mahal_features(e, mahal_d)
+                X_centroid.append(centroid_f)
+                X_centroid_comb.append(ef + centroid_f)
+                X_mah.append(mahal_f)
+                X_mah_comb.append(ef + mahal_f)
+
+            X_centroid = np.array(X_centroid)
+            X_centroid_comb = np.array(X_centroid_comb)
+            X_mah = np.array(X_mah)
+            X_mah_comb = np.array(X_mah_comb)
+
+            for X, roc_list, pr_list in (
+                (X_centroid, roc_centroid, pr_centroid),
+                (X_centroid_comb, roc_centroid_comb, pr_centroid_comb),
+                (X_mah, roc_mah, pr_mah),
+                (X_mah_comb, roc_mah_comb, pr_mah_comb),
+            ):
+                out = _fold_clf_auc(X, y, train_idx, test_idx)
+                if out is None:
+                    continue
+                roc, pr = out
+                roc_list.append(roc)
+                pr_list.append(pr)
+
+        def pack(roc_list, pr_list, name: str) -> dict:
+            if not roc_list:
+                print(f"    {label_prefix}{name}: no valid folds")
+                return {
+                    "roc_auc_mean": float("nan"),
+                    "roc_auc_std": float("nan"),
+                    "pr_auc_mean": float("nan"),
+                    "pr_auc_std": float("nan"),
+                    "fold_roc_aucs": [],
+                }
+            r = {
+                "roc_auc_mean": float(np.mean(roc_list)),
+                "roc_auc_std": float(np.std(roc_list)),
+                "pr_auc_mean": float(np.mean(pr_list)),
+                "pr_auc_std": float(np.std(pr_list)),
+                "fold_roc_aucs": [float(v) for v in roc_list],
+            }
+            print(
+                f"    {label_prefix}{name:30s}: ROC-AUC = {r['roc_auc_mean']:.4f} ± {r['roc_auc_std']:.4f} | "
+                f"PR-AUC = {r['pr_auc_mean']:.4f} ± {r['pr_auc_std']:.4f}"
+            )
+            return r
+
+        results[str(rank)] = {
+            "requested_rank": rank,
+            "actual_dims": actual_dims,
+            "centroid_only": pack(roc_centroid, pr_centroid, f"subspace_centroid(k={rank})"),
+            "centroid_combined": pack(
+                roc_centroid_comb,
+                pr_centroid_comb,
+                f"subspace_centroid+ent(k={rank})",
+            ),
+            "mahalanobis_only": pack(roc_mah, pr_mah, f"subspace_mahal(k={rank})"),
+            "mahalanobis_combined": pack(
+                roc_mah_comb,
+                pr_mah_comb,
+                f"subspace_mahal+ent(k={rank})",
+            ),
+        }
+
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +920,7 @@ def evaluate_foldwise_mahalanobis(
     y: np.ndarray,
     fold_indices: list[tuple],
     label_prefix: str = "",
+    normalize_input: bool = False,
 ) -> dict:
     """CV where each train fold fits PCA+Gaussian on **train-fold correct** traces only."""
     roc_mah, pr_mah = [], []
@@ -511,7 +929,9 @@ def evaluate_foldwise_mahalanobis(
 
     for fi, (train_idx, test_idx) in enumerate(fold_indices):
         correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
-        ref = fit_mahalanobis_reference_safe(correct_train, layer, pca_dim)
+        ref = fit_mahalanobis_reference_safe(
+            correct_train, layer, pca_dim, normalize_input=normalize_input
+        )
         if ref is None:
             print(f"    WARNING: skip fold {fi} — Mahalanobis ref failed (layer {layer})")
             continue
@@ -519,7 +939,13 @@ def evaluate_foldwise_mahalanobis(
 
         X_mah, X_comb, X_lcomb = [], [], []
         for trace in traces:
-            m = compute_mahal_distances(trace["hiddens"][layer], pca, mu, cov_inv)
+            m = compute_mahal_distances(
+                trace["hiddens"][layer],
+                pca,
+                mu,
+                cov_inv,
+                normalize_input=normalize_input,
+            )
             e = trace["entropies"]
             ef = entropy_features(e)
             mf = mahal_features(e, m)
@@ -579,6 +1005,7 @@ def evaluate_foldwise_narrow_mahalanobis(
     fold_indices: list[tuple],
     label_prefix: str = "",
     ent_percentile: int = 50,
+    normalize_input: bool = False,
 ) -> dict:
     """Same as evaluate_foldwise_mahalanobis but reference uses high-entropy tokens on train correct."""
     roc_nmah, pr_nmah = [], []
@@ -587,7 +1014,11 @@ def evaluate_foldwise_narrow_mahalanobis(
     for fi, (train_idx, test_idx) in enumerate(fold_indices):
         correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
         ref = fit_mahalanobis_reference_narrow_safe(
-            correct_train, layer, pca_dim, ent_percentile
+            correct_train,
+            layer,
+            pca_dim,
+            ent_percentile,
+            normalize_input=normalize_input,
         )
         if ref is None:
             print(f"    WARNING: skip fold {fi} — narrow Mahalanobis ref failed (layer {layer})")
@@ -596,7 +1027,13 @@ def evaluate_foldwise_narrow_mahalanobis(
 
         X_nmah, X_ncomb = [], []
         for trace in traces:
-            m = compute_mahal_distances(trace["hiddens"][layer], npca, nmu, ncov_inv)
+            m = compute_mahal_distances(
+                trace["hiddens"][layer],
+                npca,
+                nmu,
+                ncov_inv,
+                normalize_input=normalize_input,
+            )
             e = trace["entropies"]
             mf = mahal_features(e, m)
             X_nmah.append(mf)
@@ -1340,7 +1777,14 @@ def main():
     args = parse_args()
     prefix = args.dataset_label
     out_dir = args.output_dir or args.data_dir
+    subspace_ranks = parse_rank_list(args.subspace_ranks)
     os.makedirs(out_dir, exist_ok=True)
+    run_base = args.analysis_family in {"base", "all"} or bool(args.cross_model_ref)
+    run_controls = args.analysis_family in {"controls", "all"} or args.normalized_controls
+    run_post_fork = args.analysis_family in {"post_fork", "all"} or args.post_fork
+    run_contrast = args.analysis_family in {"subspace", "all"} or args.contrast
+    run_subspace_sweep = args.analysis_family in {"subspace", "all"} or args.subspace_sweep
+    run_narrow = args.analysis_family in {"narrow", "all"} or args.narrow_ref
 
     # Determine layers to analyze
     if args.layers:
@@ -1378,52 +1822,136 @@ def main():
         print(f"LAYER {layer}")
         print(f"{'='*60}")
 
-        fw = evaluate_foldwise_mahalanobis(
-            traces, layer, args.pca_dim, y, fold_indices, label_prefix=""
-        )
-        mahal_result = fw["mahalanobis_only"]
-        comb_result = fw["combined"]
-        lcomb_result = fw["combined_with_length"]
+        layer_results[layer] = {}
 
-        delta = comb_result["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
-        len_delta = lcomb_result["roc_auc_mean"] - lent_result_global["roc_auc_mean"]
-        print(f"\n  Delta (combined - entropy_only):          {delta:+.4f}")
-        print(f"  Delta (combined+len - entropy+len):       {len_delta:+.4f}  [length-controlled]")
+        if run_base:
+            fw = evaluate_foldwise_mahalanobis(
+                traces, layer, args.pca_dim, y, fold_indices, label_prefix=""
+            )
+            mahal_result = fw["mahalanobis_only"]
+            comb_result = fw["combined"]
+            lcomb_result = fw["combined_with_length"]
 
-        confident_wrong = analyze_confident_wrong(traces, layer, args.pca_dim, fold_indices)
+            delta = comb_result["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+            len_delta = lcomb_result["roc_auc_mean"] - lent_result_global["roc_auc_mean"]
+            print(f"\n  Delta (combined - entropy_only):          {delta:+.4f}")
+            print(f"  Delta (combined+len - entropy+len):       {len_delta:+.4f}  [length-controlled]")
 
-        layer_results[layer] = {
-            "mahalanobis_only": mahal_result,
-            "combined": comb_result,
-            "delta_vs_entropy": float(delta),
-            "entropy_with_length": lent_result_global,
-            "combined_with_length": lcomb_result,
-            "length_controlled_delta": float(len_delta),
-            "confident_wrong": confident_wrong,
-        }
+            confident_wrong = analyze_confident_wrong(traces, layer, args.pca_dim, fold_indices)
+
+            layer_results[layer].update({
+                "mahalanobis_only": mahal_result,
+                "combined": comb_result,
+                "delta_vs_entropy": float(delta),
+                "entropy_with_length": lent_result_global,
+                "combined_with_length": lcomb_result,
+                "length_controlled_delta": float(len_delta),
+                "confident_wrong": confident_wrong,
+            })
+
+        if run_controls:
+            print(f"\n  Normalized / relative Mahalanobis controls...")
+            nfw = evaluate_foldwise_mahalanobis(
+                traces,
+                layer,
+                args.pca_dim,
+                y,
+                fold_indices,
+                normalize_input=True,
+            )
+            nmah_result = nfw["mahalanobis_only"]
+            ncomb_result = nfw["combined"]
+            nlcomb_result = nfw["combined_with_length"]
+            ndelta = ncomb_result["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+            nlen_delta = nlcomb_result["roc_auc_mean"] - lent_result_global["roc_auc_mean"]
+            print(f"  Normalized delta vs entropy:           {ndelta:+.4f}")
+            print(f"  Normalized delta vs entropy+length:    {nlen_delta:+.4f}")
+
+            raw_rmd = evaluate_foldwise_relative_mahalanobis(
+                traces, layer, args.pca_dim, y, fold_indices, normalize_input=False
+            )
+            raw_rmd_delta = raw_rmd["raw_rmd_combined"]["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+
+            norm_rmd = evaluate_foldwise_relative_mahalanobis(
+                traces, layer, args.pca_dim, y, fold_indices, normalize_input=True
+            )
+            norm_rmd_delta = norm_rmd["normalized_rmd_combined"]["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+
+            print(f"  Raw RMD delta vs entropy:              {raw_rmd_delta:+.4f}")
+            print(f"  Normalized RMD delta vs entropy:       {norm_rmd_delta:+.4f}")
+
+            layer_results[layer]["normalized_mahalanobis_only"] = nmah_result
+            layer_results[layer]["normalized_combined"] = ncomb_result
+            layer_results[layer]["normalized_combined_with_length"] = nlcomb_result
+            layer_results[layer]["normalized_delta_vs_entropy"] = float(ndelta)
+            layer_results[layer]["normalized_length_controlled_delta"] = float(nlen_delta)
+            layer_results[layer].update(raw_rmd)
+            layer_results[layer]["raw_rmd_delta_vs_entropy"] = float(raw_rmd_delta)
+            layer_results[layer].update(norm_rmd)
+            layer_results[layer]["normalized_rmd_delta_vs_entropy"] = float(norm_rmd_delta)
 
         # --- Post-fork analysis ---
-        if args.post_fork or args.all_analyses:
+        if run_post_fork:
             post_fork = analyze_post_fork(traces, layer, args.pca_dim, fold_indices)
             layer_results[layer]["post_fork"] = post_fork
 
         # --- Low-rank contrast subspace ---
-        if args.contrast or args.all_analyses:
+        if run_contrast:
             print(f"\n  Contrast subspace (dim={args.contrast_dim})...")
             cw = evaluate_foldwise_contrast_mahalanobis(
                 traces, layer, args.pca_dim, args.contrast_dim, y, fold_indices
             )
             contrast_delta = cw["contrast_combined"]["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
-            global_delta = comb_result["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
-            print(f"  Contrast delta vs entropy:    {contrast_delta:+.4f}  "
-                  f"(global Mahalanobis: {global_delta:+.4f})")
+            msg = f"  Contrast delta vs entropy:    {contrast_delta:+.4f}"
+            if run_base:
+                global_delta = layer_results[layer]["combined"]["roc_auc_mean"] - entropy_baseline["roc_auc_mean"]
+                msg += f"  (global Mahalanobis: {global_delta:+.4f})"
+            print(msg)
             layer_results[layer]["contrast_mahal_only"] = cw["contrast_mahal_only"]
             layer_results[layer]["contrast_combined"] = cw["contrast_combined"]
             layer_results[layer]["contrast_delta_vs_entropy"] = float(contrast_delta)
             layer_results[layer]["contrast_dim"] = args.contrast_dim
 
+        if run_subspace_sweep:
+            print(f"\n  Low-rank subspace sweep (ranks={subspace_ranks})...")
+            sweep = evaluate_foldwise_low_rank_subspace_sweep(
+                traces,
+                layer,
+                args.pca_dim,
+                subspace_ranks,
+                y,
+                fold_indices,
+            )
+            best_centroid_rank = max(
+                sweep,
+                key=lambda rank: sweep[rank]["centroid_combined"]["roc_auc_mean"],
+            )
+            best_mahal_rank = max(
+                sweep,
+                key=lambda rank: sweep[rank]["mahalanobis_combined"]["roc_auc_mean"],
+            )
+            best_centroid_auc = sweep[best_centroid_rank]["centroid_combined"]["roc_auc_mean"]
+            best_mahal_auc = sweep[best_mahal_rank]["mahalanobis_combined"]["roc_auc_mean"]
+            print(
+                f"  Best centroid rank: k={best_centroid_rank} "
+                f"(AUC={best_centroid_auc:.4f}, Δ={best_centroid_auc - entropy_baseline['roc_auc_mean']:+.4f})"
+            )
+            print(
+                f"  Best subspace Mahalanobis rank: k={best_mahal_rank} "
+                f"(AUC={best_mahal_auc:.4f}, Δ={best_mahal_auc - entropy_baseline['roc_auc_mean']:+.4f})"
+            )
+            layer_results[layer]["low_rank_subspace_sweep"] = sweep
+            layer_results[layer]["best_low_rank_centroid_rank"] = int(best_centroid_rank)
+            layer_results[layer]["best_low_rank_centroid_delta_vs_entropy"] = float(
+                best_centroid_auc - entropy_baseline["roc_auc_mean"]
+            )
+            layer_results[layer]["best_low_rank_mahal_rank"] = int(best_mahal_rank)
+            layer_results[layer]["best_low_rank_mahal_delta_vs_entropy"] = float(
+                best_mahal_auc - entropy_baseline["roc_auc_mean"]
+            )
+
         # --- Narrow reference distribution ---
-        if args.narrow_ref or args.all_analyses:
+        if run_narrow:
             print(f"\n  Narrow reference distribution (fold-wise)...")
             nw = evaluate_foldwise_narrow_mahalanobis(
                 traces, layer, args.pca_dim, y, fold_indices, label_prefix=""
@@ -1437,22 +1965,25 @@ def main():
             layer_results[layer]["narrow_combined"] = narrow_comb_result
             layer_results[layer]["narrow_delta_vs_entropy"] = float(narrow_delta)
 
-        assign_oof_mahalanobis_distances(traces, layer, args.pca_dim, fold_indices)
-        plot_mahal_distributions(traces, layer, os.path.join(out_dir, f"{prefix}_mahal_dist_L{layer}.png"))
+        if run_base:
+            assign_oof_mahalanobis_distances(traces, layer, args.pca_dim, fold_indices)
+            plot_mahal_distributions(traces, layer, os.path.join(out_dir, f"{prefix}_mahal_dist_L{layer}.png"))
 
     # Best layer plots
-    best_layer = max(layer_results, key=lambda l: layer_results[l]["combined"]["roc_auc_mean"])
-    print(f"\nBest layer by combined AUC: {best_layer}")
-    # Exploratory 2D figure: PCA basis from all correct traces (visualization only)
-    pca_vis, _, _ = fit_mahalanobis_reference(correct, best_layer, args.pca_dim)
-    assign_oof_mahalanobis_distances(traces, best_layer, args.pca_dim, fold_indices)
-    plot_geometry(traces, pca_vis, best_layer, os.path.join(out_dir, f"{prefix}_geometry_L{best_layer}.png"))
+    best_layer = None
+    if run_base and layer_results:
+        best_layer = max(layer_results, key=lambda l: layer_results[l]["combined"]["roc_auc_mean"])
+        print(f"\nBest layer by combined AUC: {best_layer}")
+        # Exploratory 2D figure: PCA basis from all correct traces (visualization only)
+        pca_vis, _, _ = fit_mahalanobis_reference(correct, best_layer, args.pca_dim)
+        assign_oof_mahalanobis_distances(traces, best_layer, args.pca_dim, fold_indices)
+        plot_geometry(traces, pca_vis, best_layer, os.path.join(out_dir, f"{prefix}_geometry_L{best_layer}.png"))
 
-    plot_layer_comparison(layer_results, entropy_baseline, os.path.join(out_dir, f"{prefix}_layer_comparison.png"))
+        plot_layer_comparison(layer_results, entropy_baseline, os.path.join(out_dir, f"{prefix}_layer_comparison.png"))
 
     # --- Difficulty stratification ---
     difficulty_results = None
-    if prefix == "math500" and (args.difficulty or args.all_analyses):
+    if best_layer is not None and prefix == "math500" and (args.difficulty or args.all_analyses):
         print(f"\n{'='*60}")
         print("DIFFICULTY STRATIFICATION (best layer)")
         print(f"{'='*60}")
@@ -1470,7 +2001,7 @@ def main():
 
     # --- Subject stratification ---
     subject_results = None
-    if prefix == "math500" and (args.subject or args.all_analyses):
+    if best_layer is not None and prefix == "math500" and (args.subject or args.all_analyses):
         print(f"\n{'='*60}")
         print("SUBJECT STRATIFICATION (best layer)")
         print(f"{'='*60}")
@@ -1493,51 +2024,68 @@ def main():
     print(f"  Entropy-only baseline: {entropy_baseline['roc_auc_mean']:.4f} ± {entropy_baseline['roc_auc_std']:.4f}  [FIXED ACROSS ALL LAYERS]")
     print()
 
-    # Build header
-    has_post_fork = any("post_fork" in layer_results[l] for l in layer_results)
-    has_narrow = any("narrow_combined" in layer_results[l] for l in layer_results)
+    if run_base:
+        # Build header
+        has_post_fork = any("post_fork" in layer_results[l] for l in layer_results)
+        has_narrow = any("narrow_combined" in layer_results[l] for l in layer_results)
 
-    header = f"  {'Layer':>6}  {'Mahal-only':>12}  {'Combined':>10}  {'Delta':>8}  {'LenCtrlΔ':>10}  {'ConfWrong p':>12}"
-    if has_post_fork:
-        header += f"  {'PostFork p':>12}"
-    if has_narrow:
-        header += f"  {'NarrowComb':>12}  {'NarrowΔ':>8}"
-    print(header)
-
-    for layer in sorted(layer_results):
-        r = layer_results[layer]
-        cw = r["confident_wrong"]
-        cw_p = cw.get("mannwhitney_pvalue")
-        if cw.get("skipped") or cw_p is None or (isinstance(cw_p, float) and np.isnan(cw_p)):
-            cw_cell = f"{'N/A':>10}    "
-        else:
-            sig = "***" if cw_p < 0.01 else ("*" if cw_p < 0.05 else "")
-            cw_cell = f"{cw_p:>10.2e} {sig}"
-        lc_delta = r.get("length_controlled_delta", float("nan"))
-        line = (
-            f"  {layer:>6}  "
-            f"{r['mahalanobis_only']['roc_auc_mean']:>10.4f}  "
-            f"{r['combined']['roc_auc_mean']:>10.4f}  "
-            f"{r['delta_vs_entropy']:>+8.4f}  "
-            f"{lc_delta:>+10.4f}  "
-            f"{cw_cell}"
-        )
+        header = f"  {'Layer':>6}  {'Mahal-only':>12}  {'Combined':>10}  {'Delta':>8}  {'LenCtrlΔ':>10}  {'ConfWrong p':>12}"
         if has_post_fork:
-            pf = r.get("post_fork", {})
-            if pf.get("skipped"):
-                line += f"  {'N/A':>12}"
-            else:
-                pf_p = pf.get("mannwhitney_pvalue", float("nan"))
-                pf_sig = "***" if pf_p < 0.01 else ("*" if pf_p < 0.05 else "")
-                line += f"  {pf_p:>10.2e} {pf_sig}"
+            header += f"  {'PostFork p':>12}"
         if has_narrow:
-            nc = r.get("narrow_combined", {})
-            nd = r.get("narrow_delta_vs_entropy", float("nan"))
-            if nc:
-                line += f"  {nc['roc_auc_mean']:>10.4f}  {nd:>+8.4f}"
+            header += f"  {'NarrowComb':>12}  {'NarrowΔ':>8}"
+        print(header)
+
+        for layer in sorted(layer_results):
+            r = layer_results[layer]
+            cw = r["confident_wrong"]
+            cw_p = cw.get("mannwhitney_pvalue")
+            if cw.get("skipped") or cw_p is None or (isinstance(cw_p, float) and np.isnan(cw_p)):
+                cw_cell = f"{'N/A':>10}    "
             else:
-                line += f"  {'N/A':>12}  {'N/A':>8}"
-        print(line)
+                sig = "***" if cw_p < 0.01 else ("*" if cw_p < 0.05 else "")
+                cw_cell = f"{cw_p:>10.2e} {sig}"
+            lc_delta = r.get("length_controlled_delta", float("nan"))
+            line = (
+                f"  {layer:>6}  "
+                f"{r['mahalanobis_only']['roc_auc_mean']:>10.4f}  "
+                f"{r['combined']['roc_auc_mean']:>10.4f}  "
+                f"{r['delta_vs_entropy']:>+8.4f}  "
+                f"{lc_delta:>+10.4f}  "
+                f"{cw_cell}"
+            )
+            if has_post_fork:
+                pf = r.get("post_fork", {})
+                if pf.get("skipped"):
+                    line += f"  {'N/A':>12}"
+                else:
+                    pf_p = pf.get("mannwhitney_pvalue", float("nan"))
+                    pf_sig = "***" if pf_p < 0.01 else ("*" if pf_p < 0.05 else "")
+                    line += f"  {pf_p:>10.2e} {pf_sig}"
+            if has_narrow:
+                nc = r.get("narrow_combined", {})
+                nd = r.get("narrow_delta_vs_entropy", float("nan"))
+                if nc:
+                    line += f"  {nc['roc_auc_mean']:>10.4f}  {nd:>+8.4f}"
+                else:
+                    line += f"  {'N/A':>12}  {'N/A':>8}"
+            print(line)
+    else:
+        completed = []
+        if run_controls:
+            completed.append("normalized_controls")
+        if run_contrast:
+            completed.append("contrast")
+        if run_subspace_sweep:
+            completed.append("subspace_sweep")
+        if run_post_fork:
+            completed.append("post_fork")
+        if run_narrow:
+            completed.append("narrow_ref")
+        print(f"  Partial analysis family: {args.analysis_family}")
+        print(f"  Layers covered: {', '.join(str(layer) for layer in sorted(layer_results))}")
+        if completed:
+            print(f"  Outputs added: {', '.join(completed)}")
 
     # Difficulty summary
     if difficulty_results:
@@ -1643,6 +2191,15 @@ def main():
         "dataset": prefix,
         "n_correct": len(correct),
         "n_incorrect": len(incorrect),
+        "settings": {
+            "pca_dim": args.pca_dim,
+            "cv_random_state": args.cv_random_state,
+            "analysis_family": args.analysis_family,
+            "normalized_controls": bool(run_controls),
+            "subspace_sweep": bool(run_subspace_sweep),
+            "subspace_ranks": subspace_ranks,
+            "contrast_dim": args.contrast_dim,
+        },
         "entropy_baseline": entropy_baseline,
         "layers": {str(l): layer_results[l] for l in layer_results},
     }
@@ -1652,7 +2209,8 @@ def main():
         output["subject_stratification"] = subject_results
     if cross_model_results:
         output["cross_model_transfer"] = cross_model_results
-    out_path = os.path.join(out_dir, f"{prefix}_results.json")
+    output_name = args.output_name or f"{prefix}_results.json"
+    out_path = os.path.join(out_dir, output_name)
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nResults saved to {out_path}")
