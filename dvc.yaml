@@ -4,77 +4,27 @@ stages:
   # Outputs are large .npz files tracked by DVC (not git).
   # To run: dvc repro collect_qwen_gsm8k
 
-  collect_qwen_gsm8k:
+  collect_qwen_arch:
+    # Qwen architecture (28 layers): qwen, deepseek — use layers 7,14,21
+    matrix:
+      model: [qwen, deepseek]
+      dataset: [gsm8k, math500]
     cmd: >-
       uv run python collect_data.py
-      --dataset gsm8k
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
+      --dataset ${item.dataset}
+      --model_name ${models.${item.model}.name}
+      --max_new_tokens ${models.${item.model}.max_new_tokens}
       --layers 7,14,21
-      --output_dir data/qwen/gsm8k
+      --output_dir data/${item.model}/${item.dataset}
     deps:
       - collect_data.py
     params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - datasets.gsm8k
+      - models.${item.model}.name
+      - models.${item.model}.max_new_tokens
+      - datasets.${item.dataset}
       - collect.batch_save_size
     outs:
-      - data/qwen/gsm8k
-
-  collect_qwen_math500:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
-      --layers 7,14,21
-      --output_dir data/qwen/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - datasets.math500
-      - collect.batch_save_size
-    outs:
-      - data/qwen/math500
-
-  collect_deepseek_gsm8k:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset gsm8k
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers 7,14,21
-      --output_dir data/deepseek/gsm8k
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - datasets.gsm8k
-      - collect.batch_save_size
-    outs:
-      - data/deepseek/gsm8k
-
-  collect_deepseek_math500:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers 7,14,21
-      --output_dir data/deepseek/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - datasets.math500
-      - collect.batch_save_size
-    outs:
-      - data/deepseek/math500
+      - data/${item.model}/${item.dataset}
 
   # ── Main analysis (incremental experiment families) ────────────────────────
   # These stages keep the canonical <dataset>_results.json, but build it from
@@ -280,86 +230,30 @@ stages:
       - results/${item.model}/math500/math500_results.json:
           cache: false
 
-  # ── DeepSeek-R1-Distill-Llama-8B (reasoning-distilled Llama) ─────────────
-  # Same 32-layer backbone depth as Llama-3.1-8B-Instruct, but reasoning-
-  # distilled. Uses 8/16/24 to match the existing cross-architecture sweep.
+  # ── Llama architecture (32 layers): llama, deepseek_llama — use layers 8,16,24
+  # Same backbone depth; 8/16/24 ≈ 25/50/75% of depth.
+  # Replicates the main analysis on a different model family.
 
-  collect_deepseek_llama_gsm8k:
+  collect_llama_arch:
+    matrix:
+      model: [llama, deepseek_llama]
+      dataset: [gsm8k, math500]
     cmd: >-
       uv run python collect_data.py
-      --dataset gsm8k
-      --model_name ${models.deepseek_llama.name}
-      --max_new_tokens ${models.deepseek_llama.max_new_tokens}
+      --dataset ${item.dataset}
+      --model_name ${models.${item.model}.name}
+      --max_new_tokens ${models.${item.model}.max_new_tokens}
       --layers 8,16,24
-      --output_dir data/deepseek_llama/gsm8k
+      --output_dir data/${item.model}/${item.dataset}
     deps:
       - collect_data.py
     params:
-      - models.deepseek_llama.name
-      - models.deepseek_llama.max_new_tokens
-      - datasets.gsm8k
+      - models.${item.model}.name
+      - models.${item.model}.max_new_tokens
+      - datasets.${item.dataset}
       - collect.batch_save_size
     outs:
-      - data/deepseek_llama/gsm8k
-
-  collect_deepseek_llama_math500:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek_llama.name}
-      --max_new_tokens ${models.deepseek_llama.max_new_tokens}
-      --layers 8,16,24
-      --output_dir data/deepseek_llama/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek_llama.name
-      - models.deepseek_llama.max_new_tokens
-      - datasets.math500
-      - collect.batch_save_size
-    outs:
-      - data/deepseek_llama/math500
-
-  # ── Llama (cross-architecture replication) ────────────────────────────────
-  # Llama-3.1-8B-Instruct: 32 layers, layers 8/16/24 ≈ 25/50/75% of depth.
-  # Replicates the main analysis on a different model family to validate that
-  # the geometry signal is not specific to the Qwen architecture.
-
-  collect_llama_gsm8k:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset gsm8k
-      --model_name ${models.llama.name}
-      --max_new_tokens ${models.llama.max_new_tokens}
-      --layers 8,16,24
-      --output_dir data/llama/gsm8k
-    deps:
-      - collect_data.py
-    params:
-      - models.llama.name
-      - models.llama.max_new_tokens
-      - datasets.gsm8k
-      - collect.batch_save_size
-    outs:
-      - data/llama/gsm8k
-
-  collect_llama_math500:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.llama.name}
-      --max_new_tokens ${models.llama.max_new_tokens}
-      --layers 8,16,24
-      --output_dir data/llama/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.llama.name
-      - models.llama.max_new_tokens
-      - datasets.math500
-      - collect.batch_save_size
-    outs:
-      - data/llama/math500
+      - data/${item.model}/${item.dataset}
 
   # Llama ↔ Qwen cross-model transfer (different architecture family)
   analyze_llama_gsm8k_cross_qwen:
@@ -1070,13 +964,16 @@ stages:
   # PYTHONPATH must include src/trajectory so trajectory_encoders /
   # trajectory_preprocessing are importable alongside repo-root analyze.py.
 
-  trajectory_qwen_math500:
+  trajectory:
+    matrix:
+      model: [qwen, deepseek]
+      dataset: [gsm8k, math500]
     cmd: >-
       PYTHONPATH=.
       uv run python probe.py
-      --data_dir data/qwen/math500
-      --output_dir results/qwen/math500_trajectory
-      --dataset_label math500
+      --data_dir data/${item.model}/${item.dataset}
+      --output_dir results/${item.model}/${item.dataset}_trajectory
+      --dataset_label ${item.dataset}
       --layers 7,14,21
       --pca_dim ${analyze.pca_dim}
       --target_len ${trajectory.target_len}
@@ -1086,86 +983,11 @@ stages:
       - trajectory_encoders.py
       - trajectory_preprocessing.py
       - analyze.py
-      - data/qwen/math500
+      - data/${item.model}/${item.dataset}
     params:
       - analyze.pca_dim
       - trajectory.target_len
       - trajectory.methods
     metrics:
-      - results/qwen/math500_trajectory/math500_trajectory_probe_results.json:
-          cache: false
-
-  trajectory_qwen_gsm8k:
-    cmd: >-
-      PYTHONPATH=.
-      uv run python probe.py
-      --data_dir data/qwen/gsm8k
-      --output_dir results/qwen/gsm8k_trajectory
-      --dataset_label gsm8k
-      --layers 7,14,21
-      --pca_dim ${analyze.pca_dim}
-      --target_len ${trajectory.target_len}
-      --methods ${trajectory.methods}
-    deps:
-      - probe.py
-      - trajectory_encoders.py
-      - trajectory_preprocessing.py
-      - analyze.py
-      - data/qwen/gsm8k
-    params:
-      - analyze.pca_dim
-      - trajectory.target_len
-      - trajectory.methods
-    metrics:
-      - results/qwen/gsm8k_trajectory/gsm8k_trajectory_probe_results.json:
-          cache: false
-
-  trajectory_deepseek_math500:
-    cmd: >-
-      PYTHONPATH=.
-      uv run python probe.py
-      --data_dir data/deepseek/math500
-      --output_dir results/deepseek/math500_trajectory
-      --dataset_label math500
-      --layers 7,14,21
-      --pca_dim ${analyze.pca_dim}
-      --target_len ${trajectory.target_len}
-      --methods ${trajectory.methods}
-    deps:
-      - probe.py
-      - trajectory_encoders.py
-      - trajectory_preprocessing.py
-      - analyze.py
-      - data/deepseek/math500
-    params:
-      - analyze.pca_dim
-      - trajectory.target_len
-      - trajectory.methods
-    metrics:
-      - results/deepseek/math500_trajectory/math500_trajectory_probe_results.json:
-          cache: false
-
-  trajectory_deepseek_gsm8k:
-    cmd: >-
-      PYTHONPATH=.
-      uv run python probe.py
-      --data_dir data/deepseek/gsm8k
-      --output_dir results/deepseek/gsm8k_trajectory
-      --dataset_label gsm8k
-      --layers 7,14,21
-      --pca_dim ${analyze.pca_dim}
-      --target_len ${trajectory.target_len}
-      --methods ${trajectory.methods}
-    deps:
-      - probe.py
-      - trajectory_encoders.py
-      - trajectory_preprocessing.py
-      - analyze.py
-      - data/deepseek/gsm8k
-    params:
-      - analyze.pca_dim
-      - trajectory.target_len
-      - trajectory.methods
-    metrics:
-      - results/deepseek/gsm8k_trajectory/gsm8k_trajectory_probe_results.json:
+      - results/${item.model}/${item.dataset}_trajectory/${item.dataset}_trajectory_probe_results.json:
           cache: false
