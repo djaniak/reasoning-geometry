@@ -75,12 +75,12 @@ stages:
   analyze_qwen_gsm8k:
     cmd: uv run python analyze.py --data_dir data/qwen/gsm8k --output_dir 
       results/qwen/gsm8k --dataset_label gsm8k --pca_dim 128 --cv_random_state 
-      42 --n_bootstrap 0
+      42 --n_bootstrap 0 --contrast --contrast_dim 10
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
     - path: data/qwen/gsm8k
       hash: md5
       md5: ebea02e08947d539d5ce177cfc95d0a1.dir
@@ -88,26 +88,28 @@ stages:
       nfiles: 27
     params:
       params.yaml:
+        analyze.contrast_dim: 10
         analyze.cv_random_state: 42
         analyze.pca_dim: 128
     outs:
     - path: results/qwen/gsm8k/gsm8k_layer_comparison.png
       hash: md5
-      md5: 388ba7a22019da5edfaec784d2baaa8e
-      size: 59189
+      md5: bff3787f80bbb272782a1be39ac56424
+      size: 59357
     - path: results/qwen/gsm8k/gsm8k_results.json
       hash: md5
-      md5: 785aed882b236baf6dd425223de173e6
-      size: 6641
+      md5: 54e795489d100e5a3fc64486da3cc7ff
+      size: 9277
   analyze_qwen_math500:
     cmd: uv run python analyze.py --data_dir data/qwen/math500 --output_dir 
       results/qwen/math500 --dataset_label math500 --pca_dim 128 
-      --cv_random_state 42 --difficulty --subject --n_bootstrap 200
+      --cv_random_state 42 --difficulty --subject --n_bootstrap 200 --contrast 
+      --contrast_dim 10
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
     - path: data/qwen/math500
       hash: md5
       md5: b9e512770648abf18bbfe352703d03d1.dir
@@ -115,35 +117,36 @@ stages:
       nfiles: 10
     params:
       params.yaml:
+        analyze.contrast_dim: 10
         analyze.cv_random_state: 42
         analyze.n_bootstrap: 200
         analyze.pca_dim: 128
     outs:
     - path: results/qwen/math500/math500_difficulty.png
       hash: md5
-      md5: c288ec1ac1eb0288462ba0a4deeba705
-      size: 101959
+      md5: f486041049815da356063d32c9d65788
+      size: 101965
     - path: results/qwen/math500/math500_layer_comparison.png
       hash: md5
-      md5: f58a76219c1be82178f75d40fa805f48
-      size: 73667
+      md5: 62e35debe2e1c35249e0cdd3f40b2325
+      size: 68497
     - path: results/qwen/math500/math500_results.json
       hash: md5
-      md5: 42bea055dcaef31608ece3a9e198a63b
-      size: 30845
+      md5: 1bf76d4b343fdde503884fbff684c98a
+      size: 33472
     - path: results/qwen/math500/math500_subject.png
       hash: md5
-      md5: 254e409c75b0be42ad4fa0a5614482f0
-      size: 77568
+      md5: b458931fe3253d712ca984735386dbc5
+      size: 77566
   analyze_deepseek_gsm8k:
     cmd: uv run python analyze.py --data_dir data/deepseek/gsm8k --output_dir 
       results/deepseek/gsm8k --dataset_label gsm8k --pca_dim 128 
-      --cv_random_state 42 --n_bootstrap 0
+      --cv_random_state 42 --n_bootstrap 0 --contrast --contrast_dim 10
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
     - path: data/deepseek/gsm8k
       hash: md5
       md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
@@ -151,17 +154,18 @@ stages:
       nfiles: 26
     params:
       params.yaml:
+        analyze.contrast_dim: 10
         analyze.cv_random_state: 42
         analyze.pca_dim: 128
     outs:
     - path: results/deepseek/gsm8k/gsm8k_layer_comparison.png
       hash: md5
-      md5: 0400473d41f7d654617a9aa4a3f481b2
-      size: 65104
+      md5: df04e9d04837b92d6445a78008103a0c
+      size: 64358
     - path: results/deepseek/gsm8k/gsm8k_results.json
       hash: md5
-      md5: fa094c82bc9a87a7a7835a54cbef61b5
-      size: 6642
+      md5: 3e8b6ee555ffbd790e0bf6749a89750c
+      size: 9267
   collect_deepseek_math500:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
@@ -189,39 +193,41 @@ stages:
   analyze_deepseek_math500:
     cmd: uv run python analyze.py --data_dir data/deepseek/math500 --output_dir 
       results/deepseek/math500 --dataset_label math500 --pca_dim 128 
-      --cv_random_state 42 --difficulty --subject --n_bootstrap 200
+      --cv_random_state 42 --difficulty --subject --n_bootstrap 200 --contrast 
+      --contrast_dim 10
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
     - path: data/deepseek/math500
       hash: md5
-      md5: 2f362d8f1c45c5fd2d69ae2335ca6711.dir
-      size: 16671515318
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
       nfiles: 10
     params:
       params.yaml:
+        analyze.contrast_dim: 10
         analyze.cv_random_state: 42
         analyze.n_bootstrap: 200
         analyze.pca_dim: 128
     outs:
     - path: results/deepseek/math500/math500_difficulty.png
       hash: md5
-      md5: 591f974c6b1ac3cb51985912447ce788
+      md5: 85729c896357e72ad214c232610f4ec1
       size: 95844
     - path: results/deepseek/math500/math500_layer_comparison.png
       hash: md5
-      md5: 222946426a85e789d5f4d6626fb52eb9
-      size: 74623
+      md5: 4b13cdb72f5592b26ac149abf31bee74
+      size: 74554
     - path: results/deepseek/math500/math500_results.json
       hash: md5
-      md5: 0216d83267aabf311d5be2bda6c78344
-      size: 30606
+      md5: 859fc50b15f115310aaefa37c779e8ca
+      size: 33265
     - path: results/deepseek/math500/math500_subject.png
       hash: md5
-      md5: 639dc5a80b9cd5b16ef554a1053081e0
-      size: 78185
+      md5: 53092e96fce7284c6f6c29fd3d28cbbe
+      size: 77339
   analyze_qwen_gsm8k_cross:
     cmd: uv run python analyze.py --data_dir data/qwen/gsm8k --output_dir 
       results/qwen/gsm8k_cross --dataset_label gsm8k --pca_dim 128 
@@ -955,3 +961,165 @@ stages:
       hash: md5
       md5: 984c0fea4c2cd7447d6ce0e78b9b1095
       size: 50845
+  collect_llama_math500:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      meta-llama/Llama-3.1-8B-Instruct --max_new_tokens 1024 --layers 8,16,24 
+      --output_dir data/llama/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        collect.batch_save_size: 50
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        models.llama.max_new_tokens: 1024
+        models.llama.name: meta-llama/Llama-3.1-8B-Instruct
+    outs:
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+  collect_llama_gsm8k:
+    cmd: uv run python collect_data.py --dataset gsm8k --model_name 
+      meta-llama/Llama-3.1-8B-Instruct --max_new_tokens 1024 --layers 8,16,24 
+      --output_dir data/llama/gsm8k
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        collect.batch_save_size: 50
+        datasets.gsm8k:
+          hf_path: openai/gsm8k
+          hf_name: main
+          split: test
+        models.llama.max_new_tokens: 1024
+        models.llama.name: meta-llama/Llama-3.1-8B-Instruct
+    outs:
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+  analyze_llama_gsm8k:
+    cmd: uv run python analyze.py --data_dir data/llama/gsm8k --output_dir 
+      results/llama/gsm8k --dataset_label gsm8k --pca_dim 128 --cv_random_state 
+      42 --n_bootstrap 0 --contrast --contrast_dim 10
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/gsm8k/gsm8k_layer_comparison.png
+      hash: md5
+      md5: 467e243b32b89350e55be8f531e5f992
+      size: 57522
+    - path: results/llama/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: fc688462abb5616088e3ebe07a6934ba
+      size: 9299
+  analyze_llama_math500:
+    cmd: uv run python analyze.py --data_dir data/llama/math500 --output_dir 
+      results/llama/math500 --dataset_label math500 --pca_dim 128 
+      --cv_random_state 42 --difficulty --subject --n_bootstrap 200 --contrast 
+      --contrast_dim 10
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 52d885b3fad65abe40591816e14ec05c
+      size: 68959
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.n_bootstrap: 200
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/math500/math500_difficulty.png
+      hash: md5
+      md5: 09ac3458fb5bd5eec830777504532cb5
+      size: 100290
+    - path: results/llama/math500/math500_layer_comparison.png
+      hash: md5
+      md5: 6705114ed1b4ea710745108c13154ba3
+      size: 55701
+    - path: results/llama/math500/math500_results.json
+      hash: md5
+      md5: 74c575e7ef4d50adfed5d2619eaf0058
+      size: 33260
+    - path: results/llama/math500/math500_subject.png
+      hash: md5
+      md5: f9c1e4d49ca7cb19e4c9d95cab8c52ae
+      size: 77707
+  collect_deepseek_llama_gsm8k:
+    cmd: uv run python collect_data.py --dataset gsm8k --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Llama-8B --max_new_tokens 2048 --layers 
+      8,16,24 --output_dir data/deepseek_llama/gsm8k
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        collect.batch_save_size: 50
+        datasets.gsm8k:
+          hf_path: openai/gsm8k
+          hf_name: main
+          split: test
+        models.deepseek_llama.max_new_tokens: 2048
+        models.deepseek_llama.name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+    outs:
+    - path: data/deepseek_llama/gsm8k
+      hash: md5
+      md5: a23cfa992713e9545c822353d6cc4961.dir
+      size: 13479791718
+      nfiles: 27
+  collect_deepseek_llama_math500:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Llama-8B --max_new_tokens 2048 --layers 
+      8,16,24 --output_dir data/deepseek_llama/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        collect.batch_save_size: 50
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        models.deepseek_llama.max_new_tokens: 2048
+        models.deepseek_llama.name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+    outs:
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10

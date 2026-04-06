@@ -195,6 +195,103 @@ stages:
       - results/deepseek/math500/math500_subject.png:
           cache: false
 
+  # ── DeepSeek-R1-Distill-Llama-8B (reasoning-distilled Llama) ─────────────
+  # Same 32-layer backbone depth as Llama-3.1-8B-Instruct, but reasoning-
+  # distilled. Uses 8/16/24 to match the existing cross-architecture sweep.
+
+  collect_deepseek_llama_gsm8k:
+    cmd: >-
+      uv run python collect_data.py
+      --dataset gsm8k
+      --model_name ${models.deepseek_llama.name}
+      --max_new_tokens ${models.deepseek_llama.max_new_tokens}
+      --layers 8,16,24
+      --output_dir data/deepseek_llama/gsm8k
+    deps:
+      - collect_data.py
+    params:
+      - models.deepseek_llama.name
+      - models.deepseek_llama.max_new_tokens
+      - datasets.gsm8k
+      - collect.batch_save_size
+    outs:
+      - data/deepseek_llama/gsm8k
+
+  collect_deepseek_llama_math500:
+    cmd: >-
+      uv run python collect_data.py
+      --dataset math500
+      --model_name ${models.deepseek_llama.name}
+      --max_new_tokens ${models.deepseek_llama.max_new_tokens}
+      --layers 8,16,24
+      --output_dir data/deepseek_llama/math500
+    deps:
+      - collect_data.py
+    params:
+      - models.deepseek_llama.name
+      - models.deepseek_llama.max_new_tokens
+      - datasets.math500
+      - collect.batch_save_size
+    outs:
+      - data/deepseek_llama/math500
+
+  analyze_deepseek_llama_gsm8k:
+    cmd: >-
+      uv run python analyze.py
+      --data_dir data/deepseek_llama/gsm8k
+      --output_dir results/deepseek_llama/gsm8k
+      --dataset_label gsm8k
+      --pca_dim ${analyze.pca_dim}
+      --cv_random_state ${analyze.cv_random_state}
+      --n_bootstrap 0
+      --contrast
+      --contrast_dim ${analyze.contrast_dim}
+    deps:
+      - analyze.py
+      - data/deepseek_llama/gsm8k
+    params:
+      - analyze.pca_dim
+      - analyze.cv_random_state
+      - analyze.contrast_dim
+    metrics:
+      - results/deepseek_llama/gsm8k/gsm8k_results.json:
+          cache: false
+    plots:
+      - results/deepseek_llama/gsm8k/gsm8k_layer_comparison.png:
+          cache: false
+
+  analyze_deepseek_llama_math500:
+    cmd: >-
+      uv run python analyze.py
+      --data_dir data/deepseek_llama/math500
+      --output_dir results/deepseek_llama/math500
+      --dataset_label math500
+      --pca_dim ${analyze.pca_dim}
+      --cv_random_state ${analyze.cv_random_state}
+      --difficulty
+      --subject
+      --n_bootstrap ${analyze.n_bootstrap}
+      --contrast
+      --contrast_dim ${analyze.contrast_dim}
+    deps:
+      - analyze.py
+      - data/deepseek_llama/math500
+    params:
+      - analyze.pca_dim
+      - analyze.cv_random_state
+      - analyze.n_bootstrap
+      - analyze.contrast_dim
+    metrics:
+      - results/deepseek_llama/math500/math500_results.json:
+          cache: false
+    plots:
+      - results/deepseek_llama/math500/math500_layer_comparison.png:
+          cache: false
+      - results/deepseek_llama/math500/math500_difficulty.png:
+          cache: false
+      - results/deepseek_llama/math500/math500_subject.png:
+          cache: false
+
   # ── Llama (cross-architecture replication) ────────────────────────────────
   # Llama-3.1-8B-Instruct: 32 layers, layers 8/16/24 ≈ 25/50/75% of depth.
   # Replicates the main analysis on a different model family to validate that
@@ -979,6 +1076,8 @@ stages:
       - results/qwen/math500/math500_results.json
       - results/deepseek/gsm8k/gsm8k_results.json
       - results/deepseek/math500/math500_results.json
+      - results/deepseek_llama/gsm8k/gsm8k_results.json
+      - results/deepseek_llama/math500/math500_results.json
       - results/llama/gsm8k/gsm8k_results.json
       - results/llama/math500/math500_results.json
       - results/qwen/gsm8k_cross/gsm8k_results.json

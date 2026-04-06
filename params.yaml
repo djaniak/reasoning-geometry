@@ -7,6 +7,10 @@ models:
     name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
     max_new_tokens: 2048  # reasoning model needs more tokens for chain-of-thought
     layers: [7, 14, 21]  # same Qwen architecture: 28 layers, hidden_dim=3584
+  deepseek_llama:
+    name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+    max_new_tokens: 2048  # reasoning model needs more tokens for chain-of-thought
+    layers: [8, 16, 24]  # Llama architecture: 32 layers total
   llama:
     name: meta-llama/Llama-3.1-8B-Instruct
     max_new_tokens: 1024
@@ -37,7 +41,7 @@ collect:
 analyze:
   pca_dim: 128
   cv_random_state: 42
-  n_bootstrap: 200
+  n_bootstrap: 100
   contrast_dim: 10
 
 prefix:
