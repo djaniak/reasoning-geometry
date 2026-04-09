@@ -118,3 +118,13 @@ prefix_filter:
   score_kinds: "entropy_only,mahalanobis_only,combined"
   threshold_quantiles: "0.2,0.35,0.5,0.65,0.8"
   max_restarts: 3
+
+selective_prediction_matrix:
+  - {model: qwen,           dataset: math500, layers: "7,14,21"}
+  - {model: deepseek,       dataset: math500, layers: "7,14,21"}
+  - {model: llama,          dataset: math500, layers: "8,16,24"}
+  - {model: deepseek_llama, dataset: math500, layers: "8,16,24"}
+
+selective_prediction:
+  min_coverage: 0.3
+  operating_points: "0.6,0.7,0.8,0.9"

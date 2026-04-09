@@ -527,6 +527,71 @@ stages:
         - results/${item.model}_prefix_filter_${item.scale}/math500/math500_prefix_filter_tradeoff.png:
             cache: false
 
+  # ── Selective prediction ──────────────────────────────────────────────────
+  # Binary trust/abstain downstream task. Uses the same single-sample data as
+  # analyze.py (one trace per problem). Outputs go to results/{model}_selective/
+  # to avoid conflicting with the canonical {dataset}_results.json loader.
+
+  evaluate_selective_prediction:
+    foreach: ${selective_prediction_matrix}
+    do:
+      cmd: >-
+        uv run python selective_prediction.py
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}_selective/${item.dataset}
+        --dataset_label ${item.dataset}
+        --layers ${item.layers}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --min_coverage ${selective_prediction.min_coverage}
+        --operating_points ${selective_prediction.operating_points}
+      deps:
+        - selective_prediction.py
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - selective_prediction_matrix
+        - selective_prediction.min_coverage
+        - selective_prediction.operating_points
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}_selective/${item.dataset}/${item.dataset}_selective_prediction_results.json:
+            cache: false
+      plots:
+        - results/${item.model}_selective/${item.dataset}/${item.dataset}_selective_prediction.png:
+            cache: false
+
+  # ── Best-of-N concordance diagnostic ─────────────────────────────────────
+  # Computes within-prompt pairwise concordance (c-statistic) per layer.
+  # Run this first to decide whether a prompt-centered ranker is worth building.
+
+  evaluate_bestofn_concordance:
+    foreach: ${bestofn_matrix}
+    do:
+      cmd: >-
+        uv run python best_of_n.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/math500
+        --output_dir results/${item.model}_bestofn_${item.scale}/math500
+        --dataset_label math500
+        --layers ${best_of_n.layers}
+        --n_values ${best_of_n.n_values}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --concordance_diagnostic
+      deps:
+        - best_of_n.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/math500
+      params:
+        - best_of_n.layers
+        - best_of_n.n_values
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_bestofn_concordance.json:
+            cache: false
+
   # ── Summary ──────────────────────────────────────────────────────────────
   # Aggregates all per-stage result JSONs into a single markdown + JSON.
 

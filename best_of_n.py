@@ -51,6 +51,15 @@ def parse_args():
         default="1,8,16",
         help="Comma-separated Best-of-N values to evaluate",
     )
+    parser.add_argument(
+        "--concordance_diagnostic",
+        action="store_true",
+        help=(
+            "Compute within-prompt pairwise concordance (c-statistic) per layer "
+            "and save to {dataset_label}_bestofn_concordance.json. "
+            "Runs alongside the normal evaluation."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -637,6 +646,97 @@ def write_summary_markdown(results: dict, output_path: str) -> None:
     print(f"Summary written to {output_path}")
 
 
+def within_prompt_concordance(
+    groups: dict[int, list[dict]],
+    layers: list[int],
+    pca_dim: int,
+) -> dict:
+    """Compute pairwise within-prompt concordance (c-statistic) per layer.
+
+    For each layer, fit Mahalanobis reference on all correct traces, then score
+    every trace. Within each problem that has at least one correct and one
+    incorrect trace, compute the fraction of (correct, incorrect) trace pairs
+    where the correct trace has the lower Mahalanobis distance (= higher confidence).
+    Averaging across such problems gives the within-prompt c-statistic.
+
+    A value near 0.5 means geometry cannot distinguish correct from incorrect
+    traces within the same prompt — within-prompt centering or pairwise ranking
+    will not help. A value well above 0.5 indicates exploitable within-prompt signal.
+    """
+    all_traces = [t for group in groups.values() for t in group]
+    correct_all = [t for t in all_traces if t["is_correct"]]
+
+    layer_results: dict[str, dict] = {}
+
+    for layer in layers:
+        ref = fit_mahalanobis_reference_safe(correct_all, layer, pca_dim)
+        if ref is None:
+            layer_results[str(layer)] = {
+                "mean_concordance": None,
+                "n_problems_evaluated": 0,
+                "n_problems_with_label_variance": 0,
+                "reason": "Mahalanobis reference fit failed",
+            }
+            continue
+
+        concordances: list[float] = []
+        n_with_variance = 0
+
+        for idx, group in groups.items():
+            correct_traces = [t for t in group if t["is_correct"]]
+            incorrect_traces = [t for t in group if not t["is_correct"]]
+            if not correct_traces or not incorrect_traces:
+                continue
+            n_with_variance += 1
+
+            correct_scores = [
+                float(compute_mahal_distances(t["hiddens"][layer], *ref).mean())
+                for t in correct_traces
+                if layer in t["hiddens"]
+            ]
+            incorrect_scores = [
+                float(compute_mahal_distances(t["hiddens"][layer], *ref).mean())
+                for t in incorrect_traces
+                if layer in t["hiddens"]
+            ]
+            if not correct_scores or not incorrect_scores:
+                continue
+
+            # c-statistic: fraction of (correct, incorrect) pairs where
+            # correct has LOWER Mahalanobis distance (closer to correct manifold)
+            n_concordant = sum(
+                1
+                for cs in correct_scores
+                for is_ in incorrect_scores
+                if cs < is_
+            )
+            n_tied = sum(
+                1
+                for cs in correct_scores
+                for is_ in incorrect_scores
+                if cs == is_
+            )
+            n_pairs = len(correct_scores) * len(incorrect_scores)
+            concordances.append((n_concordant + 0.5 * n_tied) / n_pairs)
+
+        layer_results[str(layer)] = {
+            "mean_concordance": float(np.mean(concordances)) if concordances else None,
+            "std_concordance": float(np.std(concordances)) if concordances else None,
+            "n_problems_evaluated": len(concordances),
+            "n_problems_with_label_variance": n_with_variance,
+        }
+
+    return {
+        "metric": "within_prompt_pairwise_concordance",
+        "description": (
+            "c-statistic per layer: fraction of within-prompt (correct, incorrect) "
+            "trace pairs where the correct trace has lower Mahalanobis distance. "
+            "0.5 = no signal; 1.0 = perfect within-prompt discrimination."
+        ),
+        "layers": layer_results,
+    }
+
+
 def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
@@ -668,6 +768,20 @@ def main():
 
     print(f"Loaded {len(traces)} traces across {len(grouped)} problems")
     print(f"Evaluating layers: {layers}")
+
+    if args.concordance_diagnostic:
+        print("\nRunning within-prompt concordance diagnostic...")
+        concordance = within_prompt_concordance(grouped, layers=layers, pca_dim=args.pca_dim)
+        concordance_path = os.path.join(
+            args.output_dir, f"{args.dataset_label}_bestofn_concordance.json"
+        )
+        with open(concordance_path, "w") as fh:
+            json.dump(concordance, fh, indent=2)
+        print(f"Concordance diagnostic saved to {concordance_path}")
+        for layer, lr in concordance["layers"].items():
+            c = lr.get("mean_concordance")
+            n = lr.get("n_problems_evaluated", 0)
+            print(f"  Layer {layer}: concordance={c:.3f} (n={n})" if c is not None else f"  Layer {layer}: failed")
 
     for n_value in n_values:
         subset = subset_groups_for_n(grouped, n_value)

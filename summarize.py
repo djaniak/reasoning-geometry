@@ -74,6 +74,42 @@ def is_prefix_filter_result(data: dict) -> bool:
     )
 
 
+def is_selective_prediction_result(data: dict) -> bool:
+    """selective_prediction.py schema with coverage-accuracy scorers."""
+    return (
+        isinstance(data, dict)
+        and "scorers" in data
+        and "no_abstain" in data.get("scorers", {})
+    )
+
+
+def load_selective_results(results_dir: str) -> dict:
+    """Load selective prediction results from results/{model}_selective/{dataset}/ dirs.
+
+    Returns {model: {dataset: data}} for entries matching the selective prediction schema.
+    Separate from load_results to avoid colliding with the canonical {dataset}_results.json
+    loader.
+    """
+    selective: dict = {}
+    base = Path(results_dir)
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir() or not model_dir.name.endswith("_selective"):
+            continue
+        model = model_dir.name[: -len("_selective")]
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            target = ds_dir / f"{ds}_selective_prediction_results.json"
+            if not target.exists():
+                continue
+            with open(target) as fh:
+                data = json.load(fh)
+            if is_selective_prediction_result(data):
+                selective.setdefault(model, {})[ds] = data
+    return selective
+
+
 def collect_typed_results(results: dict):
     """Split raw loaded results by schema."""
     probe = {}
@@ -105,7 +141,12 @@ def best_layer(layers_dict):
     return max(layers_dict, key=lambda l: layers_dict[l]["combined"]["roc_auc_mean"])
 
 
-def generate_markdown(results: dict, output_path: str, pca_ablation_results: dict | None = None):
+def generate_markdown(
+    results: dict,
+    output_path: str,
+    pca_ablation_results: dict | None = None,
+    selective_results: dict | None = None,
+):
     """Generate a markdown summary of all results."""
     probe_results, prefix_filter_results = collect_typed_results(results)
     pca_ablation_results = pca_ablation_results or {}
@@ -556,10 +597,65 @@ def generate_markdown(results: dict, output_path: str, pca_ablation_results: dic
                     )
         lines.append("")
 
+    if selective_results:
+        render_selective_prediction_section(selective_results, lines)
+
     md = "\n".join(lines) + "\n"
     with open(output_path, "w") as f:
         f.write(md)
     print(f"Summary written to {output_path}")
+
+
+def render_selective_prediction_section(
+    selective_results: dict, lines: list[str]
+) -> None:
+    """Append selective prediction results to lines in-place."""
+    if not selective_results:
+        return
+
+    lines.append("## Selective Prediction")
+    lines.append("")
+    lines.append(
+        "Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. "
+        "AUSC is normalised over [min_coverage, 1.0]. "
+        "Acc@K = accuracy at the most selective operating point with coverage ≥ K."
+    )
+    lines.append("")
+
+    # Collect all scorer names across all results for a consistent column order
+    op_keys: list[str] = []
+    for model in sorted(selective_results):
+        for ds in sorted(selective_results[model]):
+            data = selective_results[model][ds]
+            ops = data.get("settings", {}).get("operating_points", [])
+            op_keys = [str(o) for o in ops]
+            break
+        if op_keys:
+            break
+    if not op_keys:
+        op_keys = ["0.6", "0.7", "0.8", "0.9"]
+
+    op_header = " | ".join(f"Acc@{k}" for k in op_keys)
+    lines.append(f"| Model | Dataset | Scorer | n_eval | AUSC | {op_header} |")
+    lines.append("| --- | --- | --- | --- | --- | " + " | ".join(["---"] * len(op_keys)) + " |")
+
+    for model in sorted(selective_results):
+        for ds in sorted(selective_results[model]):
+            data = selective_results[model][ds]
+            scorers = data.get("scorers", {})
+            base_acc = data["n_correct"] / data["n_traces"]
+            for scorer_name, s in scorers.items():
+                n_eval = s.get("n_eval", 0)
+                ausc_val = s.get("ausc")
+                ausc_str = fmt(ausc_val, 4) if ausc_val is not None else "—"
+                op_dict = s.get("operating_points", {})
+                op_cells = " | ".join(
+                    fmt(op_dict.get(k), 3) for k in op_keys
+                )
+                lines.append(
+                    f"| {model} | {ds} | {scorer_name} | {n_eval} | {ausc_str} | {op_cells} |"
+                )
+        lines.append("")
 
 
 def generate_combined_json(results: dict, output_path: str):
@@ -579,12 +675,18 @@ def main():
 
     results = load_results(args.results_dir)
     pca_ablation_results = load_pca_ablation_results(args.results_dir)
+    selective_results = load_selective_results(args.results_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
     md_path = os.path.join(args.output_dir, "SUMMARY.md")
     json_path = os.path.join(args.output_dir, "all_results.json")
 
-    generate_markdown(results, md_path, pca_ablation_results=pca_ablation_results)
+    generate_markdown(
+        results,
+        md_path,
+        pca_ablation_results=pca_ablation_results,
+        selective_results=selective_results,
+    )
     generate_combined_json(results, json_path)
 
 
