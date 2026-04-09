@@ -12,12 +12,14 @@ See [FINDINGS.md](FINDINGS.md) for full results.
 |---|---|---|
 | Qwen2.5-7B-Instruct | Qwen2.5, 28 layers, hidden dim 3584 | Greedy |
 | DeepSeek-R1-Distill-Qwen-7B | Same architecture, reasoning-distilled | Greedy / T=0.6 |
+| Llama-3.1-8B-Instruct | Llama, 32 layers | Greedy |
+| DeepSeek-R1-Distill-Llama-8B | Same architecture, reasoning-distilled | Greedy |
 
 Datasets: **MATH-500** (500 problems, 5 difficulty levels, 7 subjects) and **GSM8K** test set (~1300 problems).
 
 ## Key results
 
-Geometry adds signal beyond entropy in all four model × dataset conditions, even after controlling for trace length. The effect is largest for DeepSeek, where long reasoning chains neutralize entropy as a discriminator:
+In the original Qwen-family runs, geometry adds signal beyond entropy in all four core model × dataset conditions, even after controlling for trace length. The effect is largest for DeepSeek, where long reasoning chains neutralize entropy as a discriminator:
 
 | Condition | Entropy AUC | Combined AUC | Δ (length-controlled) |
 |---|---|---|---|
@@ -26,7 +28,7 @@ Geometry adds signal beyond entropy in all four model × dataset conditions, eve
 | DeepSeek MATH-500 | 0.776 | 0.859 | +0.044 |
 | DeepSeek GSM8K | 0.728 | 0.835 | +0.080 |
 
-The geometry signal is **bimodal** across layers (peaks at early ~L6–L10 and late ~L24–L26, trough at L14), suggesting two distinct processing stages: problem comprehension and solution execution. Cross-model transfer shows the manifold shape is partially shared across architecturally identical but differently trained models, while decision boundaries are model-specific.
+Later cross-family sweeps narrow that claim: raw one-class Mahalanobis remains strongest for reasoning-distilled models, is modest for Qwen, and is weak or negative in some base-Llama settings. The strongest geometry upgrade is relative / robust Mahalanobis (RMD / norm-RMD), which recovers several weak raw cells. Cross-model transfer still suggests the manifold shape is partially shared, while decision boundaries remain model-specific.
 
 ## Setup
 
@@ -57,7 +59,7 @@ dvc metrics show
 dvc metrics diff
 ```
 
-Stage names follow the pattern `{collect|analyze}_{model}_{dataset}`. Available models: `qwen`, `deepseek`, `qwen_dense`, `deepseek_temp`. Available datasets: `gsm8k`, `math500`. See [dvc.yaml](dvc.yaml) for the full DAG.
+Stage names follow the pattern `{collect|analyze}_{model}_{dataset}`. Available models include `qwen`, `deepseek`, `llama`, `deepseek_llama`, `qwen_dense`, and `deepseek_temp`. Available datasets: `gsm8k`, `math500`. See [dvc.yaml](dvc.yaml) for the full DAG.
 
 Configuration is in [params.yaml](params.yaml): model names, layer indices, PCA dimension, bootstrap count, etc.
 

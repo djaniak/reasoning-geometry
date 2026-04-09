@@ -93,6 +93,49 @@ layer 7 encodes whether the model has correctly identified the problem type. GSM
 problems are structurally similar — the signal emerges later where execution quality
 matters.
 
+## Update: Full sweep changed the headline interpretation
+
+A later full summary now includes `llama`, `deepseek_llama`, `deepseek_temp`,
+robust/relative Mahalanobis controls, and label-informed subspace analyses. That
+broader sweep sharpens the story:
+
+- **Raw one-class geometry is strongest for reasoning-distilled models.** DeepSeek remains
+  the clearest result (`0.835` on GSM8K, `0.859` on MATH-500; length-controlled gains
+  `+0.080` and `+0.044`). `deepseek_temp` on GSM8K is similarly strong (`+0.100`
+  length-controlled). Qwen remains positive but modest. Base Llama is only slightly
+  positive on GSM8K and is negative on MATH-500 under raw combined scoring.
+- **Cross-architecture replication narrows the claim.** The earlier Qwen-family story
+  does not generalize cleanly to Llama-family models under the same raw global
+  Mahalanobis setup. The right claim is not "universal hidden-state geometry works";
+  it is "raw one-class geometry works best in reasoning-distilled settings and degrades
+  under architecture/training shifts."
+- **RMD / norm-RMD are the strongest continuation.** Relative / robust Mahalanobis
+  improves almost every condition and often rescues weak raw cells. The clearest example
+  is Llama on MATH-500: raw combined is negative versus entropy, while robust variants
+  become positive. Intuitively this is the right correction under architecture shift:
+  raw Mahalanobis conflates correctness with background representation spread, while RMD
+  subtracts that background and asks whether correct traces are specifically closer than
+  the generic token cloud. That makes robust geometry the most defensible next main-table
+  upgrade.
+- **Low-rank contrast results are informative but not the same claim.** The contrast
+  subspace and low-rank sweeps use correctness labels at fit time. They should be framed
+  as supervised upper bounds or appendix analyses, not as a continuation of the current
+  one-class geometry story.
+- **Subject and difficulty effects are heterogeneous, not universal.** Some model-dataset
+  cells show strong positive pockets, but others are flat or negative. The older
+  "geometry/precalculus strongest, algebra weakest" phrasing is too broad for the full
+  sweep. The safer claim is that stratification is model-dependent and useful for
+  diagnosing where the detector works.
+- **Cross-model transfer still supports a manifold-shape story.** Same-family transfer
+  retains most native Mahalanobis signal while frozen classifiers transfer poorly. The
+  manifold seems more shared than the decision rule.
+- **Downstream control remains negative, but for two different reasons.** Best-of-N looks
+  structurally mismatched: it asks a pooled trace-level score to rank samples within one
+  problem, where majority vote has direct within-problem agreement signal. Prefix
+  filtering is less settled: the current global-threshold policy may simply be the wrong
+  implementation, so that branch should be framed as unresolved calibration mismatch
+  unless prompt-conditioned normalization also fails.
+
 ---
 
 ## Difficulty Stratification (MATH-500)
@@ -576,8 +619,11 @@ chance.
   MATH-500. **Stronger alternative (heavier):** nested CV — in each outer fold, run inner
   CV on the train split to pick a layer, then evaluate only that layer on the outer test
   fold.
-- **Single architecture family**: Both models are Qwen2.5-7B. Cross-architecture
-  generalization (e.g., LLaMA, Mistral) is untested but data collection is in progress.
+- **Cross-architecture story is still incomplete**: Llama-family runs now exist and
+  they materially narrow the raw-geometry claim, but this document's detailed sections
+  are still centered on the original Qwen-family experiments. Cross-architecture
+  transfer, robust-geometry comparisons, and a fully integrated all-model writeup still
+  need cleaner reporting.
 - **Answer extraction noise**: MATH-500 uses `\boxed{}` regex; GSM8K uses `####` marker.
   Correct answers that fail to parse count as incorrect, inflating the "incorrect" rate.
 - **PCA dim fixed at 128**: Not swept. May not be optimal.
@@ -607,67 +653,56 @@ chance.
    `probe.py` / `trajectory_*` DVC run never beats scalar Mahalanobis summaries. Best
    trajectory AUC is 0.808 (DeepSeek GSM8K, L21), still below scalar Mahal (0.831) and
    combined (0.835).
+6. ~~Cross-architecture raw replication + robust controls~~ — **Done at summary level.**
+   Llama-family runs show that raw one-class Mahalanobis is not universally strong, while
+   RMD / norm-RMD recover several weak cells. This now changes the main interpretation
+   and next-step priority.
 
 **Next steps and implementation roadmap**:
 
-1. **Finalize evaluation protocol and reporting hygiene (immediate).**
-   - Keep leakage-safe scoring end-to-end (train-fold-only refs in probe analyses; disjoint fit/eval splits for downstream selectors).
-   - In main probe tables, report **all sparse layers (L7/L14/L21)** side-by-side instead of
-     selecting a best layer on the same data.
-   - Keep full cross-model transfer grid in supplement and use honest ranges in text
-     (include weak cells like ~81% retention).
+1. **Fix reporting hygiene first.**
+   - Keep leakage-safe scoring end-to-end.
+   - Move away from same-fold best-layer headlines: either report all sparse layers
+     (`L7/L14/L21` or `L8/L16/L24`) or use nested CV for layer choice.
+   - Use the full transfer grid and weak cells in the text, not only best-case numbers.
 
-2. **Replication and stress tests (before new claims).**
-   - **Cross-architecture replication** (`collect_llama_*`, `analyze_llama_*`) on
-     Llama-3.1-8B-Instruct.
-   - **Dense sweep for DeepSeek** (same 14-layer schedule as Qwen dense sweep) to test
-     whether bimodality and the L14 trough replicate in the reasoning-distilled model.
-   - **Temperature sweep** beyond a single point (`T in {0.0, 0.3, 0.6, 0.9}`) for at least
-     one model/dataset pair, with fixed seeds.
-   - **PCA-dimension ablation** (`d in {32, 64, 128, 256}`) and covariance regularization
-     sensitivity to confirm robustness.
-   - **Reference-source ablation** (GSM8K-fit -> MATH-eval vs disjoint-MATH-fit -> MATH-eval)
-     to quantify domain-shift effects on downstream scoring.
-   - **Trajectory-model follow-up only if justified**: Track A (`fpca_mahal`) is now a
-     negative baseline. If trajectory modeling is revisited, prioritize `fpca_combined`
-     and `probseq_joint` on DeepSeek first and require a win over scalar Mahalanobis on
-     at least one condition before expanding the branch.
+2. **Promote robust geometry into the main claim.**
+   - Make raw Mahalanobis the baseline and **RMD / norm-RMD** the primary unsupervised
+     comparison.
+   - Add focused ablations on normalization, background correction, PCA dimension, and
+     covariance regularization.
+   - Use Llama-family failures to explain why raw global covariance is insufficient and
+     why relative / robust geometry helps.
 
-3. **Downstream Application A: Geometry-guided Best-of-N selection (now a stress test, not a headline result).**
-   - The first full-dataset run is complete for **Qwen MATH-500, `N=8`**, and it is
-     negative for the main claim: majority vote beats all probe-based selectors.
-   - Replicate on **DeepSeek** first, where the probe advantage over entropy is much larger
-     in the single-trace setting and is therefore more likely to survive the reranking setup.
-   - Then increase to `N=16` only if either model starts to show a real probe-based gain.
-   - Keep the same selector set: random, majority vote, length-normalized mean log-prob,
-     entropy-only, Mahalanobis-only, and combined entropy+Mahalanobis.
-   - Primary metric: Pass@1. Secondary: subject-level Pass@1 plus oracle Pass@N context.
-   - Success criterion: a geometry-aware selector should at least beat entropy/log-prob and
-     materially narrow the gap to majority vote, not just exceed random.
+3. **Keep low-rank geometry, but label it honestly.**
+   - Report low-rank centroid / Mahalanobis sweeps as **label-informed upper bounds**.
+   - Emphasize that low ranks often work best and higher ranks hurt, but do not present
+     this as an unsupervised continuation unless a one-class low-rank variant is added.
 
-4. **Downstream Application B: Early-layer prefix detection (deprioritized).**
-   - The single-trace pilot on existing Qwen MATH-500 traces is now complete and mixed.
-   - Only revisit on Best-of-N traces if the multi-sample setup reveals stronger prefix
-     separation than the current single-trace pilot.
-   - Compute shallow-layer (L2, optional L0/L4) geometry features on prefixes
-     `k in {5,10,20,40}` tokens; evaluate AUC vs correctness and subject breakdowns.
-   - If predictive early, test an adaptive policy: prune low-quality continuations early, then
-     apply trajectory-level selector on survivors.
-   - Report both quality impact and compute savings; treat this as conditional on robust early
-     separation, not a guaranteed win.
+4. **Change the downstream story.**
+   - Stop treating Best-of-N and prefix filtering as likely headline applications.
+   - First measure **within-problem score spread** versus between-problem score spread.
+     If the score does not vary meaningfully within prompt, reranking will keep failing.
+   - For prefixes, split the question cleanly: test prompt-conditioned normalization
+     before claiming the early signal itself is absent.
+   - A better-aligned downstream task is **single-trace selective prediction /
+     abstention / escalation**: after one trace, decide whether to trust it, sample more,
+     or hand off to a stronger model.
+   - Only revisit Best-of-N with a group-aware objective or hybrid with answer agreement.
 
-5. **Execution order (clean numbering).**
-   - **5.1** Freeze DVC stages for leakage-safe **multi-sample collection** and Best-of-N evaluation.
-   - **5.2** Qwen full-dataset Best-of-N run (`N=8`) is complete; use it as the baseline negative control.
-   - **5.3** Run DeepSeek full-dataset Best-of-N at `N=8`.
-   - **5.4** Increase to `N=16` only if DeepSeek or Qwen shows a selector ranking change worth following up.
-   - **5.5** Only if Best-of-N starts to succeed: revisit prefix curves on sampled traces and test adaptive pruning.
-   - **5.6** Replication/ablations (DeepSeek dense, temperature sweep, PCA sweep, reference-source ablation, then cross-architecture).
-   - **5.7** Paper tables/figures: probe results (all layers), transfer grid, Best-of-N gains,
-     prefix AUC-vs-k, and subject-specific effects.
+5. **Execution order.**
+   - **5.1** Rebuild headline tables around raw vs RMD / norm-RMD with all layers shown.
+   - **5.2** Add the within-problem variance audit and score-spread plots for current
+     Best-of-N data before running more downstream sweeps.
+   - **5.3** Run a selective-prediction / abstention benchmark on the strongest settings
+     first (DeepSeek Qwen-family, then DeepSeek-Llama MATH-500 with robust geometry).
+   - **5.4** Keep cross-architecture replication, dense-layer replication, and limited
+     temperature / PCA ablations as robustness checks.
+   - **5.5** Revisit heavier branches (`fpca_combined`, `probseq_joint`, MFA) only if they
+     beat the scalar robust baseline somewhere nontrivial.
 
 6. **Risks to track during execution.**
    - Domain shift between fit source and eval source can reduce transfer.
    - Parsing/extraction noise can distort both majority vote and Pass@1.
-   - Gains may be concentrated in specific subjects; report capability profile honestly rather
-     than global overclaims.
+   - Gains may be concentrated in specific subjects or model families; report that
+     heterogeneity directly rather than smoothing it away.
