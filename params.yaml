@@ -1,28 +1,13 @@
 models:
-  qwen:
-    name: Qwen/Qwen2.5-7B-Instruct
-    max_new_tokens: 1024
-    layers: [7, 14, 21]
-  deepseek:
-    name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-    max_new_tokens: 2048  # reasoning model needs more tokens for chain-of-thought
-    layers: [7, 14, 21]  # same Qwen architecture: 28 layers, hidden_dim=3584
-  deepseek_llama:
-    name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
-    max_new_tokens: 2048  # reasoning model needs more tokens for chain-of-thought
-    layers: [8, 16, 24]  # Llama architecture: 32 layers total
-  llama:
-    name: meta-llama/Llama-3.1-8B-Instruct
-    max_new_tokens: 1024
-    layers: [8, 16, 24]  # 32 layers total: ~25%, 50%, 75% of depth
+  # Special-purpose single-stage models only.
+  # Main models (qwen, deepseek, llama, deepseek_llama) are defined inline
+  # in the collect_*_matrix entries below to avoid unsupported nested interpolation.
   qwen_dense:
     name: Qwen/Qwen2.5-7B-Instruct
     max_new_tokens: 1024
-    layers: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]  # every 2nd layer
   deepseek_temp:
     name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
     max_new_tokens: 2048
-    layers: [7, 14, 21]
     temperature: 0.6
 
 datasets:
@@ -35,13 +20,71 @@ datasets:
     hf_name: null
     split: test
 
+analyze_matrix:
+  - {model: qwen,           dataset: gsm8k,   n_bootstrap: 0}
+  - {model: deepseek,       dataset: gsm8k,   n_bootstrap: 0}
+  - {model: deepseek_llama, dataset: gsm8k,   n_bootstrap: 0}
+  - {model: llama,          dataset: gsm8k,   n_bootstrap: 0}
+  - {model: qwen,           dataset: math500, n_bootstrap: 100}
+  - {model: deepseek,       dataset: math500, n_bootstrap: 100}
+  - {model: deepseek_llama, dataset: math500, n_bootstrap: 100}
+  - {model: llama,          dataset: math500, n_bootstrap: 100}
+
+analyze_pca_ablation_matrix:
+  - {model: qwen,     dataset: gsm8k}
+  - {model: deepseek, dataset: gsm8k}
+  - {model: qwen,     dataset: math500}
+  - {model: deepseek, dataset: math500}
+
+analyze_pca_ablation_runs:
+  - {model: qwen,     dataset: gsm8k,   pca_dim: "32"}
+  - {model: qwen,     dataset: gsm8k,   pca_dim: "128"}
+  - {model: qwen,     dataset: gsm8k,   pca_dim: "512"}
+  - {model: qwen,     dataset: gsm8k,   pca_dim: "max"}
+  - {model: deepseek, dataset: gsm8k,   pca_dim: "32"}
+  - {model: deepseek, dataset: gsm8k,   pca_dim: "128"}
+  - {model: deepseek, dataset: gsm8k,   pca_dim: "512"}
+  - {model: deepseek, dataset: gsm8k,   pca_dim: "max"}
+  - {model: qwen,     dataset: math500, pca_dim: "32"}
+  - {model: qwen,     dataset: math500, pca_dim: "128"}
+  - {model: qwen,     dataset: math500, pca_dim: "512"}
+  - {model: qwen,     dataset: math500, pca_dim: "max"}
+  - {model: deepseek, dataset: math500, pca_dim: "32"}
+  - {model: deepseek, dataset: math500, pca_dim: "128"}
+  - {model: deepseek, dataset: math500, pca_dim: "512"}
+  - {model: deepseek, dataset: math500, pca_dim: "max"}
+
+collect_qwen_arch_matrix:
+  - {model: qwen,     dataset: gsm8k,   model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024}
+  - {model: qwen,     dataset: math500, model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024}
+  - {model: deepseek, dataset: gsm8k,   model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 2048}
+  - {model: deepseek, dataset: math500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 2048}
+
+collect_llama_arch_matrix:
+  - {model: llama,          dataset: gsm8k,   model_name: meta-llama/Llama-3.1-8B-Instruct,          max_new_tokens: 1024}
+  - {model: llama,          dataset: math500, model_name: meta-llama/Llama-3.1-8B-Instruct,          max_new_tokens: 1024}
+  - {model: deepseek_llama, dataset: gsm8k,   model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
+  - {model: deepseek_llama, dataset: math500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
+
+bestofn_matrix:
+  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
+  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
+  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+
+prefix_filter_matrix:
+  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
+  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
+  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+
 collect:
   batch_save_size: 50
 
 analyze:
   pca_dim: 128
+  pca_dims: "32,128,512,max"
   cv_random_state: 42
-  n_bootstrap: 100
   contrast_dim: 10
   subspace_ranks: "1,2,3,5,8,12"
 
@@ -51,8 +94,6 @@ prefix:
 best_of_n:
   temperature: 0.6
   num_samples: 8
-  pilot_limit: 100
-  full_limit: 500
   n_values: "1,8"
   layers: "7,14,21"
 
@@ -61,11 +102,17 @@ trajectory:
   fpca_components: 128  # PCA components fitted on the flattened resampled trajectories
   methods: fpca_mahal   # Track A only: resample → flatten → PCA → LR
 
+cross_model_pairs:
+  - {eval: llama,    ref: qwen,     dataset: gsm8k,   out_suffix: gsm8k_cross_qwen}
+  - {eval: qwen,     ref: llama,    dataset: gsm8k,   out_suffix: gsm8k_cross_llama}
+  - {eval: qwen,     ref: deepseek, dataset: gsm8k,   out_suffix: gsm8k_cross}
+  - {eval: deepseek, ref: qwen,     dataset: gsm8k,   out_suffix: gsm8k_cross}
+  - {eval: qwen,     ref: deepseek, dataset: math500, out_suffix: math500_cross}
+  - {eval: deepseek, ref: qwen,     dataset: math500, out_suffix: math500_cross}
+
 prefix_filter:
   temperature: 0.6
   num_samples: 8
-  pilot_limit: 100
-  full_limit: 500
   layers: "0,2,4"
   prefix_lengths: "5,10,20"
   score_kinds: "entropy_only,mahalanobis_only,combined"

@@ -28,17 +28,36 @@ def load_results(results_dir: str) -> dict:
             json_files = sorted([f for f in ds_dir.iterdir() if f.suffix == ".json"])
             if not json_files:
                 continue
-            # Prefer canonical stage outputs; fall back to first JSON if needed.
-            chosen = None
-            for f in json_files:
-                if f.name.endswith("_results.json"):
-                    chosen = f
-                    break
-            if chosen is None:
-                chosen = json_files[0]
+            # Prefer the canonical merged output ({dataset}_results.json) over
+            # family-specific files ({dataset}_base/controls/subspace_results.json).
+            canonical = ds_dir / f"{ds}_results.json"
+            if canonical.exists():
+                chosen = canonical
+            else:
+                chosen = next((f for f in json_files if f.name.endswith("_results.json")), json_files[0])
             with open(chosen) as fh:
                 results[model][ds] = json.load(fh)
     return results
+
+
+def load_pca_ablation_results(results_dir: str) -> dict:
+    """Load PCA ablation outputs into {model: {dataset: data}}."""
+    ablations = {}
+    base = Path(results_dir)
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir():
+            continue
+        model = model_dir.name
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            path = ds_dir / f"{ds}_pca_ablation_results.json"
+            if not path.exists():
+                continue
+            with open(path) as fh:
+                ablations.setdefault(model, {})[ds] = json.load(fh)
+    return ablations
 
 
 def is_probe_result(data: dict) -> bool:
@@ -86,9 +105,10 @@ def best_layer(layers_dict):
     return max(layers_dict, key=lambda l: layers_dict[l]["combined"]["roc_auc_mean"])
 
 
-def generate_markdown(results: dict, output_path: str):
+def generate_markdown(results: dict, output_path: str, pca_ablation_results: dict | None = None):
     """Generate a markdown summary of all results."""
     probe_results, prefix_filter_results = collect_typed_results(results)
+    pca_ablation_results = pca_ablation_results or {}
 
     lines = []
     lines.append("# Results Summary")
@@ -99,6 +119,11 @@ def generate_markdown(results: dict, output_path: str):
     # --- Overview table ---
     if probe_results:
         lines.append("## Overview")
+        lines.append("")
+        lines.append(
+            "Best layer selected by combined AUC on the same CV folds used for evaluation "
+            "(selection bias over 3 layers). See per-layer detail for the full breakdown."
+        )
         lines.append("")
         lines.append("| Model | Dataset | N | Correct | Incorrect | Entropy AUC | Best Layer | Mahal AUC | Combined AUC | Δ (raw) | Δ (len-ctrl) |")
         lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
@@ -123,6 +148,45 @@ def generate_markdown(results: dict, output_path: str):
                     f"| {fmt(ent)} | L{bl} | {fmt(mah)} | **{fmt(comb)}** "
                     f"| {delta:+.3f} | {'+' if lc_delta and lc_delta >= 0 else ''}{fmt(lc_delta)} |"
                 )
+        lines.append("")
+
+    # --- Primary geometry variants (unsupervised only) ---
+    has_controls_or_base = bool(probe_results)
+    if has_controls_or_base:
+        def _dv(v):
+            if v is None or (isinstance(v, float) and math.isnan(v)):
+                return "—"
+            return f"{v:+.4f}"
+
+        lines.append("## Primary geometry variants")
+        lines.append("")
+        lines.append(
+            "Unsupervised methods only: the reference distribution is fitted on correct traces "
+            "alone (one-class setup, no correctness labels required). "
+            "Δ columns are AUC − entropy baseline; len-ctrl Δ is the length-controlled delta."
+        )
+        lines.append("")
+        lines.append("| Model | Dataset | Layer | Entropy AUC | Base Δ | Base len-ctrl Δ | RMD Δ | Norm-RMD Δ |")
+        lines.append("|---|---|---|---|---|---|---|---|")
+        for model in sorted(probe_results):
+            for ds in sorted(probe_results[model]):
+                if ds.endswith("_cross"):
+                    continue
+                d = probe_results[model][ds]
+                entropy_auc = d["entropy_baseline"]["roc_auc_mean"]
+                for layer in sorted(d["layers"], key=int):
+                    lr = d["layers"][layer]
+                    base_delta = lr.get("delta_vs_entropy", float("nan"))
+                    lc_delta = lr.get("length_controlled_delta", None)
+                    rmd_delta = lr.get("raw_rmd_delta_vs_entropy", float("nan"))
+                    norm_rmd_delta = lr.get("normalized_rmd_delta_vs_entropy", float("nan"))
+                    lc_str = _dv(lc_delta) if lc_delta is not None else "—"
+                    lines.append(
+                        f"| {model} | {ds} | L{layer} "
+                        f"| {fmt(entropy_auc)} "
+                        f"| {_dv(base_delta)} | {lc_str} "
+                        f"| {_dv(rmd_delta)} | {_dv(norm_rmd_delta)} |"
+                    )
         lines.append("")
 
     # --- Per-layer detail ---
@@ -164,6 +228,157 @@ def generate_markdown(results: dict, output_path: str):
                         f"| {delta:+.4f} | {lc:+.4f} | {cw_cell} |"
                     )
                 lines.append("")
+
+    # --- PCA dimension ablation ---
+    if pca_ablation_results:
+        lines.append("## PCA-dimension ablation (base geometry)")
+        lines.append("")
+        lines.append(
+            "Base-only sweep over PCA truncation size. Combined AUC is shown by dimension "
+            "for each layer to test whether performance saturates or keeps improving."
+        )
+        lines.append("")
+        lines.append("| Model | Dataset | Layer | Best dim | Monotone | Combined AUC by dim |")
+        lines.append("|---|---|---|---|---|---|")
+        for model in sorted(pca_ablation_results):
+            for ds in sorted(pca_ablation_results[model]):
+                result = pca_ablation_results[model][ds]
+                dims = [str(dim) for dim in result.get("settings", {}).get("pca_dims", [])]
+                if not dims:
+                    continue
+                for layer in sorted(result.get("layers", {}), key=int):
+                    layer_data = result["layers"][layer]
+                    best_dim = layer_data.get("best_dim_by_combined_auc", "—")
+                    monotone = "yes" if layer_data.get("combined_auc_monotone_non_decreasing") else "no"
+                    curve_parts = []
+                    for dim in dims:
+                        dim_metrics = layer_data.get("dims", {}).get(dim)
+                        if not dim_metrics:
+                            continue
+                        auc = dim_metrics["combined"]["roc_auc_mean"]
+                        curve_parts.append(f"{dim}:{auc:.3f}")
+                    curve = ", ".join(curve_parts) if curve_parts else "—"
+                    lines.append(
+                        f"| {model} | {ds} | L{layer} | {best_dim} | {monotone} | {curve} |"
+                    )
+        lines.append("")
+
+    # --- Controls analysis (normalized & RMD) ---
+    has_controls = any(
+        "normalized_delta_vs_entropy" in d["layers"].get(list(d["layers"].keys())[0], {})
+        for model in probe_results
+        for ds in probe_results[model]
+        if not ds.endswith("_cross")
+        for d in [probe_results[model][ds]]
+        if d.get("layers")
+    )
+    if has_controls:
+        lines.append("## Controls analysis (normalized & robust Mahalanobis)")
+        lines.append("")
+        lines.append(
+            "Checks whether the raw Mahalanobis signal survives length-normalization "
+            "and robust distance estimation."
+        )
+        lines.append("")
+        lines.append("| Model | Dataset | Layer | Base Δ | Norm Δ | RMD Δ | Norm-RMD Δ |")
+        lines.append("|---|---|---|---|---|---|---|")
+        for model in sorted(probe_results):
+            for ds in sorted(probe_results[model]):
+                if ds.endswith("_cross"):
+                    continue
+                d = probe_results[model][ds]
+                for layer in sorted(d["layers"], key=int):
+                    lr = d["layers"][layer]
+                    base_delta = lr.get("delta_vs_entropy", float("nan"))
+                    norm_delta = lr.get("normalized_delta_vs_entropy", float("nan"))
+                    rmd_delta = lr.get("raw_rmd_delta_vs_entropy", float("nan"))
+                    norm_rmd_delta = lr.get("normalized_rmd_delta_vs_entropy", float("nan"))
+                    def _delta(v):
+                        return f"{v:+.4f}" if not math.isnan(v) else "—"
+                    lines.append(
+                        f"| {model} | {ds} | L{layer} "
+                        f"| {_delta(base_delta)} | {_delta(norm_delta)} "
+                        f"| {_delta(rmd_delta)} | {_delta(norm_rmd_delta)} |"
+                    )
+        lines.append("")
+
+    # --- Subspace analysis ---
+    has_subspace = any(
+        "contrast_delta_vs_entropy" in d["layers"].get(list(d["layers"].keys())[0], {})
+        for model in probe_results
+        for ds in probe_results[model]
+        if not ds.endswith("_cross")
+        for d in [probe_results[model][ds]]
+        if d.get("layers")
+    )
+    if has_subspace:
+        def _d(v):
+            return f"{v:+.4f}" if not math.isnan(v) else "—"
+
+        lines.append("## Subspace analysis — label-informed geometry")
+        lines.append("")
+        lines.append(
+            "**These methods require correctness labels at fit time** and are therefore "
+            "label-informed, not unsupervised. Both contrast subspace and the low-rank sweep "
+            "use correct *and* incorrect training traces to find discriminative directions. "
+            "Treat these results as a supervised upper bound, not a continuation of the "
+            "one-class geometry story. All ranks shown (no argmax selection) to avoid "
+            "within-CV selection bias."
+        )
+        lines.append("")
+
+        # Contrast subspace
+        lines.append("### Contrast subspace")
+        lines.append("")
+        lines.append("| Model | Dataset | Layer | Contrast Δ |")
+        lines.append("|---|---|---|---|")
+        for model in sorted(probe_results):
+            for ds in sorted(probe_results[model]):
+                if ds.endswith("_cross"):
+                    continue
+                d = probe_results[model][ds]
+                for layer in sorted(d["layers"], key=int):
+                    lr = d["layers"][layer]
+                    contrast_delta = lr.get("contrast_delta_vs_entropy", float("nan"))
+                    lines.append(f"| {model} | {ds} | L{layer} | {_d(contrast_delta)} |")
+        lines.append("")
+
+        # Low-rank sweep — all ranks
+        has_sweep = any(
+            "low_rank_subspace_sweep" in probe_results[model][ds]["layers"].get(
+                list(probe_results[model][ds]["layers"].keys())[0], {}
+            )
+            for model in probe_results
+            for ds in probe_results[model]
+            if not ds.endswith("_cross") and probe_results[model][ds].get("layers")
+        )
+        if has_sweep:
+            lines.append("### Low-rank subspace sweep (all ranks)")
+            lines.append("")
+            lines.append("| Model | Dataset | Layer | Rank | Centroid-combined Δ | Mahal-combined Δ |")
+            lines.append("|---|---|---|---|---|---|")
+            for model in sorted(probe_results):
+                for ds in sorted(probe_results[model]):
+                    if ds.endswith("_cross"):
+                        continue
+                    d = probe_results[model][ds]
+                    entropy_mean = d["entropy_baseline"]["roc_auc_mean"]
+                    for layer in sorted(d["layers"], key=int):
+                        lr = d["layers"][layer]
+                        sweep = lr.get("low_rank_subspace_sweep")
+                        if not sweep:
+                            continue
+                        for rank in sorted(sweep, key=int):
+                            rs = sweep[rank]
+                            c_auc = rs.get("centroid_combined", {}).get("roc_auc_mean", float("nan"))
+                            m_auc = rs.get("mahalanobis_combined", {}).get("roc_auc_mean", float("nan"))
+                            c_delta = c_auc - entropy_mean if not math.isnan(c_auc) else float("nan")
+                            m_delta = m_auc - entropy_mean if not math.isnan(m_auc) else float("nan")
+                            lines.append(
+                                f"| {model} | {ds} | L{layer} | {rank} "
+                                f"| {_d(c_delta)} | {_d(m_delta)} |"
+                            )
+            lines.append("")
 
     # --- Cross-model transfer ---
     has_cross = any(
@@ -296,8 +511,9 @@ def generate_markdown(results: dict, output_path: str):
         lines.append("## Prefix filtering (abort/restart simulation)")
         lines.append("")
         lines.append(
-            "Each row reports the best operating point for a model/dataset "
-            "(highest Pass@1 delta, then higher token savings)."
+            "Full sweep over all settings and threshold quantiles. "
+            "All operating points are shown to avoid selection bias across "
+            "score kinds, layers, prefix lengths, and quantile thresholds."
         )
         lines.append("")
         lines.append("| Model | Dataset | Setting | Quantile | Pass@1 | Baseline Pass@1 | ΔPass | Token Savings | False Abort Rate | Avg Aborts / Problem | Max Restarts |")
@@ -306,45 +522,38 @@ def generate_markdown(results: dict, output_path: str):
         for model in sorted(prefix_filter_results):
             for ds in sorted(prefix_filter_results[model]):
                 data = prefix_filter_results[model][ds]
-                best_setting = None
-                best_payload = None
+                max_restarts = data.get("max_restarts", "—")
+                dataset_label = data.get("dataset", ds)
+                has_any = False
 
                 for setting in data.get("settings", {}).values():
                     if setting.get("skipped"):
                         continue
-                    for payload in setting.get("thresholds", {}).values():
+                    layer = setting.get("layer")
+                    layer_label = "-" if layer is None else f"L{layer}"
+                    setting_label = (
+                        f"{setting['score_kind']} {layer_label} k={setting['prefix_len']}"
+                    )
+                    baseline = setting["baseline"]["pass_at_1_mean"]
+
+                    for quantile_key, payload in sorted(
+                        setting.get("thresholds", {}).items(), key=lambda x: float(x[0])
+                    ):
                         if payload.get("skipped"):
                             continue
-                        if best_payload is None:
-                            best_setting = setting
-                            best_payload = payload
-                            continue
-                        better_delta = payload["pass_delta_vs_baseline"] > best_payload["pass_delta_vs_baseline"]
-                        same_delta = payload["pass_delta_vs_baseline"] == best_payload["pass_delta_vs_baseline"]
-                        better_savings = payload["token_savings_mean"] > best_payload["token_savings_mean"]
-                        if better_delta or (same_delta and better_savings):
-                            best_setting = setting
-                            best_payload = payload
+                        has_any = True
+                        lines.append(
+                            f"| {model} | {dataset_label} | {setting_label} "
+                            f"| {payload['quantile']:.2f} | {payload['pass_at_1_mean']:.3f} "
+                            f"| {baseline:.3f} | {payload['pass_delta_vs_baseline']:+.3f} "
+                            f"| {payload['token_savings_mean']:+.3f} | {payload['false_abort_rate']:.3f} "
+                            f"| {payload['avg_aborts_per_problem']:.3f} | {max_restarts} |"
+                        )
 
-                if best_setting is None or best_payload is None:
+                if not has_any:
                     lines.append(
-                        f"| {model} | {data.get('dataset', ds)} | — | — | — | — | — | — | — | — | {data.get('max_restarts', '—')} |"
+                        f"| {model} | {dataset_label} | — | — | — | — | — | — | — | — | {max_restarts} |"
                     )
-                    continue
-
-                layer = best_setting.get("layer")
-                layer_label = "-" if layer is None else f"L{layer}"
-                setting_label = (
-                    f"{best_setting['score_kind']} {layer_label} k={best_setting['prefix_len']}"
-                )
-                baseline = best_setting["baseline"]["pass_at_1_mean"]
-                lines.append(
-                    f"| {model} | {data.get('dataset', ds)} | {setting_label} "
-                    f"| {best_payload['quantile']:.2f} | {best_payload['pass_at_1_mean']:.3f} "
-                    f"| {baseline:.3f} | {best_payload['pass_delta_vs_baseline']:+.3f} "
-                    f"| {best_payload['token_savings_mean']:+.3f} | {best_payload['false_abort_rate']:.3f} "
-                    f"| {best_payload['avg_aborts_per_problem']:.3f} | {data.get('max_restarts', '—')} |"
-                )
         lines.append("")
 
     md = "\n".join(lines) + "\n"
@@ -369,12 +578,13 @@ def main():
     args = parser.parse_args()
 
     results = load_results(args.results_dir)
+    pca_ablation_results = load_pca_ablation_results(args.results_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
     md_path = os.path.join(args.output_dir, "SUMMARY.md")
     json_path = os.path.join(args.output_dir, "all_results.json")
 
-    generate_markdown(results, md_path)
+    generate_markdown(results, md_path, pca_ablation_results=pca_ablation_results)
     generate_combined_json(results, json_path)
 
 

@@ -6,385 +6,223 @@ stages:
 
   collect_qwen_arch:
     # Qwen architecture (28 layers): qwen, deepseek — use layers 7,14,21
-    matrix:
-      model: [qwen, deepseek]
-      dataset: [gsm8k, math500]
-    cmd: >-
-      uv run python collect_data.py
-      --dataset ${item.dataset}
-      --model_name ${models.${item.model}.name}
-      --max_new_tokens ${models.${item.model}.max_new_tokens}
-      --layers 7,14,21
-      --output_dir data/${item.model}/${item.dataset}
-    deps:
-      - collect_data.py
-    params:
-      - models.${item.model}.name
-      - models.${item.model}.max_new_tokens
-      - datasets.${item.dataset}
-      - collect.batch_save_size
-    outs:
-      - data/${item.model}/${item.dataset}
+    foreach: ${collect_qwen_arch_matrix}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset ${item.dataset}
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers 7,14,21
+        --output_dir data/${item.model}/${item.dataset}
+      deps:
+        - collect_data.py
+      params:
+        - collect_qwen_arch_matrix
+        - datasets.${item.dataset}
+        - collect.batch_save_size
+      outs:
+        - data/${item.model}/${item.dataset}
+
+  collect_llama_arch:
+    # Llama architecture (32 layers): llama, deepseek_llama — use layers 8,16,24
+    # Same backbone depth; 8/16/24 ≈ 25/50/75% of depth
+    foreach: ${collect_llama_arch_matrix}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset ${item.dataset}
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers 8,16,24
+        --output_dir data/${item.model}/${item.dataset}
+      deps:
+        - collect_data.py
+      params:
+        - collect_llama_arch_matrix
+        - datasets.${item.dataset}
+        - collect.batch_save_size
+      outs:
+        - data/${item.model}/${item.dataset}
 
   # ── Main analysis (incremental experiment families) ────────────────────────
   # These stages keep the canonical <dataset>_results.json, but build it from
   # smaller experiment-family runs so adding a new analysis branch doesn't force
   # a full rerun of every existing branch.
 
-  analyze_base_gsm8k:
+  analyze_base:
+    foreach: ${analyze_matrix}
+    do:
+      cmd: >-
+        uv run python analyze.py
+        --analysis_family base
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}/${item.dataset}
+        --dataset_label ${item.dataset}
+        --output_name ${item.dataset}_base_results.json
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --n_bootstrap ${item.n_bootstrap}
+        --difficulty
+        --subject
+      deps:
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}/${item.dataset}/${item.dataset}_base_results.json:
+            cache: false
+
+  analyze_controls:
+    foreach: ${analyze_matrix}
+    do:
+      cmd: >-
+        uv run python analyze.py
+        --analysis_family controls
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}/${item.dataset}
+        --dataset_label ${item.dataset}
+        --output_name ${item.dataset}_controls_results.json
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --n_bootstrap ${item.n_bootstrap}
+      deps:
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json:
+            cache: false
+
+  analyze_subspace:
+    foreach: ${analyze_matrix}
+    do:
+      cmd: >-
+        uv run python analyze.py
+        --analysis_family subspace
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}/${item.dataset}
+        --dataset_label ${item.dataset}
+        --output_name ${item.dataset}_subspace_results.json
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --n_bootstrap ${item.n_bootstrap}
+        --contrast_dim ${analyze.contrast_dim}
+        --subspace_ranks ${analyze.subspace_ranks}
+      deps:
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - analyze.pca_dim
+        - analyze.cv_random_state
+        - analyze.contrast_dim
+        - analyze.subspace_ranks
+      metrics:
+        - results/${item.model}/${item.dataset}/${item.dataset}_subspace_results.json:
+            cache: false
+
+  # ── PCA dimension ablation (base only, qwen + deepseek) ──────────────────
+  # Runs base analysis at multiple PCA dimensions, then aggregates by layer.
+
+  analyze_pca_ablation_runs:
+    foreach: ${analyze_pca_ablation_runs}
+    do:
+      cmd: >-
+        uv run python analyze.py
+        --analysis_family base
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}/${item.dataset}
+        --dataset_label ${item.dataset}
+        --output_name ${item.dataset}_pca${item.pca_dim}_base_results.json
+        --pca_dim ${item.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --n_bootstrap 0
+      deps:
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - analyze_pca_ablation_runs
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}/${item.dataset}/${item.dataset}_pca${item.pca_dim}_base_results.json:
+            cache: false
+
+  analyze_pca_ablation_merge:
+    foreach: ${analyze_pca_ablation_matrix}
+    do:
+      cmd: >-
+        uv run python pca_ablation.py
+        --model ${item.model}
+        --dataset ${item.dataset}
+        --expected_dims ${analyze.pca_dims}
+        --output_path results/${item.model}/${item.dataset}/${item.dataset}_pca_ablation_results.json
+        --inputs
+        results/${item.model}/${item.dataset}/${item.dataset}_pca32_base_results.json
+        results/${item.model}/${item.dataset}/${item.dataset}_pca128_base_results.json
+        results/${item.model}/${item.dataset}/${item.dataset}_pca512_base_results.json
+        results/${item.model}/${item.dataset}/${item.dataset}_pcamax_base_results.json
+      deps:
+        - pca_ablation.py
+        - results/${item.model}/${item.dataset}/${item.dataset}_pca32_base_results.json
+        - results/${item.model}/${item.dataset}/${item.dataset}_pca128_base_results.json
+        - results/${item.model}/${item.dataset}/${item.dataset}_pca512_base_results.json
+        - results/${item.model}/${item.dataset}/${item.dataset}_pcamax_base_results.json
+      params:
+        - analyze_pca_ablation_matrix
+        - analyze.pca_dims
+      metrics:
+        - results/${item.model}/${item.dataset}/${item.dataset}_pca_ablation_results.json:
+            cache: false
+
+  merge_analyze:
     matrix:
       model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family base
-      --data_dir data/${item.model}/gsm8k
-      --output_dir results/${item.model}/gsm8k
-      --dataset_label gsm8k
-      --output_name gsm8k_base_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-    deps:
-      - analyze.py
-      - data/${item.model}/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/${item.model}/gsm8k/gsm8k_base_results.json:
-          cache: false
-    plots:
-      - results/${item.model}/gsm8k/gsm8k_layer_comparison.png:
-          cache: false
-
-  analyze_controls_gsm8k:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family controls
-      --data_dir data/${item.model}/gsm8k
-      --output_dir results/${item.model}/gsm8k
-      --dataset_label gsm8k
-      --output_name gsm8k_controls_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-    deps:
-      - analyze.py
-      - data/${item.model}/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/${item.model}/gsm8k/gsm8k_controls_results.json:
-          cache: false
-
-  analyze_subspace_gsm8k:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family subspace
-      --data_dir data/${item.model}/gsm8k
-      --output_dir results/${item.model}/gsm8k
-      --dataset_label gsm8k
-      --output_name gsm8k_subspace_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --contrast_dim ${analyze.contrast_dim}
-      --subspace_ranks ${analyze.subspace_ranks}
-    deps:
-      - analyze.py
-      - data/${item.model}/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-      - analyze.contrast_dim
-      - analyze.subspace_ranks
-    metrics:
-      - results/${item.model}/gsm8k/gsm8k_subspace_results.json:
-          cache: false
-
-  merge_analyze_gsm8k:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python merge_results.py
-      --output_path results/${item.model}/gsm8k/gsm8k_results.json
-      --inputs
-      results/${item.model}/gsm8k/gsm8k_base_results.json
-      results/${item.model}/gsm8k/gsm8k_controls_results.json
-      results/${item.model}/gsm8k/gsm8k_subspace_results.json
-    deps:
-      - merge_results.py
-      - results/${item.model}/gsm8k/gsm8k_base_results.json
-      - results/${item.model}/gsm8k/gsm8k_controls_results.json
-      - results/${item.model}/gsm8k/gsm8k_subspace_results.json
-    metrics:
-      - results/${item.model}/gsm8k/gsm8k_results.json:
-          cache: false
-
-  analyze_base_math500:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family base
-      --data_dir data/${item.model}/math500
-      --output_dir results/${item.model}/math500
-      --dataset_label math500
-      --output_name math500_base_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --difficulty
-      --subject
-      --n_bootstrap ${analyze.n_bootstrap}
-    deps:
-      - analyze.py
-      - data/${item.model}/math500
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-      - analyze.n_bootstrap
-    metrics:
-      - results/${item.model}/math500/math500_base_results.json:
-          cache: false
-    plots:
-      - results/${item.model}/math500/math500_layer_comparison.png:
-          cache: false
-      - results/${item.model}/math500/math500_difficulty.png:
-          cache: false
-      - results/${item.model}/math500/math500_subject.png:
-          cache: false
-
-  analyze_controls_math500:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family controls
-      --data_dir data/${item.model}/math500
-      --output_dir results/${item.model}/math500
-      --dataset_label math500
-      --output_name math500_controls_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap ${analyze.n_bootstrap}
-    deps:
-      - analyze.py
-      - data/${item.model}/math500
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-      - analyze.n_bootstrap
-    metrics:
-      - results/${item.model}/math500/math500_controls_results.json:
-          cache: false
-
-  analyze_subspace_math500:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python analyze.py
-      --analysis_family subspace
-      --data_dir data/${item.model}/math500
-      --output_dir results/${item.model}/math500
-      --dataset_label math500
-      --output_name math500_subspace_results.json
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap ${analyze.n_bootstrap}
-      --contrast_dim ${analyze.contrast_dim}
-      --subspace_ranks ${analyze.subspace_ranks}
-    deps:
-      - analyze.py
-      - data/${item.model}/math500
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-      - analyze.n_bootstrap
-      - analyze.contrast_dim
-      - analyze.subspace_ranks
-    metrics:
-      - results/${item.model}/math500/math500_subspace_results.json:
-          cache: false
-
-  merge_analyze_math500:
-    matrix:
-      model: [qwen, deepseek, deepseek_llama, llama]
-    cmd: >-
-      uv run python merge_results.py
-      --output_path results/${item.model}/math500/math500_results.json
-      --inputs
-      results/${item.model}/math500/math500_base_results.json
-      results/${item.model}/math500/math500_controls_results.json
-      results/${item.model}/math500/math500_subspace_results.json
-    deps:
-      - merge_results.py
-      - results/${item.model}/math500/math500_base_results.json
-      - results/${item.model}/math500/math500_controls_results.json
-      - results/${item.model}/math500/math500_subspace_results.json
-    metrics:
-      - results/${item.model}/math500/math500_results.json:
-          cache: false
-
-  # ── Llama architecture (32 layers): llama, deepseek_llama — use layers 8,16,24
-  # Same backbone depth; 8/16/24 ≈ 25/50/75% of depth.
-  # Replicates the main analysis on a different model family.
-
-  collect_llama_arch:
-    matrix:
-      model: [llama, deepseek_llama]
       dataset: [gsm8k, math500]
     cmd: >-
-      uv run python collect_data.py
-      --dataset ${item.dataset}
-      --model_name ${models.${item.model}.name}
-      --max_new_tokens ${models.${item.model}.max_new_tokens}
-      --layers 8,16,24
-      --output_dir data/${item.model}/${item.dataset}
+      uv run python merge_results.py
+      --output_path results/${item.model}/${item.dataset}/${item.dataset}_results.json
+      --inputs
+      results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
+      results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json
+      results/${item.model}/${item.dataset}/${item.dataset}_subspace_results.json
     deps:
-      - collect_data.py
-    params:
-      - models.${item.model}.name
-      - models.${item.model}.max_new_tokens
-      - datasets.${item.dataset}
-      - collect.batch_save_size
-    outs:
-      - data/${item.model}/${item.dataset}
-
-  # Llama ↔ Qwen cross-model transfer (different architecture family)
-  analyze_llama_gsm8k_cross_qwen:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/llama/gsm8k
-      --output_dir results/llama/gsm8k_cross_qwen
-      --dataset_label gsm8k
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/qwen/gsm8k
-    deps:
-      - analyze.py
-      - data/llama/gsm8k
-      - data/qwen/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
+      - merge_results.py
+      - results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
+      - results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json
+      - results/${item.model}/${item.dataset}/${item.dataset}_subspace_results.json
     metrics:
-      - results/llama/gsm8k_cross_qwen/gsm8k_results.json:
-          cache: false
-
-  analyze_qwen_gsm8k_cross_llama:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/qwen/gsm8k
-      --output_dir results/qwen/gsm8k_cross_llama
-      --dataset_label gsm8k
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/llama/gsm8k
-    deps:
-      - analyze.py
-      - data/qwen/gsm8k
-      - data/llama/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen/gsm8k_cross_llama/gsm8k_results.json:
+      - results/${item.model}/${item.dataset}/${item.dataset}_results.json:
           cache: false
 
   # ── Cross-model Mahalanobis transfer ──────────────────────────────────────
   # Fit reference on one model's correct traces, evaluate on the other.
-  # Separate stages so they only run when both models' data is available.
 
-  analyze_qwen_gsm8k_cross:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/qwen/gsm8k
-      --output_dir results/qwen/gsm8k_cross
-      --dataset_label gsm8k
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/deepseek/gsm8k
-    deps:
-      - analyze.py
-      - data/qwen/gsm8k
-      - data/deepseek/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen/gsm8k_cross/gsm8k_results.json:
-          cache: false
-
-  analyze_deepseek_gsm8k_cross:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/deepseek/gsm8k
-      --output_dir results/deepseek/gsm8k_cross
-      --dataset_label gsm8k
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/qwen/gsm8k
-    deps:
-      - analyze.py
-      - data/deepseek/gsm8k
-      - data/qwen/gsm8k
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek/gsm8k_cross/gsm8k_results.json:
-          cache: false
-
-  analyze_qwen_math500_cross:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/qwen/math500
-      --output_dir results/qwen/math500_cross
-      --dataset_label math500
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/deepseek/math500
-    deps:
-      - analyze.py
-      - data/qwen/math500
-      - data/deepseek/math500
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen/math500_cross/math500_results.json:
-          cache: false
-
-  analyze_deepseek_math500_cross:
-    cmd: >-
-      uv run python analyze.py
-      --data_dir data/deepseek/math500
-      --output_dir results/deepseek/math500_cross
-      --dataset_label math500
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-      --n_bootstrap 0
-      --cross_model_ref data/qwen/math500
-    deps:
-      - analyze.py
-      - data/deepseek/math500
-      - data/qwen/math500
-    params:
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek/math500_cross/math500_results.json:
-          cache: false
+  analyze_cross:
+    foreach: ${cross_model_pairs}
+    do:
+      cmd: >-
+        uv run python analyze.py
+        --data_dir data/${item.eval}/${item.dataset}
+        --output_dir results/${item.eval}/${item.out_suffix}
+        --dataset_label ${item.dataset}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+        --n_bootstrap 0
+        --cross_model_ref data/${item.ref}/${item.dataset}
+      deps:
+        - analyze.py
+        - data/${item.eval}/${item.dataset}
+        - data/${item.ref}/${item.dataset}
+      params:
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.eval}/${item.out_suffix}/${item.dataset}_results.json:
+            cache: false
 
   # ── Dense layer sweep (Qwen, 14 layers) ────────────────────────────────
   # Captures every 2nd layer to determine if signal is monotone or peaked.
@@ -410,9 +248,11 @@ stages:
   analyze_qwen_dense_math500:
     cmd: >-
       uv run python analyze.py
+      --analysis_family base
       --data_dir data/qwen_dense/math500
       --output_dir results/qwen_dense/math500
       --dataset_label math500
+      --output_name math500_base_results.json
       --pca_dim ${analyze.pca_dim}
       --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
@@ -423,10 +263,46 @@ stages:
       - analyze.pca_dim
       - analyze.cv_random_state
     metrics:
-      - results/qwen_dense/math500/math500_results.json:
+      - results/qwen_dense/math500/math500_base_results.json:
           cache: false
     plots:
       - results/qwen_dense/math500/math500_layer_comparison.png:
+          cache: false
+
+  analyze_controls_qwen_dense_math500:
+    cmd: >-
+      uv run python analyze.py
+      --analysis_family controls
+      --data_dir data/qwen_dense/math500
+      --output_dir results/qwen_dense/math500
+      --dataset_label math500
+      --output_name math500_controls_results.json
+      --pca_dim ${analyze.pca_dim}
+      --cv_random_state ${analyze.cv_random_state}
+      --n_bootstrap 0
+    deps:
+      - analyze.py
+      - data/qwen_dense/math500
+    params:
+      - analyze.pca_dim
+      - analyze.cv_random_state
+    metrics:
+      - results/qwen_dense/math500/math500_controls_results.json:
+          cache: false
+
+  merge_analyze_qwen_dense_math500:
+    cmd: >-
+      uv run python merge_results.py
+      --output_path results/qwen_dense/math500/math500_results.json
+      --inputs
+      results/qwen_dense/math500/math500_base_results.json
+      results/qwen_dense/math500/math500_controls_results.json
+    deps:
+      - merge_results.py
+      - results/qwen_dense/math500/math500_base_results.json
+      - results/qwen_dense/math500/math500_controls_results.json
+    metrics:
+      - results/qwen_dense/math500/math500_results.json:
           cache: false
 
   analyze_qwen_dense_math500_prefix:
@@ -480,9 +356,11 @@ stages:
   analyze_deepseek_temp_gsm8k:
     cmd: >-
       uv run python analyze.py
+      --analysis_family base
       --data_dir data/deepseek_temp/gsm8k
       --output_dir results/deepseek_temp/gsm8k
       --dataset_label gsm8k
+      --output_name gsm8k_base_results.json
       --pca_dim ${analyze.pca_dim}
       --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
@@ -493,439 +371,161 @@ stages:
       - analyze.pca_dim
       - analyze.cv_random_state
     metrics:
-      - results/deepseek_temp/gsm8k/gsm8k_results.json:
+      - results/deepseek_temp/gsm8k/gsm8k_base_results.json:
           cache: false
     plots:
       - results/deepseek_temp/gsm8k/gsm8k_layer_comparison.png:
           cache: false
 
+  analyze_controls_deepseek_temp_gsm8k:
+    cmd: >-
+      uv run python analyze.py
+      --analysis_family controls
+      --data_dir data/deepseek_temp/gsm8k
+      --output_dir results/deepseek_temp/gsm8k
+      --dataset_label gsm8k
+      --output_name gsm8k_controls_results.json
+      --pca_dim ${analyze.pca_dim}
+      --cv_random_state ${analyze.cv_random_state}
+      --n_bootstrap 0
+    deps:
+      - analyze.py
+      - data/deepseek_temp/gsm8k
+    params:
+      - analyze.pca_dim
+      - analyze.cv_random_state
+    metrics:
+      - results/deepseek_temp/gsm8k/gsm8k_controls_results.json:
+          cache: false
+
+  merge_analyze_deepseek_temp_gsm8k:
+    cmd: >-
+      uv run python merge_results.py
+      --output_path results/deepseek_temp/gsm8k/gsm8k_results.json
+      --inputs
+      results/deepseek_temp/gsm8k/gsm8k_base_results.json
+      results/deepseek_temp/gsm8k/gsm8k_controls_results.json
+    deps:
+      - merge_results.py
+      - results/deepseek_temp/gsm8k/gsm8k_base_results.json
+      - results/deepseek_temp/gsm8k/gsm8k_controls_results.json
+    metrics:
+      - results/deepseek_temp/gsm8k/gsm8k_results.json:
+          cache: false
+
   # ── Best-of-N pilot (sampled MATH-500 traces) ───────────────────────────
 
-  collect_qwen_math500_bestofn:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
-      --layers ${best_of_n.layers}
-      --temperature ${best_of_n.temperature}
-      --num_samples ${best_of_n.num_samples}
-      --limit ${best_of_n.pilot_limit}
-      --output_dir data/qwen_bestofn/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - best_of_n.temperature
-      - best_of_n.num_samples
-      - best_of_n.pilot_limit
-      - best_of_n.layers
-      - datasets.math500
-    outs:
-      - data/qwen_bestofn/math500
+  collect_bestofn:
+    foreach: ${bestofn_matrix}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset math500
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers ${best_of_n.layers}
+        --temperature ${best_of_n.temperature}
+        --num_samples ${best_of_n.num_samples}
+        --limit ${item.limit}
+        --output_dir data/${item.model}_bestofn_${item.scale}/math500
+      deps:
+        - collect_data.py
+      params:
+        - bestofn_matrix
+        - best_of_n.temperature
+        - best_of_n.num_samples
+        - best_of_n.layers
+        - datasets.math500
+      outs:
+        - data/${item.model}_bestofn_${item.scale}/math500
 
-  evaluate_qwen_math500_bestofn:
-    cmd: >-
-      uv run python best_of_n.py
-      --data_dir data/qwen_bestofn/math500
-      --output_dir results/qwen_bestofn/math500
-      --dataset_label math500
-      --layers ${best_of_n.layers}
-      --n_values ${best_of_n.n_values}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - best_of_n.py
-      - analyze.py
-      - data/qwen_bestofn/math500
-    params:
-      - best_of_n.layers
-      - best_of_n.n_values
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen_bestofn/math500/math500_best_of_n_results.json:
-          cache: false
-    plots:
-      - results/qwen_bestofn/math500/math500_best_of_n.png:
-          cache: false
-
-  collect_qwen_math500_bestofn_full:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
-      --layers ${best_of_n.layers}
-      --temperature ${best_of_n.temperature}
-      --num_samples ${best_of_n.num_samples}
-      --limit ${best_of_n.full_limit}
-      --output_dir data/qwen_bestofn_full/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - best_of_n.temperature
-      - best_of_n.num_samples
-      - best_of_n.full_limit
-      - best_of_n.layers
-      - datasets.math500
-    outs:
-      - data/qwen_bestofn_full/math500
-
-  evaluate_qwen_math500_bestofn_full:
-    cmd: >-
-      uv run python best_of_n.py
-      --data_dir data/qwen_bestofn_full/math500
-      --output_dir results/qwen_bestofn_full/math500
-      --dataset_label math500
-      --layers ${best_of_n.layers}
-      --n_values ${best_of_n.n_values}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - best_of_n.py
-      - analyze.py
-      - data/qwen_bestofn_full/math500
-    params:
-      - best_of_n.layers
-      - best_of_n.n_values
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen_bestofn_full/math500/math500_best_of_n_results.json:
-          cache: false
-    plots:
-      - results/qwen_bestofn_full/math500/math500_best_of_n.png:
-          cache: false
-
-  collect_deepseek_math500_bestofn:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers ${best_of_n.layers}
-      --temperature ${best_of_n.temperature}
-      --num_samples ${best_of_n.num_samples}
-      --limit ${best_of_n.pilot_limit}
-      --output_dir data/deepseek_bestofn/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - best_of_n.temperature
-      - best_of_n.num_samples
-      - best_of_n.pilot_limit
-      - best_of_n.layers
-      - datasets.math500
-    outs:
-      - data/deepseek_bestofn/math500
-
-  evaluate_deepseek_math500_bestofn:
-    cmd: >-
-      uv run python best_of_n.py
-      --data_dir data/deepseek_bestofn/math500
-      --output_dir results/deepseek_bestofn/math500
-      --dataset_label math500
-      --layers ${best_of_n.layers}
-      --n_values ${best_of_n.n_values}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - best_of_n.py
-      - analyze.py
-      - data/deepseek_bestofn/math500
-    params:
-      - best_of_n.layers
-      - best_of_n.n_values
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek_bestofn/math500/math500_best_of_n_results.json:
-          cache: false
-    plots:
-      - results/deepseek_bestofn/math500/math500_best_of_n.png:
-          cache: false
-
-  collect_deepseek_math500_bestofn_full:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers ${best_of_n.layers}
-      --temperature ${best_of_n.temperature}
-      --num_samples ${best_of_n.num_samples}
-      --limit ${best_of_n.full_limit}
-      --output_dir data/deepseek_bestofn_full/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - best_of_n.temperature
-      - best_of_n.num_samples
-      - best_of_n.full_limit
-      - best_of_n.layers
-      - datasets.math500
-    outs:
-      - data/deepseek_bestofn_full/math500
-
-  evaluate_deepseek_math500_bestofn_full:
-    cmd: >-
-      uv run python best_of_n.py
-      --data_dir data/deepseek_bestofn_full/math500
-      --output_dir results/deepseek_bestofn_full/math500
-      --dataset_label math500
-      --layers ${best_of_n.layers}
-      --n_values ${best_of_n.n_values}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - best_of_n.py
-      - analyze.py
-      - data/deepseek_bestofn_full/math500
-    params:
-      - best_of_n.layers
-      - best_of_n.n_values
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek_bestofn_full/math500/math500_best_of_n_results.json:
-          cache: false
-    plots:
-      - results/deepseek_bestofn_full/math500/math500_best_of_n.png:
-          cache: false
+  evaluate_bestofn:
+    foreach: ${bestofn_matrix}
+    do:
+      cmd: >-
+        uv run python best_of_n.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/math500
+        --output_dir results/${item.model}_bestofn_${item.scale}/math500
+        --dataset_label math500
+        --layers ${best_of_n.layers}
+        --n_values ${best_of_n.n_values}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+      deps:
+        - best_of_n.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/math500
+      params:
+        - best_of_n.layers
+        - best_of_n.n_values
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_best_of_n_results.json:
+            cache: false
+      plots:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_best_of_n.png:
+            cache: false
 
   # ── Prefix filtering (sampled MATH-500 traces, shallow layers) ───────────
 
-  collect_qwen_math500_prefix_filter:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
-      --layers ${prefix_filter.layers}
-      --temperature ${prefix_filter.temperature}
-      --num_samples ${prefix_filter.num_samples}
-      --limit ${prefix_filter.pilot_limit}
-      --output_dir data/qwen_prefix_filter/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - prefix_filter.temperature
-      - prefix_filter.num_samples
-      - prefix_filter.pilot_limit
-      - prefix_filter.layers
-      - datasets.math500
-    outs:
-      - data/qwen_prefix_filter/math500
+  collect_prefix_filter:
+    foreach: ${prefix_filter_matrix}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset math500
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers ${prefix_filter.layers}
+        --temperature ${prefix_filter.temperature}
+        --num_samples ${prefix_filter.num_samples}
+        --limit ${item.limit}
+        --output_dir data/${item.model}_prefix_filter_${item.scale}/math500
+      deps:
+        - collect_data.py
+      params:
+        - prefix_filter_matrix
+        - prefix_filter.temperature
+        - prefix_filter.num_samples
+        - prefix_filter.layers
+        - datasets.math500
+      outs:
+        - data/${item.model}_prefix_filter_${item.scale}/math500
 
-  evaluate_qwen_math500_prefix_filter:
-    cmd: >-
-      uv run python prefix_filter.py
-      --data_dir data/qwen_prefix_filter/math500
-      --output_dir results/qwen_prefix_filter/math500
-      --dataset_label math500
-      --layers ${prefix_filter.layers}
-      --prefix_lengths ${prefix_filter.prefix_lengths}
-      --score_kinds ${prefix_filter.score_kinds}
-      --threshold_quantiles ${prefix_filter.threshold_quantiles}
-      --max_restarts ${prefix_filter.max_restarts}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - prefix_filter.py
-      - analyze.py
-      - data/qwen_prefix_filter/math500
-    params:
-      - prefix_filter.layers
-      - prefix_filter.prefix_lengths
-      - prefix_filter.score_kinds
-      - prefix_filter.threshold_quantiles
-      - prefix_filter.max_restarts
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen_prefix_filter/math500/math500_prefix_filter_results.json:
-          cache: false
-    plots:
-      - results/qwen_prefix_filter/math500/math500_prefix_filter_tradeoff.png:
-          cache: false
-
-  collect_qwen_math500_prefix_filter_full:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.qwen.name}
-      --max_new_tokens ${models.qwen.max_new_tokens}
-      --layers ${prefix_filter.layers}
-      --temperature ${prefix_filter.temperature}
-      --num_samples ${prefix_filter.num_samples}
-      --limit ${prefix_filter.full_limit}
-      --output_dir data/qwen_prefix_filter_full/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.qwen.name
-      - models.qwen.max_new_tokens
-      - prefix_filter.temperature
-      - prefix_filter.num_samples
-      - prefix_filter.full_limit
-      - prefix_filter.layers
-      - datasets.math500
-    outs:
-      - data/qwen_prefix_filter_full/math500
-
-  evaluate_qwen_math500_prefix_filter_full:
-    cmd: >-
-      uv run python prefix_filter.py
-      --data_dir data/qwen_prefix_filter_full/math500
-      --output_dir results/qwen_prefix_filter_full/math500
-      --dataset_label math500
-      --layers ${prefix_filter.layers}
-      --prefix_lengths ${prefix_filter.prefix_lengths}
-      --score_kinds ${prefix_filter.score_kinds}
-      --threshold_quantiles ${prefix_filter.threshold_quantiles}
-      --max_restarts ${prefix_filter.max_restarts}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - prefix_filter.py
-      - analyze.py
-      - data/qwen_prefix_filter_full/math500
-    params:
-      - prefix_filter.layers
-      - prefix_filter.prefix_lengths
-      - prefix_filter.score_kinds
-      - prefix_filter.threshold_quantiles
-      - prefix_filter.max_restarts
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/qwen_prefix_filter_full/math500/math500_prefix_filter_results.json:
-          cache: false
-    plots:
-      - results/qwen_prefix_filter_full/math500/math500_prefix_filter_tradeoff.png:
-          cache: false
-
-  collect_deepseek_math500_prefix_filter:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers ${prefix_filter.layers}
-      --temperature ${prefix_filter.temperature}
-      --num_samples ${prefix_filter.num_samples}
-      --limit ${prefix_filter.pilot_limit}
-      --output_dir data/deepseek_prefix_filter/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - prefix_filter.temperature
-      - prefix_filter.num_samples
-      - prefix_filter.pilot_limit
-      - prefix_filter.layers
-      - datasets.math500
-    outs:
-      - data/deepseek_prefix_filter/math500
-
-  evaluate_deepseek_math500_prefix_filter:
-    cmd: >-
-      uv run python prefix_filter.py
-      --data_dir data/deepseek_prefix_filter/math500
-      --output_dir results/deepseek_prefix_filter/math500
-      --dataset_label math500
-      --layers ${prefix_filter.layers}
-      --prefix_lengths ${prefix_filter.prefix_lengths}
-      --score_kinds ${prefix_filter.score_kinds}
-      --threshold_quantiles ${prefix_filter.threshold_quantiles}
-      --max_restarts ${prefix_filter.max_restarts}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - prefix_filter.py
-      - analyze.py
-      - data/deepseek_prefix_filter/math500
-    params:
-      - prefix_filter.layers
-      - prefix_filter.prefix_lengths
-      - prefix_filter.score_kinds
-      - prefix_filter.threshold_quantiles
-      - prefix_filter.max_restarts
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek_prefix_filter/math500/math500_prefix_filter_results.json:
-          cache: false
-    plots:
-      - results/deepseek_prefix_filter/math500/math500_prefix_filter_tradeoff.png:
-          cache: false
-
-  collect_deepseek_math500_prefix_filter_full:
-    cmd: >-
-      uv run python collect_data.py
-      --dataset math500
-      --model_name ${models.deepseek.name}
-      --max_new_tokens ${models.deepseek.max_new_tokens}
-      --layers ${prefix_filter.layers}
-      --temperature ${prefix_filter.temperature}
-      --num_samples ${prefix_filter.num_samples}
-      --limit ${prefix_filter.full_limit}
-      --output_dir data/deepseek_prefix_filter_full/math500
-    deps:
-      - collect_data.py
-    params:
-      - models.deepseek.name
-      - models.deepseek.max_new_tokens
-      - prefix_filter.temperature
-      - prefix_filter.num_samples
-      - prefix_filter.full_limit
-      - prefix_filter.layers
-      - datasets.math500
-    outs:
-      - data/deepseek_prefix_filter_full/math500
-
-  evaluate_deepseek_math500_prefix_filter_full:
-    cmd: >-
-      uv run python prefix_filter.py
-      --data_dir data/deepseek_prefix_filter_full/math500
-      --output_dir results/deepseek_prefix_filter_full/math500
-      --dataset_label math500
-      --layers ${prefix_filter.layers}
-      --prefix_lengths ${prefix_filter.prefix_lengths}
-      --score_kinds ${prefix_filter.score_kinds}
-      --threshold_quantiles ${prefix_filter.threshold_quantiles}
-      --max_restarts ${prefix_filter.max_restarts}
-      --pca_dim ${analyze.pca_dim}
-      --cv_random_state ${analyze.cv_random_state}
-    deps:
-      - prefix_filter.py
-      - analyze.py
-      - data/deepseek_prefix_filter_full/math500
-    params:
-      - prefix_filter.layers
-      - prefix_filter.prefix_lengths
-      - prefix_filter.score_kinds
-      - prefix_filter.threshold_quantiles
-      - prefix_filter.max_restarts
-      - analyze.pca_dim
-      - analyze.cv_random_state
-    metrics:
-      - results/deepseek_prefix_filter_full/math500/math500_prefix_filter_results.json:
-          cache: false
-    plots:
-      - results/deepseek_prefix_filter_full/math500/math500_prefix_filter_tradeoff.png:
-          cache: false
+  evaluate_prefix_filter:
+    foreach: ${prefix_filter_matrix}
+    do:
+      cmd: >-
+        uv run python prefix_filter.py
+        --data_dir data/${item.model}_prefix_filter_${item.scale}/math500
+        --output_dir results/${item.model}_prefix_filter_${item.scale}/math500
+        --dataset_label math500
+        --layers ${prefix_filter.layers}
+        --prefix_lengths ${prefix_filter.prefix_lengths}
+        --score_kinds ${prefix_filter.score_kinds}
+        --threshold_quantiles ${prefix_filter.threshold_quantiles}
+        --max_restarts ${prefix_filter.max_restarts}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+      deps:
+        - prefix_filter.py
+        - analyze.py
+        - data/${item.model}_prefix_filter_${item.scale}/math500
+      params:
+        - prefix_filter.layers
+        - prefix_filter.prefix_lengths
+        - prefix_filter.score_kinds
+        - prefix_filter.threshold_quantiles
+        - prefix_filter.max_restarts
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}_prefix_filter_${item.scale}/math500/math500_prefix_filter_results.json:
+            cache: false
+      plots:
+        - results/${item.model}_prefix_filter_${item.scale}/math500/math500_prefix_filter_tradeoff.png:
+            cache: false
 
   # ── Summary ──────────────────────────────────────────────────────────────
   # Aggregates all per-stage result JSONs into a single markdown + JSON.
@@ -945,12 +545,15 @@ stages:
       - results/deepseek_llama/math500/math500_results.json
       - results/llama/gsm8k/gsm8k_results.json
       - results/llama/math500/math500_results.json
-      - results/qwen/gsm8k_cross/gsm8k_results.json
-      - results/deepseek/gsm8k_cross/gsm8k_results.json
-      - results/qwen/math500_cross/math500_results.json
-      - results/deepseek/math500_cross/math500_results.json
-      - results/llama/gsm8k_cross_qwen/gsm8k_results.json
-      - results/qwen/gsm8k_cross_llama/gsm8k_results.json
+      - results/deepseek_temp/gsm8k/gsm8k_results.json
+      - results/qwen_dense/math500/math500_results.json
+      # Cross-model deps are optional; add them back once analyze_cross has run:
+      # - results/qwen/gsm8k_cross/gsm8k_results.json
+      # - results/deepseek/gsm8k_cross/gsm8k_results.json
+      # - results/qwen/math500_cross/math500_results.json
+      # - results/deepseek/math500_cross/math500_results.json
+      # - results/llama/gsm8k_cross_qwen/gsm8k_results.json
+      # - results/qwen/gsm8k_cross_llama/gsm8k_results.json
     outs:
       - results/SUMMARY.md:
           cache: false

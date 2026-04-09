@@ -26,6 +26,27 @@ OUTPUT_DIR = "collected_data"
 PCA_DIM = 128
 CV_RANDOM_STATE = 42
 DEFAULT_SUBSPACE_RANKS = "1,2,3,5,8,12"
+MAX_PCA_DIM_ALIASES = {"max", "all"}
+PcaDimSpec = int | str
+
+
+def parse_pca_dim_arg(raw: str) -> PcaDimSpec:
+    token = str(raw).strip().lower()
+    if token in MAX_PCA_DIM_ALIASES:
+        return "max"
+    dim = int(token)
+    if dim <= 0:
+        raise argparse.ArgumentTypeError("--pca_dim must be a positive integer or max/all")
+    return dim
+
+
+def resolve_pca_n_components(hiddens: np.ndarray, pca_dim: PcaDimSpec) -> int:
+    max_components = int(min(hiddens.shape[0], hiddens.shape[1]))
+    if max_components < 1:
+        raise ValueError("Cannot fit PCA: need at least one token and one hidden dimension")
+    if isinstance(pca_dim, str):
+        return max_components
+    return int(pca_dim)
 
 
 def parse_args():
@@ -39,7 +60,12 @@ def parse_args():
         default=None,
         help="Filename for the results JSON (defaults to <dataset_label>_results.json)",
     )
-    parser.add_argument("--pca_dim", type=int, default=PCA_DIM)
+    parser.add_argument(
+        "--pca_dim",
+        type=parse_pca_dim_arg,
+        default=PCA_DIM,
+        help="PCA components (positive int) or max/all for full available rank",
+    )
     parser.add_argument("--dataset_label", type=str, default="gsm8k",
                         help="Label for output files (gsm8k or math500)")
     parser.add_argument(
@@ -57,7 +83,7 @@ def parse_args():
                         help="Bootstrap iterations for difficulty CI (0=skip)")
     parser.add_argument("--cv_random_state", type=int, default=CV_RANDOM_STATE)
     parser.add_argument("--cross_model_ref", type=str, default=None,
-                        help="Data dir of another model (same arch) to fit cross-model Mahalanobis reference")
+                        help="Data dir of another model with a compatible hidden space to fit cross-model Mahalanobis reference")
     parser.add_argument("--layers", type=str, default=None,
                         help="Comma-separated layer indices to analyze (auto-detected from data if omitted)")
     parser.add_argument("--subject", action="store_true",
@@ -104,6 +130,42 @@ def detect_layers(data_dir: str) -> list[int]:
         if layers:
             return layers
     raise RuntimeError(f"No hidden state layers found in {data_dir}")
+
+
+def resolve_cross_model_layer_map(eval_layers: list[int], ref_layers: list[int]) -> dict[int, int]:
+    """Map evaluation layers to reference layers for cross-model transfer.
+
+    Sparse probe runs often capture the same relative depths with architecture-
+    specific layer ids (for example Llama 8/16/24 vs Qwen 7/14/21). Prefer exact
+    matches when available; otherwise map equal-length sparse layer lists by
+    order.
+    """
+    ref_layer_set = set(ref_layers)
+    if all(layer in ref_layer_set for layer in eval_layers):
+        return {layer: layer for layer in eval_layers}
+    if len(eval_layers) == len(ref_layers):
+        return dict(zip(eval_layers, ref_layers))
+
+    common_layers = [layer for layer in eval_layers if layer in ref_layer_set]
+    if common_layers:
+        return {layer: layer for layer in common_layers}
+
+    raise ValueError(
+        "No compatible cross-model layer mapping: "
+        f"eval layers={eval_layers}, reference layers={ref_layers}"
+    )
+
+
+def get_hidden_dim(traces: list[dict], layer: int) -> int | None:
+    """Return the hidden width for the first trace containing layer, if present."""
+    for trace in traces:
+        hiddens = trace.get("hiddens", {})
+        if layer not in hiddens:
+            continue
+        hidden = np.asarray(hiddens[layer])
+        if hidden.ndim >= 2:
+            return int(hidden.shape[-1])
+    return None
 
 
 def load_all_traces(data_dir: str, layers: list[int]) -> list[dict]:
@@ -180,7 +242,7 @@ def _prepare_hidden_tokens(hiddens: np.ndarray, normalize_input: bool = False) -
 def fit_mahalanobis_reference(
     correct_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
     correct_hiddens = _prepare_hidden_tokens(
@@ -188,7 +250,8 @@ def fit_mahalanobis_reference(
         normalize_input=normalize_input,
     )
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
-    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca_components = resolve_pca_n_components(correct_hiddens, pca_dim)
+    pca = PCA(n_components=pca_components, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
 
     projected = pca.transform(correct_hiddens)
@@ -204,7 +267,7 @@ def fit_mahalanobis_reference(
 def fit_mahalanobis_reference_narrow(
     correct_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     ent_percentile: int = 50,
     normalize_input: bool = False,
 ):
@@ -223,7 +286,8 @@ def fit_mahalanobis_reference_narrow(
     )
 
     svd_solver = "randomized" if filtered_hiddens.shape[0] > 200_000 else "full"
-    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca_components = resolve_pca_n_components(filtered_hiddens, pca_dim)
+    pca = PCA(n_components=pca_components, random_state=42, svd_solver=svd_solver)
     pca.fit(filtered_hiddens)
 
     projected = pca.transform(filtered_hiddens)
@@ -252,7 +316,7 @@ def compute_mahal_distances(
 def fit_mahalanobis_reference_safe(
     correct_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
     """Like fit_mahalanobis_reference but returns None on failure (e.g. too few tokens)."""
@@ -269,7 +333,7 @@ def fit_mahalanobis_reference_safe(
 def fit_mahalanobis_reference_narrow_safe(
     correct_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     ent_percentile: int = 50,
     normalize_input: bool = False,
 ):
@@ -291,7 +355,7 @@ def fit_relative_mahalanobis_reference(
     correct_traces: list[dict],
     background_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
     correct_hiddens = _prepare_hidden_tokens(
@@ -304,7 +368,8 @@ def fit_relative_mahalanobis_reference(
     )
 
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
-    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca_components = resolve_pca_n_components(correct_hiddens, pca_dim)
+    pca = PCA(n_components=pca_components, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
 
     correct_proj = pca.transform(correct_hiddens)
@@ -327,7 +392,7 @@ def fit_relative_mahalanobis_reference_safe(
     correct_traces: list[dict],
     background_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
     if not correct_traces or not background_traces:
@@ -370,7 +435,7 @@ def fit_contrast_subspace_reference(
     correct_traces: list[dict],
     incorrect_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     contrast_dim: int,
     normalize_input: bool = False,
 ):
@@ -393,7 +458,8 @@ def fit_contrast_subspace_reference(
         normalize_input=normalize_input,
     )
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
-    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca_components = resolve_pca_n_components(correct_hiddens, pca_dim)
+    pca = PCA(n_components=pca_components, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
 
     correct_proj = pca.transform(correct_hiddens)
@@ -413,7 +479,7 @@ def fit_contrast_subspace_reference(
     primary = diff / diff_norm
 
     # Scatter directions from correct-class PCA (clamped to available budget)
-    n_additional = min(contrast_dim - 1, correct_proj.shape[0] - 1, pca_dim - 1)
+    n_additional = min(contrast_dim - 1, correct_proj.shape[0] - 1, pca_components - 1)
     basis = [primary]
     if n_additional > 0:
         scatter_pca = PCA(n_components=n_additional, random_state=42)
@@ -445,7 +511,7 @@ def fit_contrast_subspace_reference_safe(
     correct_traces: list[dict],
     incorrect_traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     contrast_dim: int,
     normalize_input: bool = False,
 ):
@@ -494,7 +560,7 @@ def compute_contrast_centroid_distances(
 def evaluate_foldwise_contrast_mahalanobis(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     contrast_dim: int,
     y: np.ndarray,
     fold_indices: list[tuple],
@@ -575,7 +641,7 @@ def evaluate_foldwise_contrast_mahalanobis(
 def evaluate_foldwise_relative_mahalanobis(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     y: np.ndarray,
     fold_indices: list[tuple],
     label_prefix: str = "",
@@ -670,7 +736,7 @@ def evaluate_foldwise_relative_mahalanobis(
 def evaluate_foldwise_low_rank_subspace_sweep(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     subspace_ranks: list[int],
     y: np.ndarray,
     fold_indices: list[tuple],
@@ -916,7 +982,7 @@ def _fold_clf_auc(X: np.ndarray, y: np.ndarray, train_idx, test_idx):
 def evaluate_foldwise_mahalanobis(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     y: np.ndarray,
     fold_indices: list[tuple],
     label_prefix: str = "",
@@ -1000,7 +1066,7 @@ def evaluate_foldwise_mahalanobis(
 def evaluate_foldwise_narrow_mahalanobis(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     y: np.ndarray,
     fold_indices: list[tuple],
     label_prefix: str = "",
@@ -1078,7 +1144,7 @@ def evaluate_foldwise_narrow_mahalanobis(
 
 
 def assign_oof_mahalanobis_distances(
-    traces: list[dict], layer: int, pca_dim: int, fold_indices: list[tuple]
+    traces: list[dict], layer: int, pca_dim: PcaDimSpec, fold_indices: list[tuple]
 ) -> None:
     """Set trace['mahal_dists'] using the CV fold where the trace is in the test set (no label leakage)."""
     n = len(traces)
@@ -1112,7 +1178,7 @@ def assign_oof_mahalanobis_distances(
 def analyze_confident_wrong(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     fold_indices: list[tuple],
 ) -> dict:
     """
@@ -1186,7 +1252,7 @@ def analyze_confident_wrong(
 def analyze_post_fork(
     traces: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     fold_indices: list[tuple],
     window: int = 5,
     percentile: int = 75,
@@ -1278,7 +1344,7 @@ def _compute_mahal_features_from_projected(
 def bootstrap_auc_ci(
     subset: list[dict],
     layer: int,
-    pca_dim: int,
+    pca_dim: PcaDimSpec,
     n_bootstrap: int = 200,
     cv_splits: int = 3,
     random_state: int = 42,
@@ -1304,7 +1370,8 @@ def bootstrap_auc_ci(
     # --- Fit PCA once on all correct traces ---
     correct_hiddens = np.concatenate([t["hiddens"][layer] for t in correct], axis=0)
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
-    pca = PCA(n_components=pca_dim, random_state=42, svd_solver=svd_solver)
+    pca_components = resolve_pca_n_components(correct_hiddens, pca_dim)
+    pca = PCA(n_components=pca_components, random_state=42, svd_solver=svd_solver)
     pca.fit(correct_hiddens)
     del correct_hiddens
 
@@ -1403,7 +1470,7 @@ def load_math500_subjects() -> dict[int, str]:
 
 
 def analyze_by_difficulty(
-    traces, idx_to_level, pca_dim, layer: int,
+    traces, idx_to_level, pca_dim: PcaDimSpec, layer: int,
     n_bootstrap: int = 0, cv_random_state: int = CV_RANDOM_STATE,
 ):
     """Stratify traces by difficulty level and evaluate each stratum.
@@ -1564,7 +1631,7 @@ def plot_difficulty_stratification(difficulty_results, output_path):
 # ---------------------------------------------------------------------------
 
 def analyze_by_subject(
-    traces, idx_to_subject, pca_dim, layer: int,
+    traces, idx_to_subject, pca_dim: PcaDimSpec, layer: int,
     n_bootstrap: int = 0, cv_random_state: int = CV_RANDOM_STATE,
 ):
     """Stratify traces by MATH-500 subject and evaluate each stratum."""
@@ -2130,7 +2197,27 @@ def main():
         print(f"{'='*60}")
         print(f"  Reference data: {args.cross_model_ref}")
 
-        ref_traces = load_all_traces(args.cross_model_ref, layers_to_analyze)
+        ref_available_layers = detect_layers(args.cross_model_ref)
+        try:
+            ref_layer_by_eval_layer = resolve_cross_model_layer_map(
+                layers_to_analyze, ref_available_layers
+            )
+        except ValueError as e:
+            print(f"  WARNING: {e}; skipping cross-model transfer")
+            ref_layer_by_eval_layer = {}
+
+        if ref_layer_by_eval_layer and any(
+            eval_layer != ref_layer
+            for eval_layer, ref_layer in ref_layer_by_eval_layer.items()
+        ):
+            layer_map = ", ".join(
+                f"L{eval_layer}->L{ref_layer}"
+                for eval_layer, ref_layer in ref_layer_by_eval_layer.items()
+            )
+            print(f"  Reference layer map: {layer_map}")
+
+        ref_layers_to_load = sorted(set(ref_layer_by_eval_layer.values()))
+        ref_traces = load_all_traces(args.cross_model_ref, ref_layers_to_load)
         ref_correct = [t for t in ref_traces if t["is_correct"]]
         print(f"  Loaded {len(ref_traces)} reference traces ({len(ref_correct)} correct)")
 
@@ -2140,10 +2227,35 @@ def main():
         y_ref = np.array([1 if t["is_correct"] else 0 for t in ref_traces])
 
         for layer in layers_to_analyze:
+            ref_layer = ref_layer_by_eval_layer.get(layer)
+            if ref_layer is None:
+                print(f"\n  Layer {layer}:")
+                print("    WARNING: no mapped reference layer; skipping cross-model transfer")
+                continue
+
             print(f"\n  Layer {layer}:")
+            eval_hidden_dim = get_hidden_dim(traces, layer)
+            ref_hidden_dim = get_hidden_dim(ref_correct, ref_layer)
+            if ref_hidden_dim is None:
+                ref_hidden_dim = get_hidden_dim(ref_traces, ref_layer)
+            if eval_hidden_dim is None or ref_hidden_dim is None:
+                print(
+                    "    WARNING: missing hidden states "
+                    f"(eval dim={eval_hidden_dim}, ref L{ref_layer} dim={ref_hidden_dim}); "
+                    "skipping cross-model transfer"
+                )
+                continue
+            if eval_hidden_dim != ref_hidden_dim:
+                print(
+                    "    WARNING: incompatible hidden widths "
+                    f"(eval L{layer}: {eval_hidden_dim}, ref L{ref_layer}: {ref_hidden_dim}); "
+                    "skipping cross-model transfer"
+                )
+                continue
+
             # Fit PCA + Gaussian on other model's correct traces
             ref_pca, ref_mu, ref_cov_inv = fit_mahalanobis_reference(
-                ref_correct, layer, args.pca_dim
+                ref_correct, ref_layer, args.pca_dim
             )
 
             # Compute Mahalanobis distances for this model's traces using the other model's reference
@@ -2168,7 +2280,7 @@ def main():
             # (same ref_pca/ref_mu/ref_cov_inv since that IS the ref model's geometry)
             X_ref_mah_rows, X_ref_comb_rows = [], []
             for rt in ref_traces:
-                rm = compute_mahal_distances(rt["hiddens"][layer], ref_pca, ref_mu, ref_cov_inv)
+                rm = compute_mahal_distances(rt["hiddens"][ref_layer], ref_pca, ref_mu, ref_cov_inv)
                 rmf = mahal_features(rt["entropies"], rm)
                 X_ref_mah_rows.append(rmf)
                 X_ref_comb_rows.append(entropy_features(rt["entropies"]) + rmf)
@@ -2180,6 +2292,7 @@ def main():
             clf_comb = evaluate_transfer(X_ref_comb, y_ref, X_xcomb, y, "  clf_transfer_combined")
 
             cross_model_results[str(layer)] = {
+                "ref_layer": int(ref_layer),
                 "cross_mahal_only": xmah_result,
                 "cross_combined": xcomb_result,
                 "clf_transfer_mahal_only": clf_mah,

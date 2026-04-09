@@ -418,14 +418,15 @@ stages:
       size: 17932144589
       nfiles: 27
   analyze_deepseek_temp_gsm8k:
-    cmd: uv run python analyze.py --data_dir data/deepseek_temp/gsm8k 
-      --output_dir results/deepseek_temp/gsm8k --dataset_label gsm8k --pca_dim 
-      128 --cv_random_state 42 --n_bootstrap 0
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek_temp/gsm8k --output_dir results/deepseek_temp/gsm8k 
+      --dataset_label gsm8k --output_name gsm8k_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
     - path: data/deepseek_temp/gsm8k
       hash: md5
       md5: 6ed2e1fc6d795ddee36293f3c3535455.dir
@@ -436,62 +437,70 @@ stages:
         analyze.cv_random_state: 42
         analyze.pca_dim: 128
     outs:
+    - path: results/deepseek_temp/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: f2ecef51678404df38efb8eb030e8d76
+      size: 6902
     - path: results/deepseek_temp/gsm8k/gsm8k_layer_comparison.png
       hash: md5
-      md5: 9a872ca9e4ecb0653375e1f96636cb7f
-      size: 63990
-    - path: results/deepseek_temp/gsm8k/gsm8k_results.json
-      hash: md5
-      md5: 4911edb2b8de52491e40b81669db5ce9
-      size: 6636
+      md5: ced6b1619daee62e609c95a69d799269
+      size: 64847
   summarize:
     cmd: uv run python summarize.py --results_dir results --output_dir results
     deps:
     - path: results/deepseek/gsm8k/gsm8k_results.json
       hash: md5
-      md5: fa094c82bc9a87a7a7835a54cbef61b5
-      size: 6642
-    - path: results/deepseek/gsm8k_cross/gsm8k_results.json
-      hash: md5
-      md5: f05c79787841f368aa244c06f6d3147b
-      size: 9822
+      md5: 2452d0644fdef64e77e3eed3bde351b6
+      size: 57390
     - path: results/deepseek/math500/math500_results.json
       hash: md5
-      md5: 0216d83267aabf311d5be2bda6c78344
-      size: 30606
-    - path: results/deepseek/math500_cross/math500_results.json
+      md5: 172110000bec5b0de39ddb0289c611cf
+      size: 81362
+    - path: results/deepseek_llama/gsm8k/gsm8k_results.json
       hash: md5
-      md5: a474f69b9d12c542651d56e1aa009917
-      size: 9752
+      md5: 6de7e051b8e1e2760a4acd486b6df83f
+      size: 57435
+    - path: results/deepseek_llama/math500/math500_results.json
+      hash: md5
+      md5: 9547336a8969a600f199660c085f8a85
+      size: 79742
+    - path: results/deepseek_temp/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: bbf8c64a496e58a1b54a8dfe41afa259
+      size: 18545
+    - path: results/llama/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: 057b3ca7f85d343a5e2c1c2c29f14ce6
+      size: 57449
+    - path: results/llama/math500/math500_results.json
+      hash: md5
+      md5: 7875f6ecfded8d4a66196187ea3b414a
+      size: 81322
     - path: results/qwen/gsm8k/gsm8k_results.json
       hash: md5
-      md5: 785aed882b236baf6dd425223de173e6
-      size: 6641
-    - path: results/qwen/gsm8k_cross/gsm8k_results.json
-      hash: md5
-      md5: a698f4dfcfab2d095e800f2558d3a6a2
-      size: 9816
+      md5: 304054380913f40e33fcafbc0e6a8407
+      size: 57449
     - path: results/qwen/math500/math500_results.json
       hash: md5
-      md5: 42bea055dcaef31608ece3a9e198a63b
-      size: 30845
-    - path: results/qwen/math500_cross/math500_results.json
+      md5: 47eb70cead856537ee160f300e5987ef
+      size: 81572
+    - path: results/qwen_dense/math500/math500_results.json
       hash: md5
-      md5: 193cad8aaddffa53cada8d6992125421
-      size: 9781
+      md5: caf084254e10d3c9344215d8d5a9d5b8
+      size: 29356
     - path: summarize.py
       hash: md5
-      md5: a939e6a9d7174d04cfa9e2415d11ddee
-      size: 11645
+      md5: 8eff916c824a8271f3d094512edc2e86
+      size: 24156
     outs:
     - path: results/SUMMARY.md
       hash: md5
-      md5: de24e87ff0d4ab7268e4dc7363bb24df
-      size: 8223
+      md5: 281b1d13c03774b78c0c34ded31145a1
+      size: 57847
     - path: results/all_results.json
       hash: md5
-      md5: c7064d7b2674b725580f2e119aeaa90d
-      size: 170742
+      md5: 8b1c8eaf1ad6ed75f2158ad32d2ad2c7
+      size: 1088265
   collect_qwen_math500_bestofn:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -1123,3 +1132,1257 @@ stages:
       md5: 41acf4f11c565fd8628915b0ab84b91f.dir
       size: 15567486853
       nfiles: 10
+  analyze_base@0:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_base_results.json --pca_dim 128 --cv_random_state 42 
+      --n_bootstrap 0 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: 30fda7018d3b198ad91de412f99bf84b
+      size: 6906
+  analyze_controls@0:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_controls_results.json --pca_dim 128 --cv_random_state 
+      42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 81aec5a7f26c6a5f7b073ada1fdb052e
+      size: 12423
+  analyze_subspace@0:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_subspace_results.json --pca_dim 128 --cv_random_state 
+      42 --n_bootstrap 0 --contrast_dim 10 --subspace_ranks 1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: df29418744463474e2eba921e5c8ce55
+      size: 39625
+  analyze_base@1:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: a7e51a700b70014511805c55fddf0983
+      size: 6905
+  analyze_controls@1:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_controls_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 44db45c6f0b029da5d0ee694ac02c815
+      size: 12402
+  analyze_base@2:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek_llama/gsm8k --output_dir results/deepseek_llama/gsm8k 
+      --dataset_label gsm8k --output_name gsm8k_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/gsm8k
+      hash: md5
+      md5: a23cfa992713e9545c822353d6cc4961.dir
+      size: 13479791718
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek_llama/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: f6fc47a2ae250598bc9075052ae3fc39
+      size: 6899
+  analyze_controls@2:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/deepseek_llama/gsm8k --output_dir results/deepseek_llama/gsm8k 
+      --dataset_label gsm8k --output_name gsm8k_controls_results.json --pca_dim 
+      128 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/gsm8k
+      hash: md5
+      md5: a23cfa992713e9545c822353d6cc4961.dir
+      size: 13479791718
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek_llama/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 2c262606ce46c3d3b62350fbd7db105a
+      size: 12426
+  analyze_base@3:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/llama/gsm8k --output_dir results/llama/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_base_results.json --pca_dim 128 --cv_random_state 42 
+      --n_bootstrap 0 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: 32a9c687200816421009574f81d95013
+      size: 6915
+  analyze_subspace@1:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_subspace_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --contrast_dim 10 --subspace_ranks 
+      1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 6f7e522e618900ec1026d1eb2387e159
+      size: 39594
+  analyze_controls@3:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/llama/gsm8k --output_dir results/llama/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_controls_results.json --pca_dim 128 --cv_random_state 
+      42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 36208b5eb517f3f883dd34b64f05e183
+      size: 12405
+  analyze_base@4:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/math500/math500_base_results.json
+      hash: md5
+      md5: 0f8fa4382756edb313446f71d9f2e2e2
+      size: 31111
+  analyze_controls@4:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_controls_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/math500/math500_controls_results.json
+      hash: md5
+      md5: 8769a33226a72abd4bd0d7854c8349ce
+      size: 12381
+  analyze_subspace@2:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/deepseek_llama/gsm8k --output_dir results/deepseek_llama/gsm8k 
+      --dataset_label gsm8k --output_name gsm8k_subspace_results.json --pca_dim 
+      128 --cv_random_state 42 --n_bootstrap 0 --contrast_dim 10 
+      --subspace_ranks 1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/gsm8k
+      hash: md5
+      md5: a23cfa992713e9545c822353d6cc4961.dir
+      size: 13479791718
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/deepseek_llama/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 33cdafdab763fb832b94a9d4c15ccd03
+      size: 39615
+  analyze_base@5:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_base_results.json --pca_dim 
+      128 --cv_random_state 42 --n_bootstrap 100 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/math500/math500_base_results.json
+      hash: md5
+      md5: b1c08fa3c1b3234c8139c4badeec3e23
+      size: 30896
+  analyze_controls@5:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_controls_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 100
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/math500/math500_controls_results.json
+      hash: md5
+      md5: b7a19fd21f23babcc7216944b6668de1
+      size: 12375
+  analyze_base@6:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek_llama/math500 --output_dir results/deepseek_llama/math500 
+      --dataset_label math500 --output_name math500_base_results.json --pca_dim 
+      128 --cv_random_state 42 --n_bootstrap 100 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek_llama/math500/math500_base_results.json
+      hash: md5
+      md5: 48e569c44e26ff4a52831b67c006b554
+      size: 29511
+  analyze_controls@6:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/deepseek_llama/math500 --output_dir results/deepseek_llama/math500 
+      --dataset_label math500 --output_name math500_controls_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 100
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek_llama/math500/math500_controls_results.json
+      hash: md5
+      md5: 57dd6808846f80bbf08a973942c2ecf4
+      size: 12321
+  analyze_subspace@3:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/llama/gsm8k --output_dir results/llama/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_subspace_results.json --pca_dim 128 --cv_random_state 
+      42 --n_bootstrap 0 --contrast_dim 10 --subspace_ranks 1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/llama/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 35299fa47e79f6de98344a27fb5dfbf0
+      size: 39638
+  analyze_base@7:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/llama/math500 --output_dir results/llama/math500 --dataset_label 
+      math500 --output_name math500_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100 --difficulty --subject
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/math500/math500_base_results.json
+      hash: md5
+      md5: 93583ebf3b21f9cfc01f069cf4b6bc82
+      size: 30914
+  analyze_controls@7:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/llama/math500 --output_dir results/llama/math500 --dataset_label 
+      math500 --output_name math500_controls_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/math500/math500_controls_results.json
+      hash: md5
+      md5: 0e2a10673e8be27754498d33d5d7f36d
+      size: 12355
+  analyze_subspace@4:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_subspace_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100 --contrast_dim 10 --subspace_ranks 
+      1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/qwen/math500/math500_subspace_results.json
+      hash: md5
+      md5: d51c3906705977ffc6e5372eb11a4e3b
+      size: 39589
+  analyze_subspace@5:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_subspace_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 100 --contrast_dim 10 
+      --subspace_ranks 1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/deepseek/math500/math500_subspace_results.json
+      hash: md5
+      md5: e4fa1d801bcf71425315847f788038d1
+      size: 39598
+  analyze_subspace@6:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/deepseek_llama/math500 --output_dir results/deepseek_llama/math500 
+      --dataset_label math500 --output_name math500_subspace_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 100 --contrast_dim 10 
+      --subspace_ranks 1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/deepseek_llama/math500/math500_subspace_results.json
+      hash: md5
+      md5: 0332b7c82eaf8181f5c3cdb70fadbc23
+      size: 39421
+  analyze_subspace@7:
+    cmd: uv run python analyze.py --analysis_family subspace --data_dir 
+      data/llama/math500 --output_dir results/llama/math500 --dataset_label 
+      math500 --output_name math500_subspace_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 100 --contrast_dim 10 --subspace_ranks 
+      1,2,3,5,8,12
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 43ce4bb11927d18f2ec01ab9396e62e1
+      size: 89484
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.contrast_dim: 10
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        analyze.subspace_ranks: 1,2,3,5,8,12
+    outs:
+    - path: results/llama/math500/math500_subspace_results.json
+      hash: md5
+      md5: f5f82b2c77aa97f9107d4eeff6831b7b
+      size: 39534
+  merge_analyze@qwen-gsm8k:
+    cmd: uv run python merge_results.py --output_path 
+      results/qwen/gsm8k/gsm8k_results.json --inputs 
+      results/qwen/gsm8k/gsm8k_base_results.json 
+      results/qwen/gsm8k/gsm8k_controls_results.json 
+      results/qwen/gsm8k/gsm8k_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/qwen/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: 30fda7018d3b198ad91de412f99bf84b
+      size: 6906
+    - path: results/qwen/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 81aec5a7f26c6a5f7b073ada1fdb052e
+      size: 12423
+    - path: results/qwen/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: df29418744463474e2eba921e5c8ce55
+      size: 39625
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: 304054380913f40e33fcafbc0e6a8407
+      size: 57449
+  merge_analyze@qwen-math500:
+    cmd: uv run python merge_results.py --output_path 
+      results/qwen/math500/math500_results.json --inputs 
+      results/qwen/math500/math500_base_results.json 
+      results/qwen/math500/math500_controls_results.json 
+      results/qwen/math500/math500_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/qwen/math500/math500_base_results.json
+      hash: md5
+      md5: 0f8fa4382756edb313446f71d9f2e2e2
+      size: 31111
+    - path: results/qwen/math500/math500_controls_results.json
+      hash: md5
+      md5: 8769a33226a72abd4bd0d7854c8349ce
+      size: 12381
+    - path: results/qwen/math500/math500_subspace_results.json
+      hash: md5
+      md5: d51c3906705977ffc6e5372eb11a4e3b
+      size: 39589
+    outs:
+    - path: results/qwen/math500/math500_results.json
+      hash: md5
+      md5: 47eb70cead856537ee160f300e5987ef
+      size: 81572
+  merge_analyze@deepseek-gsm8k:
+    cmd: uv run python merge_results.py --output_path 
+      results/deepseek/gsm8k/gsm8k_results.json --inputs 
+      results/deepseek/gsm8k/gsm8k_base_results.json 
+      results/deepseek/gsm8k/gsm8k_controls_results.json 
+      results/deepseek/gsm8k/gsm8k_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/deepseek/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: a7e51a700b70014511805c55fddf0983
+      size: 6905
+    - path: results/deepseek/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 44db45c6f0b029da5d0ee694ac02c815
+      size: 12402
+    - path: results/deepseek/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 6f7e522e618900ec1026d1eb2387e159
+      size: 39594
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: 2452d0644fdef64e77e3eed3bde351b6
+      size: 57390
+  merge_analyze@deepseek-math500:
+    cmd: uv run python merge_results.py --output_path 
+      results/deepseek/math500/math500_results.json --inputs 
+      results/deepseek/math500/math500_base_results.json 
+      results/deepseek/math500/math500_controls_results.json 
+      results/deepseek/math500/math500_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/deepseek/math500/math500_base_results.json
+      hash: md5
+      md5: b1c08fa3c1b3234c8139c4badeec3e23
+      size: 30896
+    - path: results/deepseek/math500/math500_controls_results.json
+      hash: md5
+      md5: b7a19fd21f23babcc7216944b6668de1
+      size: 12375
+    - path: results/deepseek/math500/math500_subspace_results.json
+      hash: md5
+      md5: e4fa1d801bcf71425315847f788038d1
+      size: 39598
+    outs:
+    - path: results/deepseek/math500/math500_results.json
+      hash: md5
+      md5: 172110000bec5b0de39ddb0289c611cf
+      size: 81362
+  merge_analyze@deepseek_llama-gsm8k:
+    cmd: uv run python merge_results.py --output_path 
+      results/deepseek_llama/gsm8k/gsm8k_results.json --inputs 
+      results/deepseek_llama/gsm8k/gsm8k_base_results.json 
+      results/deepseek_llama/gsm8k/gsm8k_controls_results.json 
+      results/deepseek_llama/gsm8k/gsm8k_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/deepseek_llama/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: f6fc47a2ae250598bc9075052ae3fc39
+      size: 6899
+    - path: results/deepseek_llama/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 2c262606ce46c3d3b62350fbd7db105a
+      size: 12426
+    - path: results/deepseek_llama/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 33cdafdab763fb832b94a9d4c15ccd03
+      size: 39615
+    outs:
+    - path: results/deepseek_llama/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: 6de7e051b8e1e2760a4acd486b6df83f
+      size: 57435
+  merge_analyze@deepseek_llama-math500:
+    cmd: uv run python merge_results.py --output_path 
+      results/deepseek_llama/math500/math500_results.json --inputs 
+      results/deepseek_llama/math500/math500_base_results.json 
+      results/deepseek_llama/math500/math500_controls_results.json 
+      results/deepseek_llama/math500/math500_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/deepseek_llama/math500/math500_base_results.json
+      hash: md5
+      md5: 48e569c44e26ff4a52831b67c006b554
+      size: 29511
+    - path: results/deepseek_llama/math500/math500_controls_results.json
+      hash: md5
+      md5: 57dd6808846f80bbf08a973942c2ecf4
+      size: 12321
+    - path: results/deepseek_llama/math500/math500_subspace_results.json
+      hash: md5
+      md5: 0332b7c82eaf8181f5c3cdb70fadbc23
+      size: 39421
+    outs:
+    - path: results/deepseek_llama/math500/math500_results.json
+      hash: md5
+      md5: 9547336a8969a600f199660c085f8a85
+      size: 79742
+  merge_analyze@llama-gsm8k:
+    cmd: uv run python merge_results.py --output_path 
+      results/llama/gsm8k/gsm8k_results.json --inputs 
+      results/llama/gsm8k/gsm8k_base_results.json 
+      results/llama/gsm8k/gsm8k_controls_results.json 
+      results/llama/gsm8k/gsm8k_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/llama/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: 32a9c687200816421009574f81d95013
+      size: 6915
+    - path: results/llama/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 36208b5eb517f3f883dd34b64f05e183
+      size: 12405
+    - path: results/llama/gsm8k/gsm8k_subspace_results.json
+      hash: md5
+      md5: 35299fa47e79f6de98344a27fb5dfbf0
+      size: 39638
+    outs:
+    - path: results/llama/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: 057b3ca7f85d343a5e2c1c2c29f14ce6
+      size: 57449
+  merge_analyze@llama-math500:
+    cmd: uv run python merge_results.py --output_path 
+      results/llama/math500/math500_results.json --inputs 
+      results/llama/math500/math500_base_results.json 
+      results/llama/math500/math500_controls_results.json 
+      results/llama/math500/math500_subspace_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/llama/math500/math500_base_results.json
+      hash: md5
+      md5: 93583ebf3b21f9cfc01f069cf4b6bc82
+      size: 30914
+    - path: results/llama/math500/math500_controls_results.json
+      hash: md5
+      md5: 0e2a10673e8be27754498d33d5d7f36d
+      size: 12355
+    - path: results/llama/math500/math500_subspace_results.json
+      hash: md5
+      md5: f5f82b2c77aa97f9107d4eeff6831b7b
+      size: 39534
+    outs:
+    - path: results/llama/math500/math500_results.json
+      hash: md5
+      md5: 7875f6ecfded8d4a66196187ea3b414a
+      size: 81322
+  analyze_cross@0:
+    cmd: uv run python analyze.py --data_dir data/llama/gsm8k --output_dir 
+      results/llama/gsm8k_cross_qwen --dataset_label gsm8k --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref data/qwen/gsm8k
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/llama/gsm8k_cross_qwen/gsm8k_results.json
+      hash: md5
+      md5: 32a9c687200816421009574f81d95013
+      size: 6915
+  analyze_cross@1:
+    cmd: uv run python analyze.py --data_dir data/qwen/gsm8k --output_dir 
+      results/qwen/gsm8k_cross_llama --dataset_label gsm8k --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref data/llama/gsm8k
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/llama/gsm8k
+      hash: md5
+      md5: acb62533ed2602268ce23632ee43a8ee.dir
+      size: 6373156696
+      nfiles: 27
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/gsm8k_cross_llama/gsm8k_results.json
+      hash: md5
+      md5: 30fda7018d3b198ad91de412f99bf84b
+      size: 6906
+  analyze_cross@2:
+    cmd: uv run python analyze.py --data_dir data/qwen/gsm8k --output_dir 
+      results/qwen/gsm8k_cross --dataset_label gsm8k --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref data/deepseek/gsm8k
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/gsm8k_cross/gsm8k_results.json
+      hash: md5
+      md5: 135528c62ce99220644a9a5ffef90c31
+      size: 10146
+  analyze_controls_deepseek_temp_gsm8k:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/deepseek_temp/gsm8k --output_dir results/deepseek_temp/gsm8k 
+      --dataset_label gsm8k --output_name gsm8k_controls_results.json --pca_dim 
+      128 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/deepseek_temp/gsm8k
+      hash: md5
+      md5: 6ed2e1fc6d795ddee36293f3c3535455.dir
+      size: 17932144589
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek_temp/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 989b392656e7f6a7af027d7931226bac
+      size: 12396
+  merge_analyze_deepseek_temp_gsm8k:
+    cmd: uv run python merge_results.py --output_path 
+      results/deepseek_temp/gsm8k/gsm8k_results.json --inputs 
+      results/deepseek_temp/gsm8k/gsm8k_base_results.json 
+      results/deepseek_temp/gsm8k/gsm8k_controls_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/deepseek_temp/gsm8k/gsm8k_base_results.json
+      hash: md5
+      md5: f2ecef51678404df38efb8eb030e8d76
+      size: 6902
+    - path: results/deepseek_temp/gsm8k/gsm8k_controls_results.json
+      hash: md5
+      md5: 989b392656e7f6a7af027d7931226bac
+      size: 12396
+    outs:
+    - path: results/deepseek_temp/gsm8k/gsm8k_results.json
+      hash: md5
+      md5: bbf8c64a496e58a1b54a8dfe41afa259
+      size: 18545
+  analyze_cross@3:
+    cmd: uv run python analyze.py --data_dir data/deepseek/gsm8k --output_dir 
+      results/deepseek/gsm8k_cross --dataset_label gsm8k --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref data/qwen/gsm8k
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/gsm8k_cross/gsm8k_results.json
+      hash: md5
+      md5: 3f626e270bf8370112c1c5c8e45f66d3
+      size: 10158
+  analyze_cross@4:
+    cmd: uv run python analyze.py --data_dir data/qwen/math500 --output_dir 
+      results/qwen/math500_cross --dataset_label math500 --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref 
+      data/deepseek/math500
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen/math500_cross/math500_results.json
+      hash: md5
+      md5: 78b74485a190a0d3ab294cec3939648c
+      size: 10135
+  analyze_cross@5:
+    cmd: uv run python analyze.py --data_dir data/deepseek/math500 --output_dir 
+      results/deepseek/math500_cross --dataset_label math500 --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0 --cross_model_ref data/qwen/math500
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3fb69308cb6a32b7740689a8563bb6ba
+      size: 92941
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/deepseek/math500_cross/math500_results.json
+      hash: md5
+      md5: d8150d7e3344dd7d4e25cb4f1568cc72
+      size: 10093
+  analyze_pca_ablation_runs@0:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_pca32_base_results.json --pca_dim 32 --cv_random_state
+      42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_pca32_base_results.json
+      hash: md5
+      md5: 715275edab625321655ceb8a88f313b9
+      size: 6905
+  analyze_pca_ablation_runs@1:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_pca128_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_pca128_base_results.json
+      hash: md5
+      md5: 30fda7018d3b198ad91de412f99bf84b
+      size: 6906
+  analyze_pca_ablation_runs@2:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_pca512_base_results.json --pca_dim 512 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_pca512_base_results.json
+      hash: md5
+      md5: d4207150cad0a6f28de858aa041d2d79
+      size: 6911
