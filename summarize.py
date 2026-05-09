@@ -272,36 +272,43 @@ def generate_markdown(
 
     # --- PCA dimension ablation ---
     if pca_ablation_results:
+        def _pca_dim_sort_key(dim: str) -> tuple[int, int]:
+            return (1, 0) if dim == "max" else (0, int(dim))
+
+        def _delta_cell(value):
+            return "—" if value is None else f"{value:+.4f}"
+
         lines.append("## PCA-dimension ablation (base geometry)")
         lines.append("")
         lines.append(
-            "Base-only sweep over PCA truncation size. Combined AUC is shown by dimension "
-            "for each layer to test whether performance saturates or keeps improving."
+            "Base-only sweep over PCA truncation size. All evaluated dimensions are shown "
+            "explicitly for each layer so the tradeoff is visible without collapsing to the "
+            "single best PCA dimension."
         )
         lines.append("")
-        lines.append("| Model | Dataset | Layer | Best dim | Monotone | Combined AUC by dim |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("| Model | Dataset | Layer | PCA dim | Mahal-only | Combined | Δ (raw) | Δ (len-ctrl) |")
+        lines.append("|---|---|---|---|---|---|---|---|")
         for model in sorted(pca_ablation_results):
             for ds in sorted(pca_ablation_results[model]):
                 result = pca_ablation_results[model][ds]
-                dims = [str(dim) for dim in result.get("settings", {}).get("pca_dims", [])]
-                if not dims:
-                    continue
                 for layer in sorted(result.get("layers", {}), key=int):
                     layer_data = result["layers"][layer]
-                    best_dim = layer_data.get("best_dim_by_combined_auc", "—")
-                    monotone = "yes" if layer_data.get("combined_auc_monotone_non_decreasing") else "no"
-                    curve_parts = []
+                    dims = [str(dim) for dim in result.get("settings", {}).get("pca_dims", [])]
+                    if not dims:
+                        dims = sorted(layer_data.get("dims", {}), key=_pca_dim_sort_key)
                     for dim in dims:
                         dim_metrics = layer_data.get("dims", {}).get(dim)
                         if not dim_metrics:
                             continue
-                        auc = dim_metrics["combined"]["roc_auc_mean"]
-                        curve_parts.append(f"{dim}:{auc:.3f}")
-                    curve = ", ".join(curve_parts) if curve_parts else "—"
-                    lines.append(
-                        f"| {model} | {ds} | L{layer} | {best_dim} | {monotone} | {curve} |"
-                    )
+                        mahal_auc = dim_metrics["mahalanobis_only"]["roc_auc_mean"]
+                        combined_auc = dim_metrics["combined"]["roc_auc_mean"]
+                        delta = dim_metrics.get("delta_vs_entropy")
+                        lc_delta = dim_metrics.get("length_controlled_delta")
+                        lines.append(
+                            f"| {model} | {ds} | L{layer} | {dim} "
+                            f"| {fmt(mahal_auc)} | {fmt(combined_auc)} "
+                            f"| {_delta_cell(delta)} | {_delta_cell(lc_delta)} |"
+                        )
         lines.append("")
 
     # --- Controls analysis (normalized & RMD) ---

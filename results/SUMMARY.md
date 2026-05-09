@@ -208,6 +208,61 @@ Entropy-only baseline: 0.713 ± 0.036
 | L24 | 0.689 ± 0.050 | 0.731 ± 0.058 | +0.0176 | -0.0027 | 1.35e-05 *** |
 | L26 | 0.728 ± 0.063 | 0.754 ± 0.054 | +0.0404 | +0.0146 | 6.74e-07 *** |
 
+## PCA-dimension ablation (base geometry)
+
+Base-only sweep over PCA truncation size. All evaluated dimensions are shown explicitly for each layer so the tradeoff is visible without collapsing to the single best PCA dimension.
+
+| Model | Dataset | Layer | PCA dim | Mahal-only | Combined | Δ (raw) | Δ (len-ctrl) |
+|---|---|---|---|---|---|---|---|
+| deepseek | gsm8k | L7 | 32 | 0.750 | 0.789 | +0.0605 | +0.0587 |
+| deepseek | gsm8k | L7 | 128 | 0.806 | 0.835 | +0.1064 | +0.0803 |
+| deepseek | gsm8k | L7 | 512 | 0.677 | 0.810 | +0.0823 | +0.0661 |
+| deepseek | gsm8k | L7 | max | 0.737 | 0.807 | +0.0792 | +0.0547 |
+| deepseek | gsm8k | L14 | 32 | 0.795 | 0.790 | +0.0615 | +0.0411 |
+| deepseek | gsm8k | L14 | 128 | 0.802 | 0.800 | +0.0720 | +0.0431 |
+| deepseek | gsm8k | L14 | 512 | 0.718 | 0.797 | +0.0686 | +0.0527 |
+| deepseek | gsm8k | L14 | max | 0.805 | 0.831 | +0.1029 | +0.0663 |
+| deepseek | gsm8k | L21 | 32 | 0.815 | 0.811 | +0.0825 | +0.0599 |
+| deepseek | gsm8k | L21 | 128 | 0.831 | 0.826 | +0.0982 | +0.0619 |
+| deepseek | gsm8k | L21 | 512 | 0.679 | 0.772 | +0.0437 | +0.0509 |
+| deepseek | gsm8k | L21 | max | 0.816 | 0.842 | +0.1135 | +0.0803 |
+| deepseek | math500 | L7 | 32 | 0.761 | 0.804 | +0.0286 | -0.0016 |
+| deepseek | math500 | L7 | 128 | 0.826 | 0.859 | +0.0834 | +0.0444 |
+| deepseek | math500 | L7 | 512 | 0.779 | 0.830 | +0.0545 | +0.0104 |
+| deepseek | math500 | L7 | max | 0.605 | 0.711 | -0.0649 | -0.0857 |
+| deepseek | math500 | L14 | 32 | 0.821 | 0.833 | +0.0576 | +0.0122 |
+| deepseek | math500 | L14 | 128 | 0.787 | 0.809 | +0.0330 | -0.0076 |
+| deepseek | math500 | L14 | 512 | 0.751 | 0.798 | +0.0224 | -0.0095 |
+| deepseek | math500 | L14 | max | 0.725 | 0.776 | +0.0009 | -0.0344 |
+| deepseek | math500 | L21 | 32 | 0.860 | 0.864 | +0.0885 | +0.0391 |
+| deepseek | math500 | L21 | 128 | 0.827 | 0.827 | +0.0513 | +0.0020 |
+| deepseek | math500 | L21 | 512 | 0.768 | 0.796 | +0.0206 | -0.0206 |
+| deepseek | math500 | L21 | max | 0.694 | 0.774 | -0.0011 | -0.0304 |
+| qwen | gsm8k | L7 | 32 | 0.624 | 0.749 | -0.0114 | -0.0091 |
+| qwen | gsm8k | L7 | 128 | 0.627 | 0.775 | +0.0152 | +0.0164 |
+| qwen | gsm8k | L7 | 512 | 0.636 | 0.752 | -0.0082 | -0.0140 |
+| qwen | gsm8k | L7 | max | 0.655 | 0.721 | -0.0392 | -0.0446 |
+| qwen | gsm8k | L14 | 32 | 0.661 | 0.757 | -0.0032 | -0.0129 |
+| qwen | gsm8k | L14 | 128 | 0.595 | 0.762 | +0.0017 | -0.0045 |
+| qwen | gsm8k | L14 | 512 | 0.631 | 0.757 | -0.0032 | -0.0080 |
+| qwen | gsm8k | L14 | max | 0.698 | 0.753 | -0.0067 | -0.0165 |
+| qwen | gsm8k | L21 | 32 | 0.698 | 0.748 | -0.0121 | -0.0088 |
+| qwen | gsm8k | L21 | 128 | 0.690 | 0.781 | +0.0212 | +0.0141 |
+| qwen | gsm8k | L21 | 512 | 0.682 | 0.772 | +0.0118 | +0.0015 |
+| qwen | gsm8k | L21 | max | 0.739 | 0.757 | -0.0031 | -0.0184 |
+| qwen | math500 | L7 | 32 | 0.737 | 0.758 | +0.0450 | +0.0136 |
+| qwen | math500 | L7 | 128 | 0.742 | 0.772 | +0.0587 | +0.0269 |
+| qwen | math500 | L7 | 512 | 0.648 | 0.725 | +0.0114 | -0.0013 |
+| qwen | math500 | L7 | max | 0.616 | 0.648 | -0.0654 | -0.0839 |
+| qwen | math500 | L14 | 32 | 0.663 | 0.721 | +0.0077 | -0.0074 |
+| qwen | math500 | L14 | 128 | 0.678 | 0.729 | +0.0152 | -0.0062 |
+| qwen | math500 | L14 | 512 | 0.627 | 0.721 | +0.0078 | -0.0138 |
+| qwen | math500 | L14 | max | 0.673 | 0.683 | -0.0305 | -0.0646 |
+| qwen | math500 | L21 | 32 | 0.707 | 0.733 | +0.0194 | -0.0055 |
+| qwen | math500 | L21 | 128 | 0.719 | 0.737 | +0.0240 | -0.0005 |
+| qwen | math500 | L21 | 512 | 0.672 | 0.738 | +0.0242 | -0.0023 |
+| qwen | math500 | L21 | max | 0.649 | 0.656 | -0.0579 | -0.0811 |
+
 ## Controls analysis (normalized & robust Mahalanobis)
 
 Checks whether the raw Mahalanobis signal survives length-normalization and robust distance estimation.
@@ -589,3 +644,621 @@ then used to classify *this* model's traces.
 | Number Theory | 62 | 48 | 14 | 0.666 | 0.686 | 0.593 | -0.073 |
 | Prealgebra | 82 | 53 | 29 | 0.581 | 0.533 | 0.512 | -0.069 |
 | Precalculus | 56 | 16 | 40 | 0.671 | 0.542 | 0.535 | -0.135 |
+
+## Prefix filtering (abort/restart simulation)
+
+Full sweep over all settings and threshold quantiles. All operating points are shown to avoid selection bias across score kinds, layers, prefix lengths, and quantile thresholds.
+
+| Model | Dataset | Setting | Quantile | Pass@1 | Baseline Pass@1 | ΔPass | Token Savings | False Abort Rate | Avg Aborts / Problem | Max Restarts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| deepseek_prefix_filter_full | math500 | entropy_only - k=80 | 0.20 | 0.410 | 0.406 | +0.004 | -0.019 | 0.281 | 0.370 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=80 | 0.35 | 0.406 | 0.406 | +0.000 | -0.032 | 0.344 | 0.710 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=80 | 0.50 | 0.416 | 0.406 | +0.010 | -0.050 | 0.353 | 1.038 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=80 | 0.65 | 0.414 | 0.406 | +0.008 | -0.068 | 0.367 | 1.454 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=80 | 0.80 | 0.412 | 0.406 | +0.006 | -0.095 | 0.399 | 2.012 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=80 | 0.20 | 0.404 | 0.406 | -0.002 | -0.020 | 0.220 | 0.400 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=80 | 0.35 | 0.402 | 0.406 | -0.004 | -0.044 | 0.312 | 0.776 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=80 | 0.50 | 0.408 | 0.406 | +0.002 | -0.070 | 0.316 | 1.264 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=80 | 0.65 | 0.408 | 0.406 | +0.002 | -0.104 | 0.345 | 1.814 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=80 | 0.80 | 0.410 | 0.406 | +0.004 | -0.119 | 0.382 | 2.318 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=80 | 0.20 | 0.402 | 0.406 | -0.004 | -0.026 | 0.231 | 0.450 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=80 | 0.35 | 0.406 | 0.406 | +0.000 | -0.053 | 0.286 | 0.880 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=80 | 0.50 | 0.400 | 0.406 | -0.006 | -0.073 | 0.309 | 1.328 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=80 | 0.65 | 0.410 | 0.406 | +0.004 | -0.092 | 0.340 | 1.816 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=80 | 0.80 | 0.416 | 0.406 | +0.010 | -0.117 | 0.368 | 2.312 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=80 | 0.20 | 0.410 | 0.406 | +0.004 | -0.025 | 0.186 | 0.472 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=80 | 0.35 | 0.418 | 0.406 | +0.012 | -0.054 | 0.226 | 0.904 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=80 | 0.50 | 0.404 | 0.406 | -0.002 | -0.078 | 0.299 | 1.412 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=80 | 0.65 | 0.410 | 0.406 | +0.004 | -0.101 | 0.322 | 1.908 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=80 | 0.80 | 0.410 | 0.406 | +0.004 | -0.126 | 0.373 | 2.412 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=80 | 0.20 | 0.406 | 0.406 | +0.000 | -0.027 | 0.160 | 0.512 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=80 | 0.35 | 0.410 | 0.406 | +0.004 | -0.054 | 0.221 | 1.106 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=80 | 0.50 | 0.408 | 0.406 | +0.002 | -0.083 | 0.284 | 1.614 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=80 | 0.65 | 0.414 | 0.406 | +0.008 | -0.098 | 0.335 | 2.120 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=80 | 0.80 | 0.406 | 0.406 | +0.000 | -0.128 | 0.372 | 2.624 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=80 | 0.20 | 0.406 | 0.406 | +0.000 | -0.022 | 0.232 | 0.414 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=80 | 0.35 | 0.400 | 0.406 | -0.006 | -0.049 | 0.314 | 0.810 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=80 | 0.50 | 0.402 | 0.406 | -0.004 | -0.072 | 0.317 | 1.256 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=80 | 0.65 | 0.402 | 0.406 | -0.004 | -0.096 | 0.352 | 1.796 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=80 | 0.80 | 0.410 | 0.406 | +0.004 | -0.117 | 0.382 | 2.336 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=80 | 0.20 | 0.404 | 0.406 | -0.002 | -0.030 | 0.216 | 0.454 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=80 | 0.35 | 0.406 | 0.406 | +0.000 | -0.052 | 0.283 | 0.862 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=80 | 0.50 | 0.404 | 0.406 | -0.002 | -0.075 | 0.317 | 1.344 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=80 | 0.65 | 0.406 | 0.406 | +0.000 | -0.095 | 0.347 | 1.812 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=80 | 0.80 | 0.418 | 0.406 | +0.012 | -0.115 | 0.374 | 2.316 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=80 | 0.20 | 0.408 | 0.406 | +0.002 | -0.028 | 0.171 | 0.480 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=80 | 0.35 | 0.420 | 0.406 | +0.014 | -0.053 | 0.232 | 0.912 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=80 | 0.50 | 0.412 | 0.406 | +0.006 | -0.073 | 0.296 | 1.400 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=80 | 0.65 | 0.408 | 0.406 | +0.002 | -0.100 | 0.334 | 1.930 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=80 | 0.80 | 0.400 | 0.406 | -0.006 | -0.131 | 0.371 | 2.418 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=80 | 0.20 | 0.406 | 0.406 | -0.000 | -0.032 | 0.180 | 0.534 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=80 | 0.35 | 0.410 | 0.406 | +0.004 | -0.056 | 0.225 | 1.128 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=80 | 0.50 | 0.402 | 0.406 | -0.004 | -0.083 | 0.290 | 1.616 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=80 | 0.65 | 0.414 | 0.406 | +0.008 | -0.099 | 0.333 | 2.112 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=80 | 0.80 | 0.406 | 0.406 | -0.000 | -0.128 | 0.373 | 2.634 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=160 | 0.20 | 0.414 | 0.406 | +0.008 | -0.015 | 0.310 | 0.284 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=160 | 0.35 | 0.414 | 0.406 | +0.008 | -0.041 | 0.341 | 0.574 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=160 | 0.50 | 0.404 | 0.406 | -0.002 | -0.085 | 0.337 | 0.992 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=160 | 0.65 | 0.416 | 0.406 | +0.010 | -0.134 | 0.354 | 1.548 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=160 | 0.80 | 0.422 | 0.406 | +0.016 | -0.187 | 0.372 | 2.098 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=160 | 0.20 | 0.402 | 0.406 | -0.004 | -0.045 | 0.231 | 0.372 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=160 | 0.35 | 0.404 | 0.406 | -0.002 | -0.080 | 0.227 | 0.748 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=160 | 0.50 | 0.406 | 0.406 | +0.000 | -0.128 | 0.262 | 1.190 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=160 | 0.65 | 0.404 | 0.406 | -0.002 | -0.168 | 0.332 | 1.688 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=160 | 0.80 | 0.400 | 0.406 | -0.006 | -0.223 | 0.370 | 2.228 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=160 | 0.20 | 0.396 | 0.406 | -0.010 | -0.056 | 0.284 | 0.458 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=160 | 0.35 | 0.396 | 0.406 | -0.010 | -0.090 | 0.296 | 0.804 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=160 | 0.50 | 0.402 | 0.406 | -0.004 | -0.133 | 0.326 | 1.250 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=160 | 0.65 | 0.404 | 0.406 | -0.002 | -0.185 | 0.336 | 1.710 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=160 | 0.80 | 0.392 | 0.406 | -0.014 | -0.237 | 0.371 | 2.380 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=160 | 0.20 | 0.406 | 0.406 | +0.000 | -0.049 | 0.185 | 0.454 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=160 | 0.35 | 0.402 | 0.406 | -0.004 | -0.087 | 0.257 | 0.856 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=160 | 0.50 | 0.398 | 0.406 | -0.008 | -0.141 | 0.296 | 1.356 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=160 | 0.65 | 0.392 | 0.406 | -0.014 | -0.206 | 0.333 | 1.886 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=160 | 0.80 | 0.400 | 0.406 | -0.006 | -0.236 | 0.366 | 2.348 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=160 | 0.20 | 0.406 | 0.406 | -0.000 | -0.051 | 0.146 | 0.522 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=160 | 0.35 | 0.416 | 0.406 | +0.010 | -0.101 | 0.214 | 1.058 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=160 | 0.50 | 0.400 | 0.406 | -0.006 | -0.155 | 0.282 | 1.594 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=160 | 0.65 | 0.400 | 0.406 | -0.006 | -0.209 | 0.334 | 2.120 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=160 | 0.80 | 0.412 | 0.406 | +0.006 | -0.234 | 0.373 | 2.548 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=160 | 0.20 | 0.404 | 0.406 | -0.002 | -0.040 | 0.206 | 0.388 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=160 | 0.35 | 0.404 | 0.406 | -0.002 | -0.074 | 0.215 | 0.736 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=160 | 0.50 | 0.412 | 0.406 | +0.006 | -0.114 | 0.256 | 1.202 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=160 | 0.65 | 0.404 | 0.406 | -0.002 | -0.162 | 0.315 | 1.710 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=160 | 0.80 | 0.408 | 0.406 | +0.002 | -0.216 | 0.363 | 2.262 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=160 | 0.20 | 0.398 | 0.406 | -0.008 | -0.045 | 0.235 | 0.442 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=160 | 0.35 | 0.398 | 0.406 | -0.008 | -0.084 | 0.284 | 0.796 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=160 | 0.50 | 0.402 | 0.406 | -0.004 | -0.123 | 0.314 | 1.242 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=160 | 0.65 | 0.414 | 0.406 | +0.008 | -0.178 | 0.334 | 1.756 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=160 | 0.80 | 0.414 | 0.406 | +0.008 | -0.225 | 0.364 | 2.326 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=160 | 0.20 | 0.410 | 0.406 | +0.004 | -0.047 | 0.160 | 0.488 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=160 | 0.35 | 0.402 | 0.406 | -0.004 | -0.090 | 0.234 | 0.890 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=160 | 0.50 | 0.412 | 0.406 | +0.006 | -0.138 | 0.291 | 1.356 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=160 | 0.65 | 0.394 | 0.406 | -0.012 | -0.190 | 0.323 | 1.884 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=160 | 0.80 | 0.406 | 0.406 | +0.000 | -0.235 | 0.367 | 2.400 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=160 | 0.20 | 0.406 | 0.406 | -0.000 | -0.052 | 0.162 | 0.530 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=160 | 0.35 | 0.420 | 0.406 | +0.014 | -0.101 | 0.217 | 1.068 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=160 | 0.50 | 0.402 | 0.406 | -0.004 | -0.153 | 0.281 | 1.606 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=160 | 0.65 | 0.404 | 0.406 | -0.002 | -0.209 | 0.333 | 2.134 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=160 | 0.80 | 0.404 | 0.406 | -0.002 | -0.233 | 0.373 | 2.528 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=400 | 0.20 | 0.406 | 0.398 | +0.008 | -0.069 | 0.097 | 0.332 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=400 | 0.35 | 0.421 | 0.398 | +0.022 | -0.146 | 0.163 | 0.666 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=400 | 0.50 | 0.421 | 0.398 | +0.022 | -0.240 | 0.214 | 1.089 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=400 | 0.65 | 0.422 | 0.398 | +0.024 | -0.328 | 0.260 | 1.503 | 3 |
+| deepseek_prefix_filter_full | math500 | entropy_only - k=400 | 0.80 | 0.410 | 0.398 | +0.012 | -0.453 | 0.336 | 2.093 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=400 | 0.20 | 0.398 | 0.398 | +0.000 | -0.090 | 0.165 | 0.378 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=400 | 0.35 | 0.394 | 0.398 | -0.004 | -0.199 | 0.205 | 0.825 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=400 | 0.50 | 0.392 | 0.398 | -0.006 | -0.308 | 0.238 | 1.276 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=400 | 0.65 | 0.388 | 0.398 | -0.010 | -0.412 | 0.293 | 1.751 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L2 k=400 | 0.80 | 0.396 | 0.398 | -0.002 | -0.525 | 0.345 | 2.245 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=400 | 0.20 | 0.390 | 0.398 | -0.008 | -0.112 | 0.147 | 0.453 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=400 | 0.35 | 0.402 | 0.398 | +0.004 | -0.213 | 0.222 | 0.877 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=400 | 0.50 | 0.384 | 0.398 | -0.014 | -0.321 | 0.252 | 1.316 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=400 | 0.65 | 0.398 | 0.398 | +0.000 | -0.409 | 0.282 | 1.718 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L4 k=400 | 0.80 | 0.394 | 0.398 | -0.004 | -0.534 | 0.344 | 2.292 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=400 | 0.20 | 0.400 | 0.398 | +0.002 | -0.110 | 0.115 | 0.471 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=400 | 0.35 | 0.400 | 0.398 | +0.002 | -0.215 | 0.162 | 0.907 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=400 | 0.50 | 0.402 | 0.398 | +0.004 | -0.321 | 0.255 | 1.366 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=400 | 0.65 | 0.400 | 0.398 | +0.002 | -0.420 | 0.287 | 1.795 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L8 k=400 | 0.80 | 0.398 | 0.398 | +0.000 | -0.550 | 0.331 | 2.334 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=400 | 0.20 | 0.404 | 0.398 | +0.006 | -0.109 | 0.058 | 0.487 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=400 | 0.35 | 0.414 | 0.398 | +0.016 | -0.216 | 0.128 | 0.974 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=400 | 0.50 | 0.404 | 0.398 | +0.006 | -0.353 | 0.232 | 1.545 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=400 | 0.65 | 0.410 | 0.398 | +0.012 | -0.440 | 0.279 | 1.938 | 3 |
+| deepseek_prefix_filter_full | math500 | mahalanobis_only L16 k=400 | 0.80 | 0.402 | 0.398 | +0.004 | -0.553 | 0.343 | 2.402 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=400 | 0.20 | 0.400 | 0.398 | +0.002 | -0.083 | 0.065 | 0.372 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=400 | 0.35 | 0.398 | 0.398 | +0.000 | -0.189 | 0.120 | 0.835 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=400 | 0.50 | 0.404 | 0.398 | +0.006 | -0.289 | 0.185 | 1.276 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=400 | 0.65 | 0.414 | 0.398 | +0.016 | -0.390 | 0.254 | 1.704 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L2 k=400 | 0.80 | 0.412 | 0.398 | +0.014 | -0.516 | 0.324 | 2.262 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=400 | 0.20 | 0.400 | 0.398 | +0.002 | -0.094 | 0.044 | 0.408 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=400 | 0.35 | 0.408 | 0.398 | +0.010 | -0.191 | 0.129 | 0.841 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=400 | 0.50 | 0.408 | 0.398 | +0.010 | -0.297 | 0.196 | 1.294 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=400 | 0.65 | 0.412 | 0.398 | +0.014 | -0.403 | 0.269 | 1.740 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L4 k=400 | 0.80 | 0.400 | 0.398 | +0.002 | -0.519 | 0.334 | 2.249 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=400 | 0.20 | 0.402 | 0.398 | +0.004 | -0.098 | 0.042 | 0.433 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=400 | 0.35 | 0.406 | 0.398 | +0.008 | -0.198 | 0.107 | 0.863 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=400 | 0.50 | 0.419 | 0.398 | +0.020 | -0.309 | 0.192 | 1.354 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=400 | 0.65 | 0.412 | 0.398 | +0.014 | -0.414 | 0.274 | 1.809 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L8 k=400 | 0.80 | 0.419 | 0.398 | +0.020 | -0.524 | 0.324 | 2.294 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=400 | 0.20 | 0.400 | 0.398 | +0.002 | -0.101 | 0.059 | 0.443 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=400 | 0.35 | 0.408 | 0.398 | +0.010 | -0.214 | 0.119 | 0.964 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=400 | 0.50 | 0.410 | 0.398 | +0.012 | -0.328 | 0.196 | 1.441 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=400 | 0.65 | 0.416 | 0.398 | +0.018 | -0.436 | 0.289 | 1.936 | 3 |
+| deepseek_prefix_filter_full | math500 | combined L16 k=400 | 0.80 | 0.402 | 0.398 | +0.004 | -0.540 | 0.334 | 2.388 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=80 | 0.20 | 0.440 | 0.420 | +0.020 | -0.026 | 0.256 | 0.390 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=80 | 0.35 | 0.450 | 0.420 | +0.030 | -0.034 | 0.328 | 0.670 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=80 | 0.50 | 0.460 | 0.420 | +0.040 | -0.043 | 0.398 | 1.080 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=80 | 0.65 | 0.460 | 0.420 | +0.040 | -0.067 | 0.432 | 1.550 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=80 | 0.80 | 0.470 | 0.420 | +0.050 | -0.089 | 0.459 | 2.090 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=80 | 0.20 | 0.430 | 0.420 | +0.010 | -0.042 | 0.300 | 0.600 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=80 | 0.35 | 0.410 | 0.420 | -0.010 | -0.088 | 0.367 | 1.090 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=80 | 0.50 | 0.450 | 0.420 | +0.030 | -0.107 | 0.376 | 1.570 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=80 | 0.65 | 0.440 | 0.420 | +0.020 | -0.157 | 0.406 | 2.240 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=80 | 0.80 | 0.440 | 0.420 | +0.020 | -0.162 | 0.428 | 2.640 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=80 | 0.20 | 0.410 | 0.420 | -0.010 | -0.069 | 0.447 | 0.760 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=80 | 0.35 | 0.410 | 0.420 | -0.010 | -0.092 | 0.435 | 1.150 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=80 | 0.50 | 0.410 | 0.420 | -0.010 | -0.134 | 0.445 | 1.640 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=80 | 0.65 | 0.430 | 0.420 | +0.010 | -0.155 | 0.429 | 2.380 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=80 | 0.80 | 0.460 | 0.420 | +0.040 | -0.157 | 0.424 | 2.900 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=80 | 0.20 | 0.410 | 0.420 | -0.010 | -0.050 | 0.286 | 0.700 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=80 | 0.35 | 0.430 | 0.420 | +0.010 | -0.091 | 0.352 | 1.280 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=80 | 0.50 | 0.400 | 0.420 | -0.020 | -0.148 | 0.433 | 2.100 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=80 | 0.65 | 0.430 | 0.420 | +0.010 | -0.178 | 0.420 | 2.640 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=80 | 0.80 | 0.450 | 0.420 | +0.030 | -0.165 | 0.433 | 3.000 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=80 | 0.20 | 0.430 | 0.420 | +0.010 | -0.050 | 0.229 | 0.830 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=80 | 0.35 | 0.410 | 0.420 | -0.010 | -0.119 | 0.375 | 1.680 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=80 | 0.50 | 0.430 | 0.420 | +0.010 | -0.162 | 0.403 | 2.430 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=80 | 0.65 | 0.440 | 0.420 | +0.020 | -0.163 | 0.434 | 2.950 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=80 | 0.80 | 0.450 | 0.420 | +0.030 | -0.165 | 0.430 | 2.980 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=80 | 0.20 | 0.420 | 0.420 | +0.000 | -0.048 | 0.368 | 0.570 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=80 | 0.35 | 0.420 | 0.420 | +0.000 | -0.092 | 0.383 | 1.070 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=80 | 0.50 | 0.430 | 0.420 | +0.010 | -0.114 | 0.410 | 1.560 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=80 | 0.65 | 0.430 | 0.420 | +0.010 | -0.155 | 0.427 | 2.200 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=80 | 0.80 | 0.450 | 0.420 | +0.030 | -0.166 | 0.428 | 2.780 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=80 | 0.20 | 0.410 | 0.420 | -0.010 | -0.069 | 0.452 | 0.730 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=80 | 0.35 | 0.400 | 0.420 | -0.020 | -0.119 | 0.452 | 1.260 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=80 | 0.50 | 0.410 | 0.420 | -0.010 | -0.135 | 0.450 | 1.690 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=80 | 0.65 | 0.450 | 0.420 | +0.030 | -0.158 | 0.405 | 2.420 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=80 | 0.80 | 0.470 | 0.420 | +0.050 | -0.157 | 0.424 | 2.900 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=80 | 0.20 | 0.410 | 0.420 | -0.010 | -0.055 | 0.333 | 0.720 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=80 | 0.35 | 0.390 | 0.420 | -0.030 | -0.127 | 0.378 | 1.270 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=80 | 0.50 | 0.410 | 0.420 | -0.010 | -0.133 | 0.429 | 1.980 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=80 | 0.65 | 0.440 | 0.420 | +0.020 | -0.177 | 0.426 | 2.700 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=80 | 0.80 | 0.450 | 0.420 | +0.030 | -0.163 | 0.438 | 2.970 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=80 | 0.20 | 0.430 | 0.420 | +0.010 | -0.048 | 0.250 | 0.720 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=80 | 0.35 | 0.420 | 0.420 | +0.000 | -0.113 | 0.371 | 1.700 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=80 | 0.50 | 0.420 | 0.420 | +0.000 | -0.157 | 0.415 | 2.480 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=80 | 0.65 | 0.440 | 0.420 | +0.020 | -0.163 | 0.434 | 2.950 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=80 | 0.80 | 0.450 | 0.420 | +0.030 | -0.165 | 0.430 | 2.980 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=160 | 0.20 | 0.420 | 0.420 | +0.000 | -0.027 | 0.318 | 0.220 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=160 | 0.35 | 0.430 | 0.420 | +0.010 | -0.050 | 0.275 | 0.510 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=160 | 0.50 | 0.420 | 0.420 | +0.000 | -0.095 | 0.348 | 0.920 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=160 | 0.65 | 0.420 | 0.420 | +0.000 | -0.130 | 0.362 | 1.270 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=160 | 0.80 | 0.420 | 0.420 | +0.000 | -0.183 | 0.439 | 1.980 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=160 | 0.20 | 0.390 | 0.420 | -0.030 | -0.085 | 0.322 | 0.590 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=160 | 0.35 | 0.410 | 0.420 | -0.010 | -0.137 | 0.317 | 1.010 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=160 | 0.50 | 0.390 | 0.420 | -0.030 | -0.204 | 0.374 | 1.470 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=160 | 0.65 | 0.390 | 0.420 | -0.030 | -0.207 | 0.374 | 1.790 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=160 | 0.80 | 0.420 | 0.420 | +0.000 | -0.282 | 0.425 | 2.590 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=160 | 0.20 | 0.380 | 0.420 | -0.040 | -0.112 | 0.453 | 0.750 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=160 | 0.35 | 0.390 | 0.420 | -0.030 | -0.154 | 0.393 | 1.120 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=160 | 0.50 | 0.380 | 0.420 | -0.040 | -0.190 | 0.376 | 1.570 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=160 | 0.65 | 0.380 | 0.420 | -0.040 | -0.253 | 0.416 | 2.190 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=160 | 0.80 | 0.440 | 0.420 | +0.020 | -0.292 | 0.428 | 2.780 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=160 | 0.20 | 0.410 | 0.420 | -0.010 | -0.069 | 0.299 | 0.670 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=160 | 0.35 | 0.400 | 0.420 | -0.020 | -0.163 | 0.357 | 1.430 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=160 | 0.50 | 0.390 | 0.420 | -0.030 | -0.247 | 0.401 | 1.970 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=160 | 0.65 | 0.420 | 0.420 | +0.000 | -0.272 | 0.439 | 2.460 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=160 | 0.80 | 0.440 | 0.420 | +0.020 | -0.317 | 0.427 | 2.880 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=160 | 0.20 | 0.400 | 0.420 | -0.020 | -0.099 | 0.345 | 0.870 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=160 | 0.35 | 0.420 | 0.420 | +0.000 | -0.167 | 0.327 | 1.560 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=160 | 0.50 | 0.420 | 0.420 | +0.000 | -0.257 | 0.402 | 2.410 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=160 | 0.65 | 0.440 | 0.420 | +0.020 | -0.315 | 0.433 | 2.930 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=160 | 0.80 | 0.450 | 0.420 | +0.030 | -0.315 | 0.433 | 3.000 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=160 | 0.20 | 0.400 | 0.420 | -0.020 | -0.069 | 0.255 | 0.470 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=160 | 0.35 | 0.420 | 0.420 | +0.000 | -0.126 | 0.374 | 0.990 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=160 | 0.50 | 0.410 | 0.420 | -0.010 | -0.168 | 0.350 | 1.430 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=160 | 0.65 | 0.400 | 0.420 | -0.020 | -0.210 | 0.389 | 2.030 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=160 | 0.80 | 0.400 | 0.420 | -0.020 | -0.282 | 0.411 | 2.530 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=160 | 0.20 | 0.410 | 0.420 | -0.010 | -0.103 | 0.338 | 0.710 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=160 | 0.35 | 0.390 | 0.420 | -0.030 | -0.136 | 0.423 | 1.110 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=160 | 0.50 | 0.400 | 0.420 | -0.020 | -0.198 | 0.387 | 1.730 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=160 | 0.65 | 0.410 | 0.420 | -0.010 | -0.252 | 0.411 | 2.310 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=160 | 0.80 | 0.420 | 0.420 | +0.000 | -0.309 | 0.438 | 2.830 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=160 | 0.20 | 0.400 | 0.420 | -0.020 | -0.076 | 0.210 | 0.620 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=160 | 0.35 | 0.410 | 0.420 | -0.010 | -0.144 | 0.348 | 1.320 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=160 | 0.50 | 0.430 | 0.420 | +0.010 | -0.234 | 0.413 | 2.130 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=160 | 0.65 | 0.410 | 0.420 | -0.010 | -0.273 | 0.438 | 2.580 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=160 | 0.80 | 0.440 | 0.420 | +0.020 | -0.320 | 0.437 | 2.950 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=160 | 0.20 | 0.410 | 0.420 | -0.010 | -0.096 | 0.341 | 0.880 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=160 | 0.35 | 0.410 | 0.420 | -0.010 | -0.172 | 0.331 | 1.630 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=160 | 0.50 | 0.430 | 0.420 | +0.010 | -0.261 | 0.411 | 2.410 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=160 | 0.65 | 0.430 | 0.420 | +0.010 | -0.315 | 0.439 | 2.940 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=160 | 0.80 | 0.450 | 0.420 | +0.030 | -0.315 | 0.433 | 3.000 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=400 | 0.20 | 0.393 | 0.393 | +0.000 | -0.092 | 0.103 | 0.394 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=400 | 0.35 | 0.434 | 0.393 | +0.041 | -0.155 | 0.086 | 0.707 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=400 | 0.50 | 0.433 | 0.393 | +0.039 | -0.214 | 0.191 | 0.949 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=400 | 0.65 | 0.423 | 0.393 | +0.029 | -0.322 | 0.259 | 1.444 | 3 |
+| deepseek_prefix_filter_pilot | math500 | entropy_only - k=400 | 0.80 | 0.453 | 0.393 | +0.060 | -0.468 | 0.322 | 2.071 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=400 | 0.20 | 0.394 | 0.393 | +0.001 | -0.116 | 0.286 | 0.424 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=400 | 0.35 | 0.384 | 0.393 | -0.009 | -0.262 | 0.372 | 0.949 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=400 | 0.50 | 0.374 | 0.393 | -0.019 | -0.387 | 0.336 | 1.475 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=400 | 0.65 | 0.363 | 0.393 | -0.030 | -0.495 | 0.349 | 1.939 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L2 k=400 | 0.80 | 0.414 | 0.393 | +0.021 | -0.617 | 0.417 | 2.545 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=400 | 0.20 | 0.394 | 0.393 | +0.001 | -0.154 | 0.352 | 0.545 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=400 | 0.35 | 0.353 | 0.393 | -0.040 | -0.301 | 0.333 | 1.121 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=400 | 0.50 | 0.383 | 0.393 | -0.010 | -0.421 | 0.327 | 1.667 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=400 | 0.65 | 0.404 | 0.393 | +0.011 | -0.545 | 0.386 | 2.222 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L4 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.684 | 0.408 | 2.798 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=400 | 0.20 | 0.383 | 0.393 | -0.010 | -0.153 | 0.200 | 0.556 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=400 | 0.35 | 0.383 | 0.393 | -0.010 | -0.313 | 0.299 | 1.182 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=400 | 0.50 | 0.383 | 0.393 | -0.010 | -0.464 | 0.367 | 1.818 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=400 | 0.65 | 0.425 | 0.393 | +0.032 | -0.575 | 0.370 | 2.293 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L8 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.649 | 0.410 | 2.707 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=400 | 0.20 | 0.403 | 0.393 | +0.010 | -0.136 | 0.143 | 0.566 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=400 | 0.35 | 0.414 | 0.393 | +0.021 | -0.335 | 0.305 | 1.424 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=400 | 0.50 | 0.393 | 0.393 | +0.000 | -0.519 | 0.383 | 2.111 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=400 | 0.65 | 0.434 | 0.393 | +0.041 | -0.666 | 0.407 | 2.758 | 3 |
+| deepseek_prefix_filter_pilot | math500 | mahalanobis_only L16 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.698 | 0.423 | 2.889 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=400 | 0.20 | 0.383 | 0.393 | -0.011 | -0.126 | 0.137 | 0.515 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=400 | 0.35 | 0.383 | 0.393 | -0.010 | -0.221 | 0.193 | 0.889 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=400 | 0.50 | 0.383 | 0.393 | -0.010 | -0.341 | 0.254 | 1.394 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=400 | 0.65 | 0.434 | 0.393 | +0.041 | -0.444 | 0.328 | 1.879 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L2 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.597 | 0.395 | 2.505 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=400 | 0.20 | 0.373 | 0.393 | -0.021 | -0.142 | 0.143 | 0.566 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=400 | 0.35 | 0.393 | 0.393 | +0.000 | -0.233 | 0.157 | 0.899 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=400 | 0.50 | 0.413 | 0.393 | +0.020 | -0.391 | 0.327 | 1.636 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=400 | 0.65 | 0.414 | 0.393 | +0.021 | -0.513 | 0.355 | 2.162 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L4 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.656 | 0.411 | 2.727 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=400 | 0.20 | 0.383 | 0.393 | -0.011 | -0.126 | 0.118 | 0.515 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=400 | 0.35 | 0.373 | 0.393 | -0.021 | -0.267 | 0.240 | 1.010 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=400 | 0.50 | 0.444 | 0.393 | +0.051 | -0.416 | 0.296 | 1.707 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=400 | 0.65 | 0.414 | 0.393 | +0.021 | -0.582 | 0.399 | 2.354 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L8 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.633 | 0.406 | 2.636 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=400 | 0.20 | 0.393 | 0.393 | -0.001 | -0.148 | 0.148 | 0.616 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=400 | 0.35 | 0.414 | 0.393 | +0.021 | -0.336 | 0.286 | 1.414 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=400 | 0.50 | 0.393 | 0.393 | +0.000 | -0.497 | 0.365 | 2.020 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=400 | 0.65 | 0.434 | 0.393 | +0.041 | -0.666 | 0.407 | 2.758 | 3 |
+| deepseek_prefix_filter_pilot | math500 | combined L16 k=400 | 0.80 | 0.434 | 0.393 | +0.041 | -0.690 | 0.421 | 2.879 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=25 | 0.20 | 0.554 | 0.548 | +0.006 | -0.018 | 0.474 | 0.350 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=25 | 0.35 | 0.560 | 0.548 | +0.012 | -0.028 | 0.475 | 0.758 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=25 | 0.50 | 0.554 | 0.548 | +0.006 | -0.059 | 0.515 | 1.316 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=25 | 0.65 | 0.540 | 0.548 | -0.008 | -0.075 | 0.524 | 1.816 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=25 | 0.80 | 0.546 | 0.548 | -0.002 | -0.089 | 0.543 | 2.366 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=25 | 0.20 | 0.560 | 0.548 | +0.012 | -0.021 | 0.493 | 0.568 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=25 | 0.35 | 0.558 | 0.548 | +0.010 | -0.040 | 0.512 | 1.054 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=25 | 0.50 | 0.562 | 0.548 | +0.014 | -0.055 | 0.499 | 1.528 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=25 | 0.65 | 0.552 | 0.548 | +0.004 | -0.077 | 0.525 | 1.952 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=25 | 0.80 | 0.552 | 0.548 | +0.004 | -0.099 | 0.533 | 2.394 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=25 | 0.20 | 0.546 | 0.548 | -0.002 | -0.027 | 0.574 | 0.672 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=25 | 0.35 | 0.544 | 0.548 | -0.004 | -0.039 | 0.549 | 1.152 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=25 | 0.50 | 0.552 | 0.548 | +0.004 | -0.065 | 0.525 | 1.624 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=25 | 0.65 | 0.550 | 0.548 | +0.002 | -0.074 | 0.536 | 1.988 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=25 | 0.80 | 0.552 | 0.548 | +0.004 | -0.096 | 0.541 | 2.508 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=25 | 0.20 | 0.556 | 0.548 | +0.008 | -0.027 | 0.431 | 0.686 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=25 | 0.35 | 0.554 | 0.548 | +0.006 | -0.044 | 0.512 | 1.332 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=25 | 0.50 | 0.558 | 0.548 | +0.010 | -0.062 | 0.529 | 1.762 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=25 | 0.65 | 0.550 | 0.548 | +0.002 | -0.081 | 0.537 | 2.148 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=25 | 0.80 | 0.554 | 0.548 | +0.006 | -0.098 | 0.542 | 2.606 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=25 | 0.20 | 0.558 | 0.548 | +0.010 | -0.027 | 0.460 | 0.778 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=25 | 0.35 | 0.562 | 0.548 | +0.014 | -0.045 | 0.473 | 1.310 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=25 | 0.50 | 0.546 | 0.548 | -0.002 | -0.070 | 0.504 | 1.888 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=25 | 0.65 | 0.548 | 0.548 | +0.000 | -0.088 | 0.532 | 2.352 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=25 | 0.80 | 0.550 | 0.548 | +0.002 | -0.108 | 0.545 | 2.758 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=25 | 0.20 | 0.554 | 0.548 | +0.006 | -0.015 | 0.417 | 0.552 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=25 | 0.35 | 0.560 | 0.548 | +0.012 | -0.032 | 0.467 | 1.032 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=25 | 0.50 | 0.554 | 0.548 | +0.006 | -0.057 | 0.497 | 1.512 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=25 | 0.65 | 0.554 | 0.548 | +0.006 | -0.073 | 0.522 | 1.950 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=25 | 0.80 | 0.550 | 0.548 | +0.002 | -0.095 | 0.530 | 2.334 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=25 | 0.20 | 0.548 | 0.548 | -0.000 | -0.025 | 0.511 | 0.614 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=25 | 0.35 | 0.544 | 0.548 | -0.004 | -0.043 | 0.511 | 1.108 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=25 | 0.50 | 0.542 | 0.548 | -0.006 | -0.063 | 0.508 | 1.596 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=25 | 0.65 | 0.558 | 0.548 | +0.010 | -0.076 | 0.527 | 2.012 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=25 | 0.80 | 0.558 | 0.548 | +0.010 | -0.096 | 0.552 | 2.500 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=25 | 0.20 | 0.560 | 0.548 | +0.012 | -0.024 | 0.426 | 0.680 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=25 | 0.35 | 0.552 | 0.548 | +0.004 | -0.043 | 0.500 | 1.272 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=25 | 0.50 | 0.556 | 0.548 | +0.008 | -0.060 | 0.531 | 1.722 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=25 | 0.65 | 0.552 | 0.548 | +0.004 | -0.080 | 0.538 | 2.148 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=25 | 0.80 | 0.550 | 0.548 | +0.002 | -0.099 | 0.539 | 2.584 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=25 | 0.20 | 0.556 | 0.548 | +0.008 | -0.020 | 0.441 | 0.752 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=25 | 0.35 | 0.560 | 0.548 | +0.012 | -0.051 | 0.511 | 1.432 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=25 | 0.50 | 0.544 | 0.548 | -0.004 | -0.074 | 0.528 | 1.900 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=25 | 0.65 | 0.540 | 0.548 | -0.008 | -0.091 | 0.536 | 2.316 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=25 | 0.80 | 0.548 | 0.548 | +0.000 | -0.104 | 0.540 | 2.720 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=50 | 0.20 | 0.548 | 0.548 | +0.000 | -0.040 | 0.467 | 0.394 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=50 | 0.35 | 0.552 | 0.548 | +0.004 | -0.070 | 0.483 | 0.778 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=50 | 0.50 | 0.556 | 0.548 | +0.008 | -0.101 | 0.518 | 1.166 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=50 | 0.65 | 0.550 | 0.548 | +0.002 | -0.132 | 0.552 | 1.566 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=50 | 0.80 | 0.556 | 0.548 | +0.008 | -0.174 | 0.559 | 2.132 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=50 | 0.20 | 0.546 | 0.548 | -0.002 | -0.041 | 0.494 | 0.534 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=50 | 0.35 | 0.550 | 0.548 | +0.002 | -0.073 | 0.520 | 0.920 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=50 | 0.50 | 0.556 | 0.548 | +0.008 | -0.111 | 0.531 | 1.356 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=50 | 0.65 | 0.562 | 0.548 | +0.014 | -0.159 | 0.541 | 1.812 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=50 | 0.80 | 0.558 | 0.548 | +0.010 | -0.202 | 0.536 | 2.328 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=50 | 0.20 | 0.550 | 0.548 | +0.002 | -0.045 | 0.542 | 0.602 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=50 | 0.35 | 0.540 | 0.548 | -0.008 | -0.084 | 0.526 | 1.042 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=50 | 0.50 | 0.548 | 0.548 | +0.000 | -0.133 | 0.538 | 1.540 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=50 | 0.65 | 0.550 | 0.548 | +0.002 | -0.162 | 0.544 | 1.948 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=50 | 0.80 | 0.554 | 0.548 | +0.006 | -0.205 | 0.542 | 2.446 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=50 | 0.20 | 0.552 | 0.548 | +0.004 | -0.044 | 0.439 | 0.606 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=50 | 0.35 | 0.550 | 0.548 | +0.002 | -0.081 | 0.469 | 1.112 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=50 | 0.50 | 0.538 | 0.548 | -0.010 | -0.132 | 0.519 | 1.650 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=50 | 0.65 | 0.546 | 0.548 | -0.002 | -0.174 | 0.517 | 2.090 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=50 | 0.80 | 0.554 | 0.548 | +0.006 | -0.204 | 0.544 | 2.478 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=50 | 0.20 | 0.560 | 0.548 | +0.012 | -0.058 | 0.436 | 0.702 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=50 | 0.35 | 0.544 | 0.548 | -0.004 | -0.106 | 0.480 | 1.258 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=50 | 0.50 | 0.544 | 0.548 | -0.004 | -0.151 | 0.514 | 1.856 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=50 | 0.65 | 0.556 | 0.548 | +0.008 | -0.199 | 0.532 | 2.346 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=50 | 0.80 | 0.558 | 0.548 | +0.010 | -0.222 | 0.543 | 2.638 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=50 | 0.20 | 0.556 | 0.548 | +0.008 | -0.042 | 0.500 | 0.512 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=50 | 0.35 | 0.548 | 0.548 | +0.000 | -0.075 | 0.512 | 0.864 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=50 | 0.50 | 0.548 | 0.548 | -0.000 | -0.120 | 0.529 | 1.332 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=50 | 0.65 | 0.558 | 0.548 | +0.010 | -0.160 | 0.531 | 1.814 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=50 | 0.80 | 0.562 | 0.548 | +0.014 | -0.202 | 0.535 | 2.350 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=50 | 0.20 | 0.552 | 0.548 | +0.004 | -0.049 | 0.507 | 0.540 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=50 | 0.35 | 0.548 | 0.548 | +0.000 | -0.080 | 0.505 | 1.018 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=50 | 0.50 | 0.550 | 0.548 | +0.002 | -0.130 | 0.525 | 1.512 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=50 | 0.65 | 0.554 | 0.548 | +0.006 | -0.165 | 0.535 | 1.932 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=50 | 0.80 | 0.554 | 0.548 | +0.006 | -0.206 | 0.545 | 2.436 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=50 | 0.20 | 0.554 | 0.548 | +0.006 | -0.046 | 0.444 | 0.630 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=50 | 0.35 | 0.546 | 0.548 | -0.002 | -0.086 | 0.450 | 1.090 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=50 | 0.50 | 0.544 | 0.548 | -0.004 | -0.138 | 0.509 | 1.618 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=50 | 0.65 | 0.544 | 0.548 | -0.004 | -0.169 | 0.524 | 2.052 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=50 | 0.80 | 0.552 | 0.548 | +0.004 | -0.203 | 0.535 | 2.466 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=50 | 0.20 | 0.552 | 0.548 | +0.004 | -0.056 | 0.446 | 0.700 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=50 | 0.35 | 0.546 | 0.548 | -0.002 | -0.102 | 0.475 | 1.196 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=50 | 0.50 | 0.540 | 0.548 | -0.008 | -0.152 | 0.517 | 1.842 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=50 | 0.65 | 0.552 | 0.548 | +0.004 | -0.196 | 0.531 | 2.322 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=50 | 0.80 | 0.554 | 0.548 | +0.006 | -0.222 | 0.544 | 2.652 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=125 | 0.20 | 0.550 | 0.548 | +0.002 | -0.077 | 0.393 | 0.392 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=125 | 0.35 | 0.544 | 0.548 | -0.004 | -0.167 | 0.423 | 0.770 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=125 | 0.50 | 0.556 | 0.548 | +0.008 | -0.259 | 0.440 | 1.190 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=125 | 0.65 | 0.556 | 0.548 | +0.008 | -0.363 | 0.473 | 1.660 | 3 |
+| qwen_prefix_filter_full | math500 | entropy_only - k=125 | 0.80 | 0.556 | 0.548 | +0.008 | -0.464 | 0.503 | 2.154 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=125 | 0.20 | 0.548 | 0.548 | +0.000 | -0.119 | 0.498 | 0.502 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=125 | 0.35 | 0.560 | 0.548 | +0.012 | -0.210 | 0.504 | 0.932 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=125 | 0.50 | 0.554 | 0.548 | +0.006 | -0.311 | 0.491 | 1.368 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=125 | 0.65 | 0.550 | 0.548 | +0.002 | -0.420 | 0.515 | 1.888 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L2 k=125 | 0.80 | 0.556 | 0.548 | +0.008 | -0.503 | 0.529 | 2.306 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=125 | 0.20 | 0.548 | 0.548 | -0.000 | -0.110 | 0.483 | 0.484 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=125 | 0.35 | 0.548 | 0.548 | -0.000 | -0.223 | 0.503 | 0.982 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=125 | 0.50 | 0.550 | 0.548 | +0.002 | -0.329 | 0.533 | 1.482 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=125 | 0.65 | 0.554 | 0.548 | +0.006 | -0.429 | 0.531 | 1.960 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L4 k=125 | 0.80 | 0.560 | 0.548 | +0.012 | -0.521 | 0.542 | 2.378 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=125 | 0.20 | 0.558 | 0.548 | +0.010 | -0.117 | 0.424 | 0.566 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=125 | 0.35 | 0.548 | 0.548 | +0.000 | -0.210 | 0.439 | 1.026 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=125 | 0.50 | 0.546 | 0.548 | -0.002 | -0.334 | 0.472 | 1.512 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=125 | 0.65 | 0.550 | 0.548 | +0.002 | -0.437 | 0.493 | 2.002 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L8 k=125 | 0.80 | 0.554 | 0.548 | +0.006 | -0.548 | 0.523 | 2.518 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=125 | 0.20 | 0.554 | 0.548 | +0.006 | -0.128 | 0.415 | 0.612 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=125 | 0.35 | 0.556 | 0.548 | +0.008 | -0.259 | 0.434 | 1.156 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=125 | 0.50 | 0.546 | 0.548 | -0.002 | -0.388 | 0.491 | 1.738 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=125 | 0.65 | 0.554 | 0.548 | +0.006 | -0.477 | 0.511 | 2.168 | 3 |
+| qwen_prefix_filter_full | math500 | mahalanobis_only L16 k=125 | 0.80 | 0.548 | 0.548 | +0.000 | -0.565 | 0.538 | 2.602 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=125 | 0.20 | 0.556 | 0.548 | +0.008 | -0.082 | 0.356 | 0.410 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=125 | 0.35 | 0.550 | 0.548 | +0.002 | -0.194 | 0.441 | 0.884 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=125 | 0.50 | 0.552 | 0.548 | +0.004 | -0.293 | 0.448 | 1.334 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=125 | 0.65 | 0.548 | 0.548 | +0.000 | -0.397 | 0.487 | 1.812 | 3 |
+| qwen_prefix_filter_full | math500 | combined L2 k=125 | 0.80 | 0.554 | 0.548 | +0.006 | -0.503 | 0.512 | 2.292 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=125 | 0.20 | 0.552 | 0.548 | +0.004 | -0.086 | 0.382 | 0.408 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=125 | 0.35 | 0.552 | 0.548 | +0.004 | -0.204 | 0.449 | 0.914 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=125 | 0.50 | 0.550 | 0.548 | +0.002 | -0.304 | 0.484 | 1.372 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=125 | 0.65 | 0.552 | 0.548 | +0.004 | -0.413 | 0.512 | 1.886 | 3 |
+| qwen_prefix_filter_full | math500 | combined L4 k=125 | 0.80 | 0.556 | 0.548 | +0.008 | -0.510 | 0.530 | 2.338 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=125 | 0.20 | 0.564 | 0.548 | +0.016 | -0.099 | 0.353 | 0.510 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=125 | 0.35 | 0.556 | 0.548 | +0.008 | -0.200 | 0.411 | 0.964 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=125 | 0.50 | 0.540 | 0.548 | -0.008 | -0.318 | 0.451 | 1.458 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=125 | 0.65 | 0.546 | 0.548 | -0.002 | -0.425 | 0.488 | 1.950 | 3 |
+| qwen_prefix_filter_full | math500 | combined L8 k=125 | 0.80 | 0.550 | 0.548 | +0.002 | -0.528 | 0.527 | 2.422 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=125 | 0.20 | 0.556 | 0.548 | +0.008 | -0.109 | 0.357 | 0.532 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=125 | 0.35 | 0.552 | 0.548 | +0.004 | -0.241 | 0.442 | 1.104 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=125 | 0.50 | 0.552 | 0.548 | +0.004 | -0.367 | 0.479 | 1.638 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=125 | 0.65 | 0.548 | 0.548 | +0.000 | -0.462 | 0.508 | 2.102 | 3 |
+| qwen_prefix_filter_full | math500 | combined L16 k=125 | 0.80 | 0.550 | 0.548 | +0.002 | -0.554 | 0.529 | 2.550 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=25 | 0.20 | 0.570 | 0.570 | +0.000 | -0.015 | 0.521 | 0.480 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.042 | 0.533 | 0.920 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=25 | 0.50 | 0.580 | 0.570 | +0.010 | -0.042 | 0.583 | 1.200 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=25 | 0.65 | 0.580 | 0.570 | +0.010 | -0.053 | 0.630 | 1.650 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=25 | 0.80 | 0.560 | 0.570 | -0.010 | -0.063 | 0.639 | 2.190 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=25 | 0.20 | 0.600 | 0.570 | +0.030 | -0.031 | 0.505 | 0.910 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=25 | 0.35 | 0.580 | 0.570 | +0.010 | -0.046 | 0.552 | 1.430 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=25 | 0.50 | 0.560 | 0.570 | -0.010 | -0.073 | 0.582 | 2.130 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=25 | 0.65 | 0.570 | 0.570 | +0.000 | -0.078 | 0.581 | 2.460 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=25 | 0.80 | 0.580 | 0.570 | +0.010 | -0.094 | 0.583 | 2.640 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=25 | 0.20 | 0.590 | 0.570 | +0.020 | -0.038 | 0.613 | 0.930 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.070 | 0.582 | 1.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=25 | 0.50 | 0.550 | 0.570 | -0.020 | -0.078 | 0.586 | 2.320 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=25 | 0.65 | 0.560 | 0.570 | -0.010 | -0.077 | 0.590 | 2.780 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=25 | 0.80 | 0.570 | 0.570 | +0.000 | -0.086 | 0.601 | 2.910 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=25 | 0.20 | 0.570 | 0.570 | +0.000 | -0.015 | 0.542 | 1.200 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.053 | 0.575 | 2.120 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=25 | 0.50 | 0.560 | 0.570 | -0.010 | -0.075 | 0.586 | 2.730 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=25 | 0.65 | 0.560 | 0.570 | -0.010 | -0.082 | 0.599 | 2.870 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=25 | 0.80 | 0.560 | 0.570 | -0.010 | -0.084 | 0.602 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=25 | 0.20 | 0.580 | 0.570 | +0.010 | -0.013 | 0.513 | 1.540 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=25 | 0.35 | 0.550 | 0.570 | -0.020 | -0.088 | 0.583 | 2.590 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=25 | 0.50 | 0.560 | 0.570 | -0.010 | -0.092 | 0.603 | 2.870 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=25 | 0.65 | 0.570 | 0.570 | +0.000 | -0.098 | 0.605 | 2.910 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=25 | 0.80 | 0.570 | 0.570 | +0.000 | -0.088 | 0.599 | 2.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=25 | 0.20 | 0.590 | 0.570 | +0.020 | -0.021 | 0.575 | 0.800 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=25 | 0.35 | 0.600 | 0.570 | +0.030 | -0.038 | 0.570 | 1.490 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=25 | 0.50 | 0.570 | 0.570 | +0.000 | -0.067 | 0.545 | 2.130 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=25 | 0.65 | 0.570 | 0.570 | +0.000 | -0.078 | 0.569 | 2.460 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=25 | 0.80 | 0.570 | 0.570 | +0.000 | -0.090 | 0.574 | 2.630 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=25 | 0.20 | 0.570 | 0.570 | +0.000 | -0.041 | 0.629 | 0.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.060 | 0.596 | 1.780 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=25 | 0.50 | 0.550 | 0.570 | -0.020 | -0.074 | 0.571 | 2.310 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=25 | 0.65 | 0.560 | 0.570 | -0.010 | -0.091 | 0.590 | 2.780 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=25 | 0.80 | 0.570 | 0.570 | +0.000 | -0.086 | 0.601 | 2.910 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=25 | 0.20 | 0.580 | 0.570 | +0.010 | -0.027 | 0.528 | 1.250 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.048 | 0.571 | 2.050 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=25 | 0.50 | 0.560 | 0.570 | -0.010 | -0.070 | 0.581 | 2.670 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=25 | 0.65 | 0.560 | 0.570 | -0.010 | -0.082 | 0.599 | 2.870 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=25 | 0.80 | 0.560 | 0.570 | -0.010 | -0.084 | 0.602 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=25 | 0.20 | 0.580 | 0.570 | +0.010 | -0.031 | 0.569 | 1.670 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=25 | 0.35 | 0.560 | 0.570 | -0.010 | -0.083 | 0.578 | 2.560 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=25 | 0.50 | 0.560 | 0.570 | -0.010 | -0.091 | 0.599 | 2.840 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=25 | 0.65 | 0.560 | 0.570 | -0.010 | -0.082 | 0.599 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=25 | 0.80 | 0.580 | 0.570 | +0.010 | -0.092 | 0.597 | 2.980 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=50 | 0.20 | 0.560 | 0.570 | -0.010 | -0.014 | 0.394 | 0.330 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=50 | 0.35 | 0.560 | 0.570 | -0.010 | -0.050 | 0.569 | 0.720 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=50 | 0.50 | 0.580 | 0.570 | +0.010 | -0.057 | 0.571 | 0.980 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.095 | 0.562 | 1.370 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=50 | 0.80 | 0.590 | 0.570 | +0.020 | -0.144 | 0.592 | 1.910 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=50 | 0.20 | 0.560 | 0.570 | -0.010 | -0.057 | 0.649 | 0.770 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=50 | 0.35 | 0.580 | 0.570 | +0.010 | -0.110 | 0.574 | 1.360 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=50 | 0.50 | 0.570 | 0.570 | +0.000 | -0.151 | 0.588 | 1.990 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.201 | 0.600 | 2.350 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.223 | 0.591 | 2.760 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=50 | 0.20 | 0.560 | 0.570 | -0.010 | -0.075 | 0.505 | 1.070 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=50 | 0.35 | 0.570 | 0.570 | +0.000 | -0.135 | 0.568 | 1.830 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=50 | 0.50 | 0.610 | 0.570 | +0.040 | -0.172 | 0.572 | 2.360 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=50 | 0.65 | 0.580 | 0.570 | +0.010 | -0.189 | 0.592 | 2.650 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=50 | 0.80 | 0.580 | 0.570 | +0.010 | -0.211 | 0.589 | 2.870 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=50 | 0.20 | 0.590 | 0.570 | +0.020 | -0.074 | 0.500 | 1.140 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=50 | 0.35 | 0.550 | 0.570 | -0.020 | -0.140 | 0.578 | 1.850 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=50 | 0.50 | 0.570 | 0.570 | +0.000 | -0.177 | 0.576 | 2.380 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.216 | 0.591 | 2.810 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.230 | 0.603 | 2.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=50 | 0.20 | 0.560 | 0.570 | -0.010 | -0.084 | 0.540 | 1.370 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=50 | 0.35 | 0.580 | 0.570 | +0.010 | -0.177 | 0.575 | 2.400 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=50 | 0.50 | 0.570 | 0.570 | +0.000 | -0.224 | 0.602 | 2.740 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.229 | 0.617 | 2.900 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.230 | 0.603 | 2.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=50 | 0.20 | 0.560 | 0.570 | -0.010 | -0.043 | 0.622 | 0.740 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=50 | 0.35 | 0.560 | 0.570 | -0.010 | -0.106 | 0.605 | 1.190 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=50 | 0.50 | 0.570 | 0.570 | +0.000 | -0.151 | 0.572 | 1.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=50 | 0.65 | 0.580 | 0.570 | +0.010 | -0.182 | 0.579 | 2.280 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.213 | 0.589 | 2.630 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=50 | 0.20 | 0.570 | 0.570 | +0.000 | -0.064 | 0.500 | 1.020 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=50 | 0.35 | 0.560 | 0.570 | -0.010 | -0.119 | 0.561 | 1.800 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=50 | 0.50 | 0.590 | 0.570 | +0.020 | -0.158 | 0.564 | 2.340 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=50 | 0.65 | 0.580 | 0.570 | +0.010 | -0.188 | 0.589 | 2.580 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=50 | 0.80 | 0.580 | 0.570 | +0.010 | -0.208 | 0.587 | 2.830 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=50 | 0.20 | 0.580 | 0.570 | +0.010 | -0.061 | 0.470 | 1.170 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=50 | 0.35 | 0.560 | 0.570 | -0.010 | -0.129 | 0.552 | 1.740 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=50 | 0.50 | 0.560 | 0.570 | -0.010 | -0.179 | 0.593 | 2.360 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.209 | 0.595 | 2.740 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.227 | 0.600 | 2.950 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=50 | 0.20 | 0.570 | 0.570 | +0.000 | -0.082 | 0.525 | 1.180 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=50 | 0.35 | 0.560 | 0.570 | -0.010 | -0.182 | 0.611 | 2.260 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=50 | 0.50 | 0.570 | 0.570 | +0.000 | -0.216 | 0.604 | 2.780 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=50 | 0.65 | 0.570 | 0.570 | +0.000 | -0.228 | 0.605 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=50 | 0.80 | 0.570 | 0.570 | +0.000 | -0.230 | 0.603 | 2.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=125 | 0.20 | 0.540 | 0.570 | -0.030 | -0.074 | 0.545 | 0.440 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=125 | 0.35 | 0.560 | 0.570 | -0.010 | -0.140 | 0.569 | 0.720 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=125 | 0.50 | 0.570 | 0.570 | +0.000 | -0.222 | 0.574 | 1.080 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.330 | 0.604 | 1.490 | 3 |
+| qwen_prefix_filter_pilot | math500 | entropy_only - k=125 | 0.80 | 0.590 | 0.570 | +0.020 | -0.454 | 0.589 | 2.070 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=125 | 0.20 | 0.570 | 0.570 | +0.000 | -0.179 | 0.600 | 0.800 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=125 | 0.35 | 0.580 | 0.570 | +0.010 | -0.303 | 0.600 | 1.350 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=125 | 0.50 | 0.570 | 0.570 | +0.000 | -0.422 | 0.538 | 1.860 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.509 | 0.558 | 2.310 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L2 k=125 | 0.80 | 0.550 | 0.570 | -0.020 | -0.601 | 0.587 | 2.710 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=125 | 0.20 | 0.560 | 0.570 | -0.010 | -0.211 | 0.529 | 1.020 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=125 | 0.35 | 0.570 | 0.570 | +0.000 | -0.315 | 0.552 | 1.540 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=125 | 0.50 | 0.570 | 0.570 | +0.000 | -0.452 | 0.555 | 2.090 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.564 | 0.579 | 2.610 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L4 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.641 | 0.590 | 2.930 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=125 | 0.20 | 0.540 | 0.570 | -0.030 | -0.235 | 0.513 | 1.130 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=125 | 0.35 | 0.540 | 0.570 | -0.030 | -0.406 | 0.545 | 1.870 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=125 | 0.50 | 0.570 | 0.570 | +0.000 | -0.509 | 0.562 | 2.260 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.593 | 0.584 | 2.690 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L8 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.643 | 0.599 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=125 | 0.20 | 0.560 | 0.570 | -0.010 | -0.304 | 0.606 | 1.420 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=125 | 0.35 | 0.560 | 0.570 | -0.010 | -0.465 | 0.577 | 2.130 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=125 | 0.50 | 0.580 | 0.570 | +0.010 | -0.620 | 0.597 | 2.780 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.646 | 0.599 | 2.940 | 3 |
+| qwen_prefix_filter_pilot | math500 | mahalanobis_only L16 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.651 | 0.603 | 2.970 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=125 | 0.20 | 0.560 | 0.570 | -0.010 | -0.123 | 0.609 | 0.640 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=125 | 0.35 | 0.580 | 0.570 | +0.010 | -0.254 | 0.615 | 1.170 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=125 | 0.50 | 0.560 | 0.570 | -0.010 | -0.374 | 0.558 | 1.650 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=125 | 0.65 | 0.550 | 0.570 | -0.020 | -0.498 | 0.564 | 2.180 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L2 k=125 | 0.80 | 0.550 | 0.570 | -0.020 | -0.598 | 0.576 | 2.690 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=125 | 0.20 | 0.560 | 0.570 | -0.010 | -0.178 | 0.500 | 0.860 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=125 | 0.35 | 0.540 | 0.570 | -0.030 | -0.332 | 0.532 | 1.560 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=125 | 0.50 | 0.540 | 0.570 | -0.030 | -0.438 | 0.576 | 1.980 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.561 | 0.598 | 2.510 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L4 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.635 | 0.592 | 2.920 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=125 | 0.20 | 0.550 | 0.570 | -0.020 | -0.218 | 0.562 | 1.050 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=125 | 0.35 | 0.540 | 0.570 | -0.030 | -0.361 | 0.560 | 1.660 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=125 | 0.50 | 0.550 | 0.570 | -0.020 | -0.496 | 0.575 | 2.210 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=125 | 0.65 | 0.580 | 0.570 | +0.010 | -0.589 | 0.587 | 2.690 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L8 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.638 | 0.603 | 2.920 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.20 | 0.560 | 0.570 | -0.010 | -0.296 | 0.603 | 1.360 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.35 | 0.560 | 0.570 | -0.010 | -0.454 | 0.600 | 2.050 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.50 | 0.570 | 0.570 | +0.000 | -0.608 | 0.601 | 2.760 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.649 | 0.600 | 2.950 | 3 |
+| qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.649 | 0.600 | 2.950 | 3 |
+
+## Selective Prediction
+
+Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUSC is normalised over [min_coverage, 1.0]. Acc@K = accuracy at the most selective operating point with coverage ≥ K.
+
+| Model | Dataset | Scorer | n_eval | AUSC | Acc@0.6 | Acc@0.7 | Acc@0.8 | Acc@0.9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| deepseek | math500 | no_abstain | 500 | — | 0.430 | 0.430 | 0.430 | 0.430 |
+| deepseek | math500 | entropy_mean | 500 | 0.4996 | 0.507 | 0.480 | 0.470 | 0.456 |
+| deepseek | math500 | mean_logprob | 500 | 0.5039 | 0.510 | 0.480 | 0.472 | 0.458 |
+| deepseek | math500 | raw_mahal_L7 | 500 | 0.2992 | 0.283 | 0.326 | 0.365 | 0.402 |
+| deepseek | math500 | raw_mahal_L14 | 500 | 0.2980 | 0.260 | 0.320 | 0.372 | 0.409 |
+| deepseek | math500 | raw_mahal_L21 | 500 | 0.2658 | 0.247 | 0.289 | 0.350 | 0.389 |
+| deepseek | math500 | raw_rmd_L7 | 500 | 0.6256 | 0.670 | 0.603 | 0.535 | 0.478 |
+| deepseek | math500 | norm_rmd_L7 | 500 | 0.6245 | 0.670 | 0.600 | 0.532 | 0.478 |
+| deepseek | math500 | combined_lr_L7 | 500 | 0.6202 | 0.680 | 0.603 | 0.537 | 0.478 |
+| deepseek | math500 | raw_rmd_L14 | 500 | 0.6244 | 0.670 | 0.606 | 0.535 | 0.478 |
+| deepseek | math500 | norm_rmd_L14 | 500 | 0.6268 | 0.673 | 0.606 | 0.535 | 0.478 |
+| deepseek | math500 | combined_lr_L14 | 500 | 0.5934 | 0.627 | 0.574 | 0.522 | 0.473 |
+| deepseek | math500 | raw_rmd_L21 | 500 | 0.6322 | 0.680 | 0.603 | 0.537 | 0.478 |
+| deepseek | math500 | norm_rmd_L21 | 500 | 0.6334 | 0.677 | 0.603 | 0.537 | 0.478 |
+| deepseek | math500 | combined_lr_L21 | 500 | 0.6046 | 0.650 | 0.586 | 0.530 | 0.473 |
+
+| deepseek_llama | math500 | no_abstain | 500 | — | 0.364 | 0.364 | 0.364 | 0.364 |
+| deepseek_llama | math500 | entropy_mean | 500 | 0.4419 | 0.440 | 0.429 | 0.420 | 0.396 |
+| deepseek_llama | math500 | mean_logprob | 500 | 0.4437 | 0.443 | 0.423 | 0.420 | 0.396 |
+| deepseek_llama | math500 | raw_mahal_L8 | 500 | 0.2834 | 0.257 | 0.289 | 0.307 | 0.333 |
+| deepseek_llama | math500 | raw_mahal_L16 | 500 | 0.2848 | 0.257 | 0.283 | 0.318 | 0.344 |
+| deepseek_llama | math500 | raw_mahal_L24 | 500 | 0.3053 | 0.293 | 0.300 | 0.312 | 0.336 |
+| deepseek_llama | math500 | raw_rmd_L8 | 500 | 0.5032 | 0.560 | 0.511 | 0.450 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_L8 | 500 | 0.5023 | 0.563 | 0.511 | 0.450 | 0.404 |
+| deepseek_llama | math500 | combined_lr_L8 | 500 | 0.4812 | 0.497 | 0.460 | 0.425 | 0.398 |
+| deepseek_llama | math500 | raw_rmd_L16 | 500 | 0.5061 | 0.560 | 0.511 | 0.455 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_L16 | 500 | 0.5050 | 0.567 | 0.511 | 0.453 | 0.404 |
+| deepseek_llama | math500 | combined_lr_L16 | 500 | 0.4734 | 0.493 | 0.449 | 0.420 | 0.389 |
+| deepseek_llama | math500 | raw_rmd_L24 | 500 | 0.5053 | 0.560 | 0.511 | 0.450 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_L24 | 500 | 0.5036 | 0.567 | 0.511 | 0.450 | 0.404 |
+| deepseek_llama | math500 | combined_lr_L24 | 500 | 0.4792 | 0.497 | 0.460 | 0.420 | 0.391 |
+
+| llama | math500 | no_abstain | 500 | — | 0.348 | 0.348 | 0.348 | 0.348 |
+| llama | math500 | entropy_mean | 500 | 0.3835 | 0.393 | 0.391 | 0.380 | 0.364 |
+| llama | math500 | mean_logprob | 500 | 0.3708 | 0.380 | 0.383 | 0.370 | 0.360 |
+| llama | math500 | raw_mahal_L8 | 500 | 0.2983 | 0.290 | 0.289 | 0.307 | 0.327 |
+| llama | math500 | raw_mahal_L16 | 500 | 0.2891 | 0.277 | 0.286 | 0.320 | 0.331 |
+| llama | math500 | raw_mahal_L24 | 500 | 0.3188 | 0.313 | 0.331 | 0.335 | 0.338 |
+| llama | math500 | raw_rmd_L8 | 500 | 0.4795 | 0.507 | 0.463 | 0.420 | 0.382 |
+| llama | math500 | norm_rmd_L8 | 500 | 0.4790 | 0.500 | 0.463 | 0.420 | 0.382 |
+| llama | math500 | combined_lr_L8 | 500 | 0.4652 | 0.483 | 0.446 | 0.420 | 0.382 |
+| llama | math500 | raw_rmd_L16 | 500 | 0.4929 | 0.517 | 0.477 | 0.430 | 0.387 |
+| llama | math500 | norm_rmd_L16 | 500 | 0.4932 | 0.513 | 0.474 | 0.427 | 0.387 |
+| llama | math500 | combined_lr_L16 | 500 | 0.4636 | 0.473 | 0.446 | 0.415 | 0.378 |
+| llama | math500 | raw_rmd_L24 | 500 | 0.4826 | 0.510 | 0.471 | 0.425 | 0.387 |
+| llama | math500 | norm_rmd_L24 | 500 | 0.4854 | 0.510 | 0.469 | 0.422 | 0.387 |
+| llama | math500 | combined_lr_L24 | 500 | 0.4592 | 0.463 | 0.457 | 0.415 | 0.382 |
+
+| qwen | math500 | no_abstain | 500 | — | 0.562 | 0.562 | 0.562 | 0.562 |
+| qwen | math500 | entropy_mean | 500 | 0.6209 | 0.623 | 0.637 | 0.620 | 0.600 |
+| qwen | math500 | mean_logprob | 0 | — | — | — | — | — |
+| qwen | math500 | raw_mahal_L7 | 500 | 0.5180 | 0.520 | 0.526 | 0.537 | 0.547 |
+| qwen | math500 | raw_mahal_L14 | 500 | 0.5165 | 0.517 | 0.520 | 0.547 | 0.560 |
+| qwen | math500 | raw_mahal_L21 | 500 | 0.4632 | 0.467 | 0.491 | 0.520 | 0.542 |
+| qwen | math500 | raw_rmd_L7 | 500 | 0.6942 | 0.737 | 0.691 | 0.645 | 0.591 |
+| qwen | math500 | norm_rmd_L7 | 500 | 0.6951 | 0.737 | 0.694 | 0.647 | 0.591 |
+| qwen | math500 | combined_lr_L7 | 500 | 0.7006 | 0.733 | 0.694 | 0.650 | 0.609 |
+| qwen | math500 | raw_rmd_L14 | 500 | 0.7072 | 0.740 | 0.700 | 0.650 | 0.604 |
+| qwen | math500 | norm_rmd_L14 | 500 | 0.7079 | 0.750 | 0.703 | 0.660 | 0.604 |
+| qwen | math500 | combined_lr_L14 | 500 | 0.6811 | 0.707 | 0.674 | 0.645 | 0.607 |
+| qwen | math500 | raw_rmd_L21 | 500 | 0.7209 | 0.743 | 0.714 | 0.667 | 0.611 |
+| qwen | math500 | norm_rmd_L21 | 500 | 0.7194 | 0.743 | 0.714 | 0.670 | 0.611 |
+| qwen | math500 | combined_lr_L21 | 500 | 0.6858 | 0.730 | 0.694 | 0.637 | 0.600 |
+

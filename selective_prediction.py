@@ -81,7 +81,7 @@ def ausc(
     coverage_range = float(c[-1] - c[0])
     if coverage_range < 1e-9:
         return None
-    return float(np.trapz(a, c) / coverage_range)
+    return float(np.trapezoid(a, c) / coverage_range)
 
 
 def read_at_coverage(

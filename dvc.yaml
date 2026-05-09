@@ -502,7 +502,7 @@ stages:
         --output_dir results/${item.model}_prefix_filter_${item.scale}/math500
         --dataset_label math500
         --layers ${prefix_filter.layers}
-        --prefix_lengths ${prefix_filter.prefix_lengths}
+        --prefix_lengths ${item.prefix_lengths}
         --score_kinds ${prefix_filter.score_kinds}
         --threshold_quantiles ${prefix_filter.threshold_quantiles}
         --max_restarts ${prefix_filter.max_restarts}
@@ -513,8 +513,8 @@ stages:
         - analyze.py
         - data/${item.model}_prefix_filter_${item.scale}/math500
       params:
+        - prefix_filter_matrix
         - prefix_filter.layers
-        - prefix_filter.prefix_lengths
         - prefix_filter.score_kinds
         - prefix_filter.threshold_quantiles
         - prefix_filter.max_restarts
@@ -612,6 +612,10 @@ stages:
       - results/llama/math500/math500_results.json
       - results/deepseek_temp/gsm8k/gsm8k_results.json
       - results/qwen_dense/math500/math500_results.json
+      - results/qwen/gsm8k/gsm8k_pca_ablation_results.json
+      - results/qwen/math500/math500_pca_ablation_results.json
+      - results/deepseek/gsm8k/gsm8k_pca_ablation_results.json
+      - results/deepseek/math500/math500_pca_ablation_results.json
       # Cross-model deps are optional; add them back once analyze_cross has run:
       # - results/qwen/gsm8k_cross/gsm8k_results.json
       # - results/deepseek/gsm8k_cross/gsm8k_results.json

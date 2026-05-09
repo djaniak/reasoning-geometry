@@ -73,10 +73,12 @@ bestofn_matrix:
   - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
 
 prefix_filter_matrix:
-  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
-  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
-  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
-  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+  # Prefix lengths approximate 5%, 10%, 25% of each model's mean pilot trace length,
+  # rounded to clean token counts so the deployed policy remains an online fixed-k rule.
+  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, prefix_lengths: "25,50,125"}
+  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, prefix_lengths: "25,50,125"}
+  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048, prefix_lengths: "80,160,400"}
+  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048, prefix_lengths: "80,160,400"}
 
 collect:
   batch_save_size: 50
@@ -113,8 +115,7 @@ cross_model_pairs:
 prefix_filter:
   temperature: 0.6
   num_samples: 8
-  layers: "0,2,4"
-  prefix_lengths: "5,10,20"
+  layers: "2,4,8,16"
   score_kinds: "entropy_only,mahalanobis_only,combined"
   threshold_quantiles: "0.2,0.35,0.5,0.65,0.8"
   max_restarts: 3

@@ -448,10 +448,18 @@ stages:
   summarize:
     cmd: uv run python summarize.py --results_dir results --output_dir results
     deps:
+    - path: results/deepseek/gsm8k/gsm8k_pca_ablation_results.json
+      hash: md5
+      md5: d119154c059a7ee6de629a0fa82d41a2
+      size: 7401
     - path: results/deepseek/gsm8k/gsm8k_results.json
       hash: md5
       md5: 2452d0644fdef64e77e3eed3bde351b6
       size: 57390
+    - path: results/deepseek/math500/math500_pca_ablation_results.json
+      hash: md5
+      md5: 87eeeb5c87cb3e2376187bafdfa025e0
+      size: 7423
     - path: results/deepseek/math500/math500_results.json
       hash: md5
       md5: 172110000bec5b0de39ddb0289c611cf
@@ -476,10 +484,18 @@ stages:
       hash: md5
       md5: 7875f6ecfded8d4a66196187ea3b414a
       size: 81322
+    - path: results/qwen/gsm8k/gsm8k_pca_ablation_results.json
+      hash: md5
+      md5: 240d1231bf958b135a3604c62808119f
+      size: 7397
     - path: results/qwen/gsm8k/gsm8k_results.json
       hash: md5
       md5: 304054380913f40e33fcafbc0e6a8407
       size: 57449
+    - path: results/qwen/math500/math500_pca_ablation_results.json
+      hash: md5
+      md5: 09eb7648a0d68d84e68a6a5c421ea879
+      size: 7410
     - path: results/qwen/math500/math500_results.json
       hash: md5
       md5: 47eb70cead856537ee160f300e5987ef
@@ -490,17 +506,17 @@ stages:
       size: 29356
     - path: summarize.py
       hash: md5
-      md5: 8eff916c824a8271f3d094512edc2e86
-      size: 24156
+      md5: dd7a725b316fe2524236ba69dccb6d01
+      size: 30941
     outs:
     - path: results/SUMMARY.md
       hash: md5
-      md5: 281b1d13c03774b78c0c34ded31145a1
-      size: 57847
+      md5: 162322827def05e9c0b456882cdc59bd
+      size: 108285
     - path: results/all_results.json
       hash: md5
-      md5: 8b1c8eaf1ad6ed75f2158ad32d2ad2c7
-      size: 1088265
+      md5: 04fc5fe582b150bb0ab2b52fbe6a4433
+      size: 2892620
   collect_qwen_math500_bestofn:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -2386,3 +2402,1777 @@ stages:
       hash: md5
       md5: d4207150cad0a6f28de858aa041d2d79
       size: 6911
+  analyze_pca_ablation_runs@3:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
+      --output_name gsm8k_pcamax_base_results.json --pca_dim max 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/gsm8k
+      hash: md5
+      md5: ebea02e08947d539d5ce177cfc95d0a1.dir
+      size: 6418703746
+      nfiles: 27
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_pcamax_base_results.json
+      hash: md5
+      md5: ab83aafbc43702db69accbadd1becabb
+      size: 6912
+  analyze_pca_ablation_runs@4:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_pca32_base_results.json --pca_dim 32 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_pca32_base_results.json
+      hash: md5
+      md5: e53e7d2b18839a8252d623c7293b1171
+      size: 6898
+  analyze_pca_ablation_runs@5:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_pca128_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_pca128_base_results.json
+      hash: md5
+      md5: 20370fa5a8af2ec0d2d6bea100d8f733
+      size: 6903
+  analyze_pca_ablation_runs@6:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_pca512_base_results.json --pca_dim 512 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_pca512_base_results.json
+      hash: md5
+      md5: c4b4cb2e07be4eae80f0b6a3eddf9bad
+      size: 6906
+  evaluate_selective_prediction@0:
+    cmd: uv run python selective_prediction.py --data_dir data/qwen/math500 
+      --output_dir results/qwen_selective/math500 --dataset_label math500 
+      --layers 7,14,21 --pca_dim 128 --cv_random_state 42 --min_coverage 0.3 
+      --operating_points 0.6,0.7,0.8,0.9
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    - path: selective_prediction.py
+      hash: md5
+      md5: 0714b046fe2e42ece132ed48d750723b
+      size: 18147
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        selective_prediction.min_coverage: 0.3
+        selective_prediction.operating_points: 0.6,0.7,0.8,0.9
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/qwen_selective/math500/math500_selective_prediction.png
+      hash: md5
+      md5: b50b8190575beba6f67ddbecc37795cc
+      size: 247859
+    - path: 
+        results/qwen_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: a9a9192dea4f17069dfb5f179c6322f4
+      size: 302219
+  evaluate_selective_prediction@1:
+    cmd: uv run python selective_prediction.py --data_dir data/deepseek/math500 
+      --output_dir results/deepseek_selective/math500 --dataset_label math500 
+      --layers 7,14,21 --pca_dim 128 --cv_random_state 42 --min_coverage 0.3 
+      --operating_points 0.6,0.7,0.8,0.9
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    - path: selective_prediction.py
+      hash: md5
+      md5: 0714b046fe2e42ece132ed48d750723b
+      size: 18147
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        selective_prediction.min_coverage: 0.3
+        selective_prediction.operating_points: 0.6,0.7,0.8,0.9
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/deepseek_selective/math500/math500_selective_prediction.png
+      hash: md5
+      md5: f55c18f422ea4bdfeb9559e1a02e5008
+      size: 221860
+    - path: 
+        results/deepseek_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: d88ed5bff32947d5ae7f322671c51e66
+      size: 325720
+  evaluate_selective_prediction@2:
+    cmd: uv run python selective_prediction.py --data_dir data/llama/math500 
+      --output_dir results/llama_selective/math500 --dataset_label math500 
+      --layers 8,16,24 --pca_dim 128 --cv_random_state 42 --min_coverage 0.3 
+      --operating_points 0.6,0.7,0.8,0.9
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    - path: selective_prediction.py
+      hash: md5
+      md5: 0714b046fe2e42ece132ed48d750723b
+      size: 18147
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        selective_prediction.min_coverage: 0.3
+        selective_prediction.operating_points: 0.6,0.7,0.8,0.9
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/llama_selective/math500/math500_selective_prediction.png
+      hash: md5
+      md5: b271f9982c96cc1be77a059df0c7640b
+      size: 246091
+    - path: 
+        results/llama_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: e259036aa351e8d7b57f0f5996625304
+      size: 327129
+  evaluate_selective_prediction@3:
+    cmd: uv run python selective_prediction.py --data_dir 
+      data/deepseek_llama/math500 --output_dir 
+      results/deepseek_llama_selective/math500 --dataset_label math500 --layers 
+      8,16,24 --pca_dim 128 --cv_random_state 42 --min_coverage 0.3 
+      --operating_points 0.6,0.7,0.8,0.9
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10
+    - path: selective_prediction.py
+      hash: md5
+      md5: 0714b046fe2e42ece132ed48d750723b
+      size: 18147
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        selective_prediction.min_coverage: 0.3
+        selective_prediction.operating_points: 0.6,0.7,0.8,0.9
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: 
+        results/deepseek_llama_selective/math500/math500_selective_prediction.png
+      hash: md5
+      md5: 4c761ff4c92b11a5bee7b540569219a5
+      size: 224648
+    - path: 
+        results/deepseek_llama_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: b038884128a16dd99a6c88b033edcd46
+      size: 326336
+  analyze_pca_ablation_runs@7:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
+      gsm8k --output_name gsm8k_pcamax_base_results.json --pca_dim max 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/gsm8k
+      hash: md5
+      md5: 2262acb1d61a91f3816d4de4387ee3c4.dir
+      size: 16960194337
+      nfiles: 26
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_pcamax_base_results.json
+      hash: md5
+      md5: 34566faf9ad4ff9a3662aaeac345c51b
+      size: 6917
+  analyze_pca_ablation_runs@8:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_pca32_base_results.json --pca_dim 32 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/math500/math500_pca32_base_results.json
+      hash: md5
+      md5: 2c6f6045882f5a4be3c8455579976670
+      size: 6899
+  analyze_pca_ablation_runs@9:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_pca128_base_results.json --pca_dim 128 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/math500/math500_pca128_base_results.json
+      hash: md5
+      md5: ec8c4a6897ef16ff1c201fa1d52c7ede
+      size: 6885
+  analyze_pca_ablation_runs@10:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_pca512_base_results.json --pca_dim 512 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/math500/math500_pca512_base_results.json
+      hash: md5
+      md5: 6188e4d2a7896e14f8a499fac48c537c
+      size: 6897
+  analyze_pca_ablation_runs@11:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
+      math500 --output_name math500_pcamax_base_results.json --pca_dim max 
+      --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/qwen/math500/math500_pcamax_base_results.json
+      hash: md5
+      md5: ab94e59c014d7913e874e5f4da2e4a64
+      size: 6899
+  analyze_pca_ablation_runs@12:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_pca32_base_results.json 
+      --pca_dim 32 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/math500/math500_pca32_base_results.json
+      hash: md5
+      md5: 04c3e9d639db2221cfea9b95a8e0a0c4
+      size: 6875
+  analyze_pca_ablation_runs@13:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_pca128_base_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/math500/math500_pca128_base_results.json
+      hash: md5
+      md5: f1051ebb13c45c79c07aa5b1fe3bcd63
+      size: 6883
+  analyze_pca_ablation_runs@14:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_pca512_base_results.json 
+      --pca_dim 512 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/math500/math500_pca512_base_results.json
+      hash: md5
+      md5: 0c6424b1ac7e0197b6b916fee81db529
+      size: 6900
+  analyze_pca_ablation_runs@15:
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/deepseek/math500 --output_dir results/deepseek/math500 
+      --dataset_label math500 --output_name math500_pcamax_base_results.json 
+      --pca_dim max --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze_pca_ablation_runs:
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: qwen
+          dataset: gsm8k
+          pca_dim: max
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '32'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '128'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: '512'
+        - model: deepseek
+          dataset: gsm8k
+          pca_dim: max
+        - model: qwen
+          dataset: math500
+          pca_dim: '32'
+        - model: qwen
+          dataset: math500
+          pca_dim: '128'
+        - model: qwen
+          dataset: math500
+          pca_dim: '512'
+        - model: qwen
+          dataset: math500
+          pca_dim: max
+        - model: deepseek
+          dataset: math500
+          pca_dim: '32'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '128'
+        - model: deepseek
+          dataset: math500
+          pca_dim: '512'
+        - model: deepseek
+          dataset: math500
+          pca_dim: max
+    outs:
+    - path: results/deepseek/math500/math500_pcamax_base_results.json
+      hash: md5
+      md5: 7b02f5fd6335a376593ffb85254bd8b8
+      size: 6901
+  analyze_pca_ablation_merge@0:
+    cmd: uv run python pca_ablation.py --model qwen --dataset gsm8k 
+      --expected_dims 32,128,512,max --output_path 
+      results/qwen/gsm8k/gsm8k_pca_ablation_results.json --inputs 
+      results/qwen/gsm8k/gsm8k_pca32_base_results.json 
+      results/qwen/gsm8k/gsm8k_pca128_base_results.json 
+      results/qwen/gsm8k/gsm8k_pca512_base_results.json 
+      results/qwen/gsm8k/gsm8k_pcamax_base_results.json
+    deps:
+    - path: pca_ablation.py
+      hash: md5
+      md5: 174129f1db8033470240a7374862698b
+      size: 9056
+    - path: results/qwen/gsm8k/gsm8k_pca128_base_results.json
+      hash: md5
+      md5: 30fda7018d3b198ad91de412f99bf84b
+      size: 6906
+    - path: results/qwen/gsm8k/gsm8k_pca32_base_results.json
+      hash: md5
+      md5: 715275edab625321655ceb8a88f313b9
+      size: 6905
+    - path: results/qwen/gsm8k/gsm8k_pca512_base_results.json
+      hash: md5
+      md5: d4207150cad0a6f28de858aa041d2d79
+      size: 6911
+    - path: results/qwen/gsm8k/gsm8k_pcamax_base_results.json
+      hash: md5
+      md5: ab83aafbc43702db69accbadd1becabb
+      size: 6912
+    params:
+      params.yaml:
+        analyze.pca_dims: 32,128,512,max
+        analyze_pca_ablation_matrix:
+        - model: qwen
+          dataset: gsm8k
+        - model: deepseek
+          dataset: gsm8k
+        - model: qwen
+          dataset: math500
+        - model: deepseek
+          dataset: math500
+    outs:
+    - path: results/qwen/gsm8k/gsm8k_pca_ablation_results.json
+      hash: md5
+      md5: 240d1231bf958b135a3604c62808119f
+      size: 7397
+  analyze_pca_ablation_merge@1:
+    cmd: uv run python pca_ablation.py --model deepseek --dataset gsm8k 
+      --expected_dims 32,128,512,max --output_path 
+      results/deepseek/gsm8k/gsm8k_pca_ablation_results.json --inputs 
+      results/deepseek/gsm8k/gsm8k_pca32_base_results.json 
+      results/deepseek/gsm8k/gsm8k_pca128_base_results.json 
+      results/deepseek/gsm8k/gsm8k_pca512_base_results.json 
+      results/deepseek/gsm8k/gsm8k_pcamax_base_results.json
+    deps:
+    - path: pca_ablation.py
+      hash: md5
+      md5: 174129f1db8033470240a7374862698b
+      size: 9056
+    - path: results/deepseek/gsm8k/gsm8k_pca128_base_results.json
+      hash: md5
+      md5: 20370fa5a8af2ec0d2d6bea100d8f733
+      size: 6903
+    - path: results/deepseek/gsm8k/gsm8k_pca32_base_results.json
+      hash: md5
+      md5: e53e7d2b18839a8252d623c7293b1171
+      size: 6898
+    - path: results/deepseek/gsm8k/gsm8k_pca512_base_results.json
+      hash: md5
+      md5: c4b4cb2e07be4eae80f0b6a3eddf9bad
+      size: 6906
+    - path: results/deepseek/gsm8k/gsm8k_pcamax_base_results.json
+      hash: md5
+      md5: 34566faf9ad4ff9a3662aaeac345c51b
+      size: 6917
+    params:
+      params.yaml:
+        analyze.pca_dims: 32,128,512,max
+        analyze_pca_ablation_matrix:
+        - model: qwen
+          dataset: gsm8k
+        - model: deepseek
+          dataset: gsm8k
+        - model: qwen
+          dataset: math500
+        - model: deepseek
+          dataset: math500
+    outs:
+    - path: results/deepseek/gsm8k/gsm8k_pca_ablation_results.json
+      hash: md5
+      md5: d119154c059a7ee6de629a0fa82d41a2
+      size: 7401
+  analyze_pca_ablation_merge@2:
+    cmd: uv run python pca_ablation.py --model qwen --dataset math500 
+      --expected_dims 32,128,512,max --output_path 
+      results/qwen/math500/math500_pca_ablation_results.json --inputs 
+      results/qwen/math500/math500_pca32_base_results.json 
+      results/qwen/math500/math500_pca128_base_results.json 
+      results/qwen/math500/math500_pca512_base_results.json 
+      results/qwen/math500/math500_pcamax_base_results.json
+    deps:
+    - path: pca_ablation.py
+      hash: md5
+      md5: 174129f1db8033470240a7374862698b
+      size: 9056
+    - path: results/qwen/math500/math500_pca128_base_results.json
+      hash: md5
+      md5: ec8c4a6897ef16ff1c201fa1d52c7ede
+      size: 6885
+    - path: results/qwen/math500/math500_pca32_base_results.json
+      hash: md5
+      md5: 2c6f6045882f5a4be3c8455579976670
+      size: 6899
+    - path: results/qwen/math500/math500_pca512_base_results.json
+      hash: md5
+      md5: 6188e4d2a7896e14f8a499fac48c537c
+      size: 6897
+    - path: results/qwen/math500/math500_pcamax_base_results.json
+      hash: md5
+      md5: ab94e59c014d7913e874e5f4da2e4a64
+      size: 6899
+    params:
+      params.yaml:
+        analyze.pca_dims: 32,128,512,max
+        analyze_pca_ablation_matrix:
+        - model: qwen
+          dataset: gsm8k
+        - model: deepseek
+          dataset: gsm8k
+        - model: qwen
+          dataset: math500
+        - model: deepseek
+          dataset: math500
+    outs:
+    - path: results/qwen/math500/math500_pca_ablation_results.json
+      hash: md5
+      md5: 09eb7648a0d68d84e68a6a5c421ea879
+      size: 7410
+  analyze_pca_ablation_merge@3:
+    cmd: uv run python pca_ablation.py --model deepseek --dataset math500 
+      --expected_dims 32,128,512,max --output_path 
+      results/deepseek/math500/math500_pca_ablation_results.json --inputs 
+      results/deepseek/math500/math500_pca32_base_results.json 
+      results/deepseek/math500/math500_pca128_base_results.json 
+      results/deepseek/math500/math500_pca512_base_results.json 
+      results/deepseek/math500/math500_pcamax_base_results.json
+    deps:
+    - path: pca_ablation.py
+      hash: md5
+      md5: 174129f1db8033470240a7374862698b
+      size: 9056
+    - path: results/deepseek/math500/math500_pca128_base_results.json
+      hash: md5
+      md5: f1051ebb13c45c79c07aa5b1fe3bcd63
+      size: 6883
+    - path: results/deepseek/math500/math500_pca32_base_results.json
+      hash: md5
+      md5: 04c3e9d639db2221cfea9b95a8e0a0c4
+      size: 6875
+    - path: results/deepseek/math500/math500_pca512_base_results.json
+      hash: md5
+      md5: 0c6424b1ac7e0197b6b916fee81db529
+      size: 6900
+    - path: results/deepseek/math500/math500_pcamax_base_results.json
+      hash: md5
+      md5: 7b02f5fd6335a376593ffb85254bd8b8
+      size: 6901
+    params:
+      params.yaml:
+        analyze.pca_dims: 32,128,512,max
+        analyze_pca_ablation_matrix:
+        - model: qwen
+          dataset: gsm8k
+        - model: deepseek
+          dataset: gsm8k
+        - model: qwen
+          dataset: math500
+        - model: deepseek
+          dataset: math500
+    outs:
+    - path: results/deepseek/math500/math500_pca_ablation_results.json
+      hash: md5
+      md5: 87eeeb5c87cb3e2376187bafdfa025e0
+      size: 7423
+  evaluate_prefix_filter@0:
+    cmd: uv run python prefix_filter.py --data_dir 
+      data/qwen_prefix_filter_pilot/math500 --output_dir 
+      results/qwen_prefix_filter_pilot/math500 --dataset_label math500 --layers 
+      2,4,8,16 --prefix_lengths 25,50,125 --score_kinds 
+      entropy_only,mahalanobis_only,combined --threshold_quantiles 
+      0.2,0.35,0.5,0.65,0.8 --max_restarts 3 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen_prefix_filter_pilot/math500
+      hash: md5
+      md5: e7a97a38f99138b896e419483ccb5ba3.dir
+      size: 11052655382
+      nfiles: 16
+    - path: prefix_filter.py
+      hash: md5
+      md5: f9427d35324091f41e0485f0d3675dab
+      size: 26577
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.max_restarts: 3
+        prefix_filter.score_kinds: entropy_only,mahalanobis_only,combined
+        prefix_filter.threshold_quantiles: 0.2,0.35,0.5,0.65,0.8
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: 
+        results/qwen_prefix_filter_pilot/math500/math500_prefix_filter_results.json
+      hash: md5
+      md5: 46d2b6025a4b3bc6d8cfc670cb95c47e
+      size: 108972
+    - path: 
+        results/qwen_prefix_filter_pilot/math500/math500_prefix_filter_tradeoff.png
+      hash: md5
+      md5: 04e3986e7dbc9141cf0ce47810cbf072
+      size: 566174
+  collect_prefix_filter@0:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 2,4,8,16 
+      --temperature 0.6 --num_samples 8 --limit 100 --output_dir 
+      data/qwen_prefix_filter_pilot/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.num_samples: 8
+        prefix_filter.temperature: 0.6
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: data/qwen_prefix_filter_pilot/math500
+      hash: md5
+      md5: e7a97a38f99138b896e419483ccb5ba3.dir
+      size: 11052655382
+      nfiles: 16
+  collect_prefix_filter@1:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 2,4,8,16 
+      --temperature 0.6 --num_samples 8 --limit 500 --output_dir 
+      data/qwen_prefix_filter_full/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.num_samples: 8
+        prefix_filter.temperature: 0.6
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: data/qwen_prefix_filter_full/math500
+      hash: md5
+      md5: 48f514cf0aaba8c253039952ec0c5bea.dir
+      size: 59686816623
+      nfiles: 80
+  collect_prefix_filter@2:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
+      2,4,8,16 --temperature 0.6 --num_samples 8 --limit 100 --output_dir 
+      data/deepseek_prefix_filter_pilot/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.num_samples: 8
+        prefix_filter.temperature: 0.6
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: data/deepseek_prefix_filter_pilot/math500
+      hash: md5
+      md5: b935fdb3de3f0fca06a5ae4e2fd628c9.dir
+      size: 34179098816
+      nfiles: 16
+  collect_prefix_filter@3:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
+      2,4,8,16 --temperature 0.6 --num_samples 8 --limit 500 --output_dir 
+      data/deepseek_prefix_filter_full/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.num_samples: 8
+        prefix_filter.temperature: 0.6
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: data/deepseek_prefix_filter_full/math500
+      hash: md5
+      md5: 3e5377534f02e9c4f27cf19ca69c4d75.dir
+      size: 181621588367
+      nfiles: 80
+  evaluate_prefix_filter@1:
+    cmd: uv run python prefix_filter.py --data_dir 
+      data/qwen_prefix_filter_full/math500 --output_dir 
+      results/qwen_prefix_filter_full/math500 --dataset_label math500 --layers 
+      2,4,8,16 --prefix_lengths 25,50,125 --score_kinds 
+      entropy_only,mahalanobis_only,combined --threshold_quantiles 
+      0.2,0.35,0.5,0.65,0.8 --max_restarts 3 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/qwen_prefix_filter_full/math500
+      hash: md5
+      md5: 48f514cf0aaba8c253039952ec0c5bea.dir
+      size: 59686816623
+      nfiles: 80
+    - path: prefix_filter.py
+      hash: md5
+      md5: f9427d35324091f41e0485f0d3675dab
+      size: 26577
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.max_restarts: 3
+        prefix_filter.score_kinds: entropy_only,mahalanobis_only,combined
+        prefix_filter.threshold_quantiles: 0.2,0.35,0.5,0.65,0.8
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: 
+        results/qwen_prefix_filter_full/math500/math500_prefix_filter_results.json
+      hash: md5
+      md5: 7f50a2151f7e5091c1192c2ffdecd0dd
+      size: 109014
+    - path: 
+        results/qwen_prefix_filter_full/math500/math500_prefix_filter_tradeoff.png
+      hash: md5
+      md5: a6bbf083c1a1679efb32add09e1de5d4
+      size: 685545
+  evaluate_prefix_filter@2:
+    cmd: uv run python prefix_filter.py --data_dir 
+      data/deepseek_prefix_filter_pilot/math500 --output_dir 
+      results/deepseek_prefix_filter_pilot/math500 --dataset_label math500 
+      --layers 2,4,8,16 --prefix_lengths 80,160,400 --score_kinds 
+      entropy_only,mahalanobis_only,combined --threshold_quantiles 
+      0.2,0.35,0.5,0.65,0.8 --max_restarts 3 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek_prefix_filter_pilot/math500
+      hash: md5
+      md5: b935fdb3de3f0fca06a5ae4e2fd628c9.dir
+      size: 34179098816
+      nfiles: 16
+    - path: prefix_filter.py
+      hash: md5
+      md5: f9427d35324091f41e0485f0d3675dab
+      size: 26577
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.max_restarts: 3
+        prefix_filter.score_kinds: entropy_only,mahalanobis_only,combined
+        prefix_filter.threshold_quantiles: 0.2,0.35,0.5,0.65,0.8
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: 
+        results/deepseek_prefix_filter_pilot/math500/math500_prefix_filter_results.json
+      hash: md5
+      md5: 564dcd50fb925e34cd4457d2a494a2d0
+      size: 111392
+    - path: 
+        results/deepseek_prefix_filter_pilot/math500/math500_prefix_filter_tradeoff.png
+      hash: md5
+      md5: a268754080ac91bd00521f1a3c8b39a0
+      size: 693727
+  evaluate_prefix_filter@3:
+    cmd: uv run python prefix_filter.py --data_dir 
+      data/deepseek_prefix_filter_full/math500 --output_dir 
+      results/deepseek_prefix_filter_full/math500 --dataset_label math500 
+      --layers 2,4,8,16 --prefix_lengths 80,160,400 --score_kinds 
+      entropy_only,mahalanobis_only,combined --threshold_quantiles 
+      0.2,0.35,0.5,0.65,0.8 --max_restarts 3 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: data/deepseek_prefix_filter_full/math500
+      hash: md5
+      md5: 3e5377534f02e9c4f27cf19ca69c4d75.dir
+      size: 181621588367
+      nfiles: 80
+    - path: prefix_filter.py
+      hash: md5
+      md5: f9427d35324091f41e0485f0d3675dab
+      size: 26577
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        prefix_filter.layers: 2,4,8,16
+        prefix_filter.max_restarts: 3
+        prefix_filter.score_kinds: entropy_only,mahalanobis_only,combined
+        prefix_filter.threshold_quantiles: 0.2,0.35,0.5,0.65,0.8
+        prefix_filter_matrix:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+          prefix_lengths: 25,50,125
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+          prefix_lengths: 80,160,400
+    outs:
+    - path: 
+        results/deepseek_prefix_filter_full/math500/math500_prefix_filter_results.json
+      hash: md5
+      md5: 7e64364da86cb55fa4231657b05a7dd6
+      size: 111574
+    - path: 
+        results/deepseek_prefix_filter_full/math500/math500_prefix_filter_tradeoff.png
+      hash: md5
+      md5: 8ed8b568ba32f102153ec4ccf9975f7e
+      size: 710542
