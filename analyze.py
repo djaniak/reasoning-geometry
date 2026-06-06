@@ -409,6 +409,43 @@ def fit_relative_mahalanobis_reference_safe(
         return None
 
 
+def extend_reference_with_background(
+    base_ref,
+    background_traces: list[dict],
+    layer: int,
+    normalize_input: bool = False,
+):
+    """Turn a base Mahalanobis ref (pca, mu, cov_inv) into a relative (RMD) ref by
+    adding the background manifold. Reuses the base PCA/correct-manifold instead of
+    refitting — the correct-side of fit_relative_mahalanobis_reference is identical
+    to fit_mahalanobis_reference, so this is exact and avoids a duplicate PCA fit."""
+    pca, mu, cov_inv = base_ref
+    background_hiddens = _prepare_hidden_tokens(
+        np.concatenate([t["hiddens"][layer] for t in background_traces], axis=0),
+        normalize_input=normalize_input,
+    )
+    background_proj = pca.transform(background_hiddens)
+    bg_mu = background_proj.mean(axis=0)
+    bg_cov_inv = _fit_lw_precision(background_proj - bg_mu)
+    return pca, mu, cov_inv, bg_mu, bg_cov_inv
+
+
+def extend_reference_with_background_safe(
+    base_ref,
+    background_traces: list[dict],
+    layer: int,
+    normalize_input: bool = False,
+):
+    if base_ref is None or not background_traces:
+        return None
+    try:
+        return extend_reference_with_background(
+            base_ref, background_traces, layer, normalize_input=normalize_input
+        )
+    except Exception:
+        return None
+
+
 def compute_relative_mahal_distances(
     hiddens: np.ndarray,
     pca,
@@ -896,6 +933,30 @@ def mahal_features(e: np.ndarray, m: np.ndarray) -> list:
         m[high_mask].mean() if high_mask.any() else 0.0,
         m[high_mask].max() if high_mask.any() else 0.0,
         np.corrcoef(e, m)[0, 1] if len(e) > 2 else 0.0,
+    ]
+
+
+def mahal_trajectory_features(m: np.ndarray) -> list:
+    """Trajectory shape features from the cumulative Mahalanobis distance sequence.
+
+    Captures how distance accumulates over the prefix rather than collapsing to summary stats.
+    """
+    k = len(m)
+    c = np.cumsum(m)
+    if k > 1:
+        t = np.arange(k, dtype=float)
+        slope, intercept = np.polyfit(t, c, 1)
+        convexity = float((c - (slope * t + intercept)).mean())  # >0: accelerating, <0: decelerating
+    else:
+        slope = float(m[0])
+        convexity = 0.0
+    return [
+        float(c[-1]),                                             # total accumulated distance
+        float(slope),                                             # linear accumulation rate
+        convexity,                                                # curvature of accumulation
+        float(np.argmax(m)) / k,                                 # normalised position of peak (0=early)
+        float(np.mean(m > m.mean())) if k > 1 else 0.5,         # fraction of tokens above mean distance
+        float(m[-1]),                                             # distance at last prefix token
     ]
 
 

@@ -30,10 +30,14 @@ from analyze import (
     entropy_features,
     load_all_traces,
     mahal_features,
+    mahal_trajectory_features,
 )
 
 DEFAULT_PREFIX_LENGTHS = [5, 10, 20]
-DEFAULT_SCORE_KINDS = ["entropy_only", "mahalanobis_only", "combined"]
+DEFAULT_SCORE_KINDS = ["entropy_only", "mahalanobis_only", "combined", "mahal_raw", "mahal_cumtraj"]
+
+# Score kinds that use raw distance directly — no logistic classifier trained.
+_RAW_SCORE_KINDS = {"mahal_raw"}
 DEFAULT_THRESHOLD_QUANTILES = [0.2, 0.35, 0.5, 0.65, 0.8]
 
 
@@ -183,6 +187,18 @@ def predict_selector_scores(model, X: np.ndarray) -> np.ndarray:
     return clf.predict_proba(scaler.transform(X))[:, 1]
 
 
+def raw_mahal_scores(
+    traces: list[dict], prefix_len: int, layer: int, ref
+) -> np.ndarray:
+    """Negative cumulative Mahalanobis distance — no classifier, higher = closer to correct geometry."""
+    pca, mu, cov_inv = ref
+    scores = []
+    for trace in traces:
+        dists = compute_mahal_distances(trace["hiddens"][layer][:prefix_len], pca, mu, cov_inv)
+        scores.append(-float(dists.sum()))
+    return np.array(scores)
+
+
 def trace_is_eligible(trace: dict, prefix_len: int, layer: int | None, score_kind: str) -> bool:
     if len(trace["entropies"]) < prefix_len:
         return False
@@ -228,8 +244,11 @@ def build_feature_matrix(
                 raise ValueError("Layer and Mahalanobis reference are required.")
             pca, mu, cov_inv = ref
             dists = compute_mahal_distances(trace["hiddens"][layer][:prefix_len], pca, mu, cov_inv)
-            mah_feats = mahal_features(ent, dists)
-            feats = mah_feats if score_kind == "mahalanobis_only" else (ent_feats + mah_feats)
+            if score_kind == "mahal_cumtraj":
+                feats = mahal_trajectory_features(dists)
+            else:
+                mah_feats = mahal_features(ent, dists)
+                feats = mah_feats if score_kind == "mahalanobis_only" else (ent_feats + mah_feats)
         rows.append(feats)
         labels.append(1 if trace["is_correct"] else 0)
     return np.array(rows), np.array(labels)
@@ -339,17 +358,20 @@ def evaluate_setting(
                 skipped_folds += 1
                 continue
 
-        X_train, y_train = build_feature_matrix(
-            train_traces, score_kind, prefix_len, layer, ref=ref
-        )
-        model = fit_logistic_selector(X_train, y_train)
-        if model is None:
-            skipped_folds += 1
-            continue
-
-        X_test, _ = build_feature_matrix(test_traces, score_kind, prefix_len, layer, ref=ref)
-        train_scores = predict_selector_scores(model, X_train)
-        test_scores = predict_selector_scores(model, X_test)
+        if score_kind in _RAW_SCORE_KINDS:
+            train_scores = raw_mahal_scores(train_traces, prefix_len, int(layer), ref)
+            test_scores = raw_mahal_scores(test_traces, prefix_len, int(layer), ref)
+        else:
+            X_train, y_train = build_feature_matrix(
+                train_traces, score_kind, prefix_len, layer, ref=ref
+            )
+            model = fit_logistic_selector(X_train, y_train)
+            if model is None:
+                skipped_folds += 1
+                continue
+            X_test, _ = build_feature_matrix(test_traces, score_kind, prefix_len, layer, ref=ref)
+            train_scores = predict_selector_scores(model, X_train)
+            test_scores = predict_selector_scores(model, X_test)
 
         test_score_map = {
             trace_key(trace): float(score)
@@ -609,7 +631,7 @@ def main():
         args.threshold_quantiles, DEFAULT_THRESHOLD_QUANTILES
     )
 
-    valid_score_kinds = {"entropy_only", "mahalanobis_only", "combined"}
+    valid_score_kinds = {"entropy_only", "mahalanobis_only", "combined", "mahal_raw", "mahal_cumtraj"}
     score_kinds = [kind for kind in score_kinds if kind in valid_score_kinds]
     if not score_kinds:
         raise ValueError("No valid score kinds requested.")

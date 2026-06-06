@@ -4176,3 +4176,345 @@ stages:
       hash: md5
       md5: 8ed8b568ba32f102153ec4ccf9975f7e
       size: 710542
+  evaluate_bestofn_concordance@0:
+    cmd: uv run python best_of_n.py --data_dir data/qwen_bestofn_pilot/math500 
+      --output_dir results/qwen_bestofn_pilot/math500 --dataset_label math500 
+      --layers 7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42 
+      --concordance_diagnostic
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/qwen_bestofn_pilot/math500
+      hash: md5
+      md5: 27281d7fb29ed95cd32b02c32ba64ba3.dir
+      size: 8333759735
+      nfiles: 16
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: results/qwen_bestofn_pilot/math500/math500_bestofn_concordance.json
+      hash: md5
+      md5: cfb2dd4e1b65ac6c420649cb18de8082
+      size: 850
+
+  collect_bestofn_pilot@0:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
+      --temperature 0.6 --num_samples 8 --limit 100 --output_dir 
+      data/qwen_bestofn_pilot/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        best_of_n.layers: 7,14,21
+        best_of_n.num_samples: 8
+        best_of_n.temperature: 0.6
+        bestofn_matrix_pilot:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+    outs:
+    - path: data/qwen_bestofn_pilot/math500
+      hash: md5
+      md5: 27281d7fb29ed95cd32b02c32ba64ba3.dir
+      size: 8333759735
+      nfiles: 16
+  evaluate_bestofn_pilot@0:
+    cmd: uv run python best_of_n.py --data_dir data/qwen_bestofn_pilot/math500 
+      --output_dir results/qwen_bestofn_pilot/math500 --dataset_label math500 
+      --layers 7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/qwen_bestofn_pilot/math500
+      hash: md5
+      md5: 27281d7fb29ed95cd32b02c32ba64ba3.dir
+      size: 8333759735
+      nfiles: 16
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: results/qwen_bestofn_pilot/math500/math500_best_of_n.png
+      hash: md5
+      md5: 18a8a634925efbcebd74878eb710ee0b
+      size: 88247
+    - path: results/qwen_bestofn_pilot/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 533e86a9eabf9182247122158304d8a3
+      size: 49780
+  collect_bestofn_full@0:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
+      --temperature 0.6 --num_samples 8 --limit 500 --output_dir 
+      data/qwen_bestofn_full/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        best_of_n.layers: 7,14,21
+        best_of_n.num_samples: 8
+        best_of_n.temperature: 0.6
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+    outs:
+    - path: data/qwen_bestofn_full/math500
+      hash: md5
+      md5: 7855e73dd0aca0dc8df01b88fe77a1f1.dir
+      size: 44677418578
+      nfiles: 80
+  collect_bestofn_full@1:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
+      7,14,21 --temperature 0.6 --num_samples 8 --limit 500 --output_dir 
+      data/deepseek_bestofn_full/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        best_of_n.layers: 7,14,21
+        best_of_n.num_samples: 8
+        best_of_n.temperature: 0.6
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+    outs:
+    - path: data/deepseek_bestofn_full/math500
+      hash: md5
+      md5: 6ab85e695c7deb81a24d9bede3180563.dir
+      size: 51484818616
+      nfiles: 30
+  evaluate_bestofn_full@0:
+    cmd: uv run python best_of_n.py --data_dir data/qwen_bestofn_full/math500 
+      --output_dir results/qwen_bestofn_full/math500 --dataset_label math500 
+      --layers 7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/qwen_bestofn_full/math500
+      hash: md5
+      md5: 7855e73dd0aca0dc8df01b88fe77a1f1.dir
+      size: 44677418578
+      nfiles: 80
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: results/qwen_bestofn_full/math500/math500_best_of_n.png
+      hash: md5
+      md5: a248fcede0dba06cbb2495bb42fcc712
+      size: 86483
+    - path: results/qwen_bestofn_full/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 9d876854b5ebf400a7227a8293037445
+      size: 50743
+  evaluate_bestofn_full@1:
+    cmd: uv run python best_of_n.py --data_dir 
+      data/deepseek_bestofn_full/math500 --output_dir 
+      results/deepseek_bestofn_full/math500 --dataset_label math500 --layers 
+      7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 68cdac3c53f1f28243ff20b9816a40e0
+      size: 94316
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/deepseek_bestofn_full/math500
+      hash: md5
+      md5: 6ab85e695c7deb81a24d9bede3180563.dir
+      size: 51484818616
+      nfiles: 30
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: results/deepseek_bestofn_full/math500/math500_best_of_n.png
+      hash: md5
+      md5: 9052a39677f8c296d7cab0cf79733976
+      size: 97877
+    - path: results/deepseek_bestofn_full/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 984c0fea4c2cd7447d6ce0e78b9b1095
+      size: 50845
+  collect_bestofn_pilot@1:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
+      7,14,21 --temperature 0.6 --num_samples 8 --limit 100 --output_dir 
+      data/deepseek_bestofn_pilot/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 13e9f00dc9f4be76dfce00049bc10aa9
+      size: 13588
+    params:
+      params.yaml:
+        best_of_n.layers: 7,14,21
+        best_of_n.num_samples: 8
+        best_of_n.temperature: 0.6
+        bestofn_matrix_pilot:
+        - model: qwen
+          scale: pilot
+          limit: 100
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: pilot
+          limit: 100
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+    outs:
+    - path: data/deepseek_bestofn_pilot/math500
+      hash: md5
+      md5: 6a969c721a45a09d26766de7f4b9cc7f.dir
+      size: 25606874058
+      nfiles: 16
+  evaluate_bestofn_pilot@1:
+    cmd: uv run python best_of_n.py --data_dir 
+      data/deepseek_bestofn_pilot/math500 --output_dir 
+      results/deepseek_bestofn_pilot/math500 --dataset_label math500 --layers 
+      7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 5860ec30206fdc58de97593a6a80bc9d
+      size: 95468
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/deepseek_bestofn_pilot/math500
+      hash: md5
+      md5: 6a969c721a45a09d26766de7f4b9cc7f.dir
+      size: 25606874058
+      nfiles: 16
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: results/deepseek_bestofn_pilot/math500/math500_best_of_n.png
+      hash: md5
+      md5: d53507f2319ee138d0ded464c6b0613e
+      size: 99735
+    - path: 
+        results/deepseek_bestofn_pilot/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 4571bd73f6912452bf998a068c92c33f
+      size: 50377
+  evaluate_bestofn_concordance@1:
+    cmd: uv run python best_of_n.py --data_dir 
+      data/deepseek_bestofn_pilot/math500 --output_dir 
+      results/deepseek_bestofn_pilot/math500 --dataset_label math500 --layers 
+      7,14,21 --n_values 1,8 --pca_dim 128 --cv_random_state 42 
+      --concordance_diagnostic
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 5860ec30206fdc58de97593a6a80bc9d
+      size: 95468
+    - path: best_of_n.py
+      hash: md5
+      md5: f975086d8fb786d2b8e3044137efdb18
+      size: 31629
+    - path: data/deepseek_bestofn_pilot/math500
+      hash: md5
+      md5: 6a969c721a45a09d26766de7f4b9cc7f.dir
+      size: 25606874058
+      nfiles: 16
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        best_of_n.n_values: 1,8
+    outs:
+    - path: 
+        results/deepseek_bestofn_pilot/math500/math500_bestofn_concordance.json
+      hash: md5
+      md5: 0aa993c1a3e62e50a50c8fac4f974143
+      size: 853

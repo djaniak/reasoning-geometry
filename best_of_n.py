@@ -21,8 +21,10 @@ from sklearn.preprocessing import StandardScaler
 
 from analyze import (
     compute_mahal_distances,
+    compute_relative_mahal_distances,
     detect_layers,
     entropy_features,
+    extend_reference_with_background_safe,
     fit_mahalanobis_reference_safe,
     load_all_traces,
     load_math500_levels,
@@ -257,6 +259,24 @@ def build_layer_feature_matrices(
     return np.array(x_mah_rows), np.array(x_comb_rows)
 
 
+def build_layer_rmd_feature_matrices(
+    traces: list[dict], layer: int, rmd_ref
+) -> tuple[np.ndarray, np.ndarray]:
+    """Relative-Mahalanobis (RMD) features: distance to the correct manifold minus
+    distance to the background manifold. RMD is the strong geometry variant across
+    discrimination and selective-prediction; base Mahalanobis underperforms it here too."""
+    pca, mu, cov_inv, bg_mu, bg_cov_inv = rmd_ref
+    x_rmd_rows, x_comb_rows = [], []
+    for trace in traces:
+        rmd = compute_relative_mahal_distances(
+            trace["hiddens"][layer], pca, mu, cov_inv, bg_mu, bg_cov_inv
+        )
+        rf = mahal_features(trace["entropies"], rmd)
+        x_rmd_rows.append(rf)
+        x_comb_rows.append(entropy_features(trace["entropies"]) + rf)
+    return np.array(x_rmd_rows), np.array(x_comb_rows)
+
+
 def flatten_groups(groups: dict[int, list[dict]], problem_ids: list[int]) -> list[dict]:
     traces = []
     for idx in problem_ids:
@@ -282,6 +302,10 @@ def summarize_best_layer(layer_results: dict) -> dict | None:
             "combined_pass_at_1": result["combined"]["pass_at_1_mean"],
             "mahal_pass_at_1": result["mahalanobis_only"]["pass_at_1_mean"],
         }
+        rmd_comb = result.get("rmd_combined", {})
+        if not rmd_comb.get("skipped"):
+            candidate["rmd_pass_at_1"] = result.get("rmd_only", {}).get("pass_at_1_mean")
+            candidate["rmd_combined_pass_at_1"] = rmd_comb.get("pass_at_1_mean")
         if best is None or candidate["combined_pass_at_1"] > best["combined_pass_at_1"]:
             best = candidate
     return best
@@ -311,6 +335,8 @@ def evaluate_best_of_n(
         str(layer): {
             "mahalanobis_only": {"fold_scores": [], "problem_scores": {}},
             "combined": {"fold_scores": [], "problem_scores": {}},
+            "rmd_only": {"fold_scores": [], "problem_scores": {}},
+            "rmd_combined": {"fold_scores": [], "problem_scores": {}},
         }
         for layer in layers
     }
@@ -328,8 +354,8 @@ def evaluate_best_of_n(
         ent_model = fit_logistic_selector(X_ent_train, y_train)
 
         layer_models = {}
+        correct_train = [trace for trace in train_traces if trace["is_correct"]]
         for layer in layers:
-            correct_train = [trace for trace in train_traces if trace["is_correct"]]
             ref = fit_mahalanobis_reference_safe(correct_train, layer, pca_dim)
             if ref is None:
                 layer_models[str(layer)] = None
@@ -337,15 +363,36 @@ def evaluate_best_of_n(
             X_mah_train, X_comb_train = build_layer_feature_matrices(train_traces, layer, ref)
             mah_model = fit_logistic_selector(X_mah_train, y_train)
             comb_model = fit_logistic_selector(X_comb_train, y_train)
+
+            # RMD: correct manifold (target) vs all train traces (background).
+            # Reuses the base ref's PCA/correct-manifold; only the background side
+            # is computed here (the correct-side is identical to base Mahalanobis).
+            rmd_ref = extend_reference_with_background_safe(ref, train_traces, layer)
+            rmd_model = rmd_comb_model = None
+            if rmd_ref is not None:
+                X_rmd_train, X_rmd_comb_train = build_layer_rmd_feature_matrices(
+                    train_traces, layer, rmd_ref
+                )
+                rmd_model = fit_logistic_selector(X_rmd_train, y_train)
+                rmd_comb_model = fit_logistic_selector(X_rmd_comb_train, y_train)
+
             layer_models[str(layer)] = {
                 "ref": ref,
                 "mah_model": mah_model,
                 "comb_model": comb_model,
+                "rmd_ref": rmd_ref,
+                "rmd_model": rmd_model,
+                "rmd_comb_model": rmd_comb_model,
             }
 
         fold_scores = {name: [] for name in base_acc}
         layer_fold_scores = {
-            str(layer): {"mahalanobis_only": [], "combined": []}
+            str(layer): {
+                "mahalanobis_only": [],
+                "combined": [],
+                "rmd_only": [],
+                "rmd_combined": [],
+            }
             for layer in layers
         }
 
@@ -396,11 +443,30 @@ def evaluate_best_of_n(
                     layer_acc[str(layer)]["combined"]["problem_scores"][idx] = score
                     layer_fold_scores[str(layer)]["combined"].append(score)
 
+                rmd_ref = layer_model["rmd_ref"]
+                if rmd_ref is not None:
+                    X_rmd_group, X_rmd_comb_group = build_layer_rmd_feature_matrices(
+                        group, layer, rmd_ref
+                    )
+                    rmd_model = layer_model["rmd_model"]
+                    if rmd_model is not None:
+                        chosen = choose_trace_by_scores(group, predict_selector_scores(rmd_model, X_rmd_group))
+                        score = float(chosen["is_correct"])
+                        layer_acc[str(layer)]["rmd_only"]["problem_scores"][idx] = score
+                        layer_fold_scores[str(layer)]["rmd_only"].append(score)
+
+                    rmd_comb_model = layer_model["rmd_comb_model"]
+                    if rmd_comb_model is not None:
+                        chosen = choose_trace_by_scores(group, predict_selector_scores(rmd_comb_model, X_rmd_comb_group))
+                        score = float(chosen["is_correct"])
+                        layer_acc[str(layer)]["rmd_combined"]["problem_scores"][idx] = score
+                        layer_fold_scores[str(layer)]["rmd_combined"].append(score)
+
         for name, values in fold_scores.items():
             if values:
                 base_acc[name]["fold_scores"].append(float(np.mean(values)))
         for layer in layers:
-            for selector in ("mahalanobis_only", "combined"):
+            for selector in ("mahalanobis_only", "combined", "rmd_only", "rmd_combined"):
                 values = layer_fold_scores[str(layer)][selector]
                 if values:
                     layer_acc[str(layer)][selector]["fold_scores"].append(float(np.mean(values)))
@@ -465,6 +531,22 @@ def evaluate_best_of_n(
                 skipped=len(layer_acc[str(layer)]["combined"]["fold_scores"]) == 0,
                 reason="combined selector could not be fit",
             ),
+            "rmd_only": pack_selector_result(
+                layer_acc[str(layer)]["rmd_only"]["fold_scores"],
+                layer_acc[str(layer)]["rmd_only"]["problem_scores"],
+                subject_map,
+                difficulty_map,
+                skipped=len(layer_acc[str(layer)]["rmd_only"]["fold_scores"]) == 0,
+                reason="RMD selector could not be fit",
+            ),
+            "rmd_combined": pack_selector_result(
+                layer_acc[str(layer)]["rmd_combined"]["fold_scores"],
+                layer_acc[str(layer)]["rmd_combined"]["problem_scores"],
+                subject_map,
+                difficulty_map,
+                skipped=len(layer_acc[str(layer)]["rmd_combined"]["fold_scores"]) == 0,
+                reason="RMD combined selector could not be fit",
+            ),
         }
 
     best = summarize_best_layer(result["layers"])
@@ -507,13 +589,23 @@ def plot_best_of_n(results: dict, output_path: str) -> None:
 
     layers = sorted(results.get("layers", []), key=int)
     palette = ["#e45756", "#72b7b2", "#b279a2", "#ff9da6", "#9d755d"]
-    for idx, layer in enumerate(layers):
+
+    def layer_series(layer, selector):
         ys = []
         for key in n_keys:
-            lr = results["n_values"][key]["layers"][str(layer)]["combined"]
-            ys.append(None if lr.get("skipped") else lr["pass_at_1_mean"])
+            lr = results["n_values"][key]["layers"][str(layer)].get(selector, {})
+            ys.append(None if lr.get("skipped", True) else lr["pass_at_1_mean"])
+        return ys
+
+    for idx, layer in enumerate(layers):
+        color = palette[idx % len(palette)]
+        ys = layer_series(layer, "combined")
         if any(v is not None for v in ys):
-            ax.plot(ns, ys, "o-", color=palette[idx % len(palette)], linewidth=2, label=f"Combined L{layer}")
+            ax.plot(ns, ys, "o-", color=color, linewidth=2, label=f"Combined L{layer}")
+        # RMD is the strong geometry variant — dashed, same colour per layer.
+        ys_rmd = layer_series(layer, "rmd_combined")
+        if any(v is not None for v in ys_rmd):
+            ax.plot(ns, ys_rmd, "s--", color=color, linewidth=2, label=f"RMD+Ent L{layer}")
 
     ax.set_xlabel("N")
     ax.set_ylabel("Pass@1")
@@ -538,10 +630,13 @@ def write_summary_markdown(results: dict, output_path: str) -> None:
         f"*Trace source:* `{results['data_dir']}`",
         "",
         "| N | Problems | Random | Oracle Pass@N | Majority Vote | Mean Log-Prob | Entropy | "
-        + " | ".join(f"L{layer} Mahal | L{layer} Combined" for layer in layers)
+        + " | ".join(
+            f"L{layer} Mahal | L{layer} Combined | L{layer} RMD | L{layer} RMD+Ent"
+            for layer in layers
+        )
         + " |",
         "|---|---|---|---|---|---|---|"
-        + "|".join(["---|---"] * len(layers))
+        + "|".join(["---|---|---|---"] * len(layers))
         + "|",
     ]
 
@@ -551,7 +646,7 @@ def write_summary_markdown(results: dict, output_path: str) -> None:
     for key in n_keys:
         row = results["n_values"][key]
         if row.get("skipped"):
-            lines.append(f"| {key} | — | — | — | — | — | — |" + " — | — |" * len(layers))
+            lines.append(f"| {key} | — | — | — | — | — | — |" + " — | — | — | — |" * len(layers))
             continue
         cells = [
             key,
@@ -563,8 +658,11 @@ def write_summary_markdown(results: dict, output_path: str) -> None:
             fmt_selector(row["selectors"]["entropy_only"]),
         ]
         for layer in layers:
-            cells.append(fmt_selector(row["layers"][str(layer)]["mahalanobis_only"]))
-            cells.append(fmt_selector(row["layers"][str(layer)]["combined"]))
+            layer_res = row["layers"][str(layer)]
+            cells.append(fmt_selector(layer_res["mahalanobis_only"]))
+            cells.append(fmt_selector(layer_res["combined"]))
+            cells.append(fmt_selector(layer_res.get("rmd_only", {"skipped": True})))
+            cells.append(fmt_selector(layer_res.get("rmd_combined", {"skipped": True})))
         lines.append("| " + " | ".join(cells) + " |")
 
     has_difficulty = False

@@ -414,8 +414,60 @@ stages:
           cache: false
 
   # ── Best-of-N pilot (sampled MATH-500 traces) ───────────────────────────
+  collect_bestofn_pilot:
+    foreach: ${bestofn_matrix_pilot}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset math500
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers ${best_of_n.layers}
+        --temperature ${best_of_n.temperature}
+        --num_samples ${best_of_n.num_samples}
+        --limit ${item.limit}
+        --output_dir data/${item.model}_bestofn_${item.scale}/math500
+      deps:
+        - collect_data.py
+      params:
+        - bestofn_matrix_pilot
+        - best_of_n.temperature
+        - best_of_n.num_samples
+        - best_of_n.layers
+        - datasets.math500
+      outs:
+        - data/${item.model}_bestofn_${item.scale}/math500
 
-  collect_bestofn:
+  evaluate_bestofn_pilot:
+    foreach: ${bestofn_matrix_pilot}
+    do:
+      cmd: >-
+        uv run python best_of_n.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/math500
+        --output_dir results/${item.model}_bestofn_${item.scale}/math500
+        --dataset_label math500
+        --layers ${best_of_n.layers}
+        --n_values ${best_of_n.n_values}
+        --pca_dim ${analyze.pca_dim}
+        --cv_random_state ${analyze.cv_random_state}
+      deps:
+        - best_of_n.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/math500
+      params:
+        - best_of_n.layers
+        - best_of_n.n_values
+        - analyze.pca_dim
+        - analyze.cv_random_state
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_best_of_n_results.json:
+            cache: false
+      plots:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_best_of_n.png:
+            cache: false
+
+  # ── Best-of-N full ───────────────────────────
+  collect_bestofn_full:
     foreach: ${bestofn_matrix}
     do:
       cmd: >-
@@ -439,7 +491,7 @@ stages:
       outs:
         - data/${item.model}_bestofn_${item.scale}/math500
 
-  evaluate_bestofn:
+  evaluate_bestofn_full:
     foreach: ${bestofn_matrix}
     do:
       cmd: >-
@@ -468,7 +520,13 @@ stages:
             cache: false
 
   # ── Prefix filtering (sampled MATH-500 traces, shallow layers) ───────────
-
+  # INSIGHT (2026-06): NOT WORTH PURSUING as a headline application. Across all
+  # score kinds / layers / prefix lengths / quantiles, ΔPass@1 ≈ 0 and token
+  # "savings" are negative (the abort/restart loop costs more than it saves).
+  # Geometry's single-trace correctness signal does not translate into a useful
+  # early-abort policy. Kept for the record; do not invest further without a
+  # fundamentally different policy (e.g. prompt-conditioned normalization).
+  # TODO: add other dataset
   collect_prefix_filter:
     foreach: ${prefix_filter_matrix}
     do:
@@ -567,7 +625,7 @@ stages:
   # Run this first to decide whether a prompt-centered ranker is worth building.
 
   evaluate_bestofn_concordance:
-    foreach: ${bestofn_matrix}
+    foreach: ${bestofn_matrix_pilot}
     do:
       cmd: >-
         uv run python best_of_n.py

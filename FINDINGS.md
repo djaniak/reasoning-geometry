@@ -552,6 +552,14 @@ selector win, which makes prefix pruning even less urgent.
 
 ## Best-of-N Selection (Qwen MATH-500, full 500 problems, N=8)
 
+> **Status note (2026-06):** the negative result below was measured with **base
+> Mahalanobis** — the *weak* geometry variant. Robust/relative Mahalanobis (RMD)
+> is the variant that wins discrimination and selective prediction, so an
+> `rmd_only` / `rmd_combined` BoN selector was added to `best_of_n.py` and is
+> being re-evaluated. The base-Mahalanobis conclusion stands; RMD numbers will
+> update this section. Prefix filtering, by contrast, is settled negative — see
+> the prefix section and the note in `dvc.yaml`.
+
 Qwen2.5-7B-Instruct on the full MATH-500 benchmark with `N=8` sampled traces per
 problem. Selectors and Mahalanobis references are fit leakage-safely on train folds
 only; the reported metric is mean Pass@1 across the 5 fixed folds.
