@@ -193,6 +193,8 @@ def evaluate_selective_prediction(
         oof[f"raw_rmd_L{layer}"] = []
         oof[f"norm_rmd_L{layer}"] = []
         oof[f"combined_lr_L{layer}"] = []
+        oof[f"rmd_combined_lr_L{layer}"] = []
+        oof[f"norm_rmd_combined_lr_L{layer}"] = []
 
     for fi, (train_idx, test_idx) in enumerate(fold_indices):
         correct_train = [traces[i] for i in train_idx if traces[i]["is_correct"]]
@@ -207,26 +209,54 @@ def evaluate_selective_prediction(
                 correct_train, all_train, layer, pca_dim, normalize_input=True
             )
 
-            # Build combined-LR training features using raw_ref
-            X_train_lr: list[list[float]] = []
-            y_train_lr: list[int] = []
-            if raw_ref is not None:
-                for i in train_idx:
-                    t = traces[i]
-                    dists = compute_mahal_distances(t["hiddens"][layer], *raw_ref)
-                    feats = entropy_features(t["entropies"]) + mahal_features(t["entropies"], dists)
-                    X_train_lr.append(feats)
-                    y_train_lr.append(int(t["is_correct"]))
-
-            lr_model = (
-                _fit_logistic(np.array(X_train_lr), np.array(y_train_lr))
-                if X_train_lr
-                else None
+            train_features = {
+                "combined_lr": [],
+                "rmd_combined_lr": [],
+                "norm_rmd_combined_lr": [],
+            }
+            y_train_lr = np.array(
+                [int(traces[i]["is_correct"]) for i in train_idx]
             )
+            for i in train_idx:
+                trace = traces[i]
+                entropy = trace["entropies"]
+                if raw_ref is not None:
+                    raw = compute_mahal_distances(
+                        trace["hiddens"][layer], *raw_ref
+                    )
+                    train_features["combined_lr"].append(
+                        entropy_features(entropy) + mahal_features(entropy, raw)
+                    )
+                if rmd_ref is not None:
+                    rmd = compute_relative_mahal_distances(
+                        trace["hiddens"][layer], *rmd_ref
+                    )
+                    train_features["rmd_combined_lr"].append(
+                        entropy_features(entropy) + mahal_features(entropy, rmd)
+                    )
+                if norm_rmd_ref is not None:
+                    norm_rmd = compute_relative_mahal_distances(
+                        trace["hiddens"][layer],
+                        *norm_rmd_ref,
+                        normalize_input=True,
+                    )
+                    train_features["norm_rmd_combined_lr"].append(
+                        entropy_features(entropy)
+                        + mahal_features(entropy, norm_rmd)
+                    )
+
+            lr_models = {
+                name: (
+                    _fit_logistic(np.asarray(features), y_train_lr)
+                    if len(features) == len(train_idx)
+                    else None
+                )
+                for name, features in train_features.items()
+            }
 
             # Score test traces
-            X_test_lr: list[list[float]] = []
-            test_labels_for_lr: list[int] = []
+            test_features = {name: [] for name in train_features}
+            test_labels = {name: [] for name in train_features}
 
             for i in test_idx:
                 t = traces[i]
@@ -239,26 +269,42 @@ def evaluate_selective_prediction(
                 if raw_ref is not None:
                     dists = compute_mahal_distances(hiddens, *raw_ref)
                     # negate: high distance → abstain
-                    oof[f"raw_mahal_L{layer}"].append((-float(dists.mean()), label))
+                    oof[f"raw_mahal_L{layer}"].append(
+                        (-float(dists.mean()), label)
+                    )
                     feats = entropy_features(e) + mahal_features(e, dists)
-                    X_test_lr.append(feats)
-                    test_labels_for_lr.append(label)
+                    test_features["combined_lr"].append(feats)
+                    test_labels["combined_lr"].append(label)
 
                 if rmd_ref is not None:
                     rmd = compute_relative_mahal_distances(hiddens, *rmd_ref)
                     oof[f"raw_rmd_L{layer}"].append((-float(rmd.mean()), label))
+                    test_features["rmd_combined_lr"].append(
+                        entropy_features(e) + mahal_features(e, rmd)
+                    )
+                    test_labels["rmd_combined_lr"].append(label)
 
                 if norm_rmd_ref is not None:
-                    pca, mu, cov_inv, bg_mu, bg_cov_inv = norm_rmd_ref
                     norm_rmd = compute_relative_mahal_distances(
-                        hiddens, pca, mu, cov_inv, bg_mu, bg_cov_inv, normalize_input=True
+                        hiddens,
+                        *norm_rmd_ref,
+                        normalize_input=True,
                     )
-                    oof[f"norm_rmd_L{layer}"].append((-float(norm_rmd.mean()), label))
+                    oof[f"norm_rmd_L{layer}"].append(
+                        (-float(norm_rmd.mean()), label)
+                    )
+                    test_features["norm_rmd_combined_lr"].append(
+                        entropy_features(e) + mahal_features(e, norm_rmd)
+                    )
+                    test_labels["norm_rmd_combined_lr"].append(label)
 
-            if lr_model is not None and X_test_lr:
-                probs = _predict_proba(lr_model, np.array(X_test_lr))
-                for prob, label in zip(probs, test_labels_for_lr):
-                    oof[f"combined_lr_L{layer}"].append((float(prob), label))
+            for name, model in lr_models.items():
+                features = test_features[name]
+                if model is None or not features:
+                    continue
+                probs = _predict_proba(model, np.asarray(features))
+                for prob, label in zip(probs, test_labels[name]):
+                    oof[f"{name}_L{layer}"].append((float(prob), label))
 
     # ── Build scorer results ──────────────────────────────────────────────
     scorers: dict[str, dict] = {}
@@ -307,6 +353,13 @@ def evaluate_selective_prediction(
             "min_coverage": min_coverage,
             "cv_random_state": cv_random_state,
             "operating_points": operating_points,
+        },
+        "scorer_definitions": {
+            "combined_lr": "supervised logistic regression on entropy + raw Mahalanobis features",
+            "rmd_combined_lr": "supervised logistic regression on entropy + RMD features",
+            "norm_rmd_combined_lr": (
+                "supervised logistic regression on entropy + input-normalized RMD features"
+            ),
         },
         "scorers": scorers,
     }

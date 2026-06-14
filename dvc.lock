@@ -366,14 +366,15 @@ stages:
       size: 25911345767
       nfiles: 10
   analyze_qwen_dense_math500:
-    cmd: uv run python analyze.py --data_dir data/qwen_dense/math500 
-      --output_dir results/qwen_dense/math500 --dataset_label math500 --pca_dim 
+    cmd: uv run python analyze.py --analysis_family base --data_dir 
+      data/qwen_dense/math500 --output_dir results/qwen_dense/math500 
+      --dataset_label math500 --output_name math500_base_results.json --pca_dim 
       128 --cv_random_state 42 --n_bootstrap 0
     deps:
     - path: analyze.py
       hash: md5
-      md5: 30b41c99a986778f3388e6c81449e4b8
-      size: 59947
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/qwen_dense/math500
       hash: md5
       md5: 3af89d2a3a4f511a57cfae3e2de6427d.dir
@@ -384,14 +385,14 @@ stages:
         analyze.cv_random_state: 42
         analyze.pca_dim: 128
     outs:
+    - path: results/qwen_dense/math500/math500_base_results.json
+      hash: md5
+      md5: f151661835aa8a1897c60e90923ed14f
+      size: 29598
     - path: results/qwen_dense/math500/math500_layer_comparison.png
       hash: md5
-      md5: 8c69f29dd0f17ce510d1d19b75354f8d
-      size: 85262
-    - path: results/qwen_dense/math500/math500_results.json
-      hash: md5
-      md5: caf084254e10d3c9344215d8d5a9d5b8
-      size: 29356
+      md5: 1bd40dfecb12dccbbefd36e9e33d0680
+      size: 84282
   collect_deepseek_temp_gsm8k:
     cmd: uv run python collect_data.py --dataset gsm8k --model_name 
       deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 2048 --layers 
@@ -448,6 +449,16 @@ stages:
   summarize:
     cmd: uv run python summarize.py --results_dir results --output_dir results
     deps:
+    - path: 
+        results/application_alignment/math500_application_alignment_report.md
+      hash: md5
+      md5: af23fbbca7bc37832e390f2a1b847b7a
+      size: 1859
+    - path: 
+        results/application_alignment/math500_application_alignment_results.json
+      hash: md5
+      md5: e74ccf18805100dd3c5dd19cfe0f941a
+      size: 9275
     - path: results/deepseek/gsm8k/gsm8k_pca_ablation_results.json
       hash: md5
       md5: d119154c059a7ee6de629a0fa82d41a2
@@ -464,6 +475,40 @@ stages:
       hash: md5
       md5: 172110000bec5b0de39ddb0289c611cf
       size: 81362
+    - path: results/deepseek_bestofn_full/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 984c0fea4c2cd7447d6ce0e78b9b1095
+      size: 50845
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_report.md
+      hash: md5
+      md5: a4fab0f5b8fdf85b868c52c84d4fc755
+      size: 1789
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 04c0cd687a28df2f0e2cbb39880c9b58
+      size: 81941
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_selection_report.md
+      hash: md5
+      md5: 68293db18bfb73f2402edf4dbf6cc0bd
+      size: 2513
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: a8412f3fa94d55e5fbc469e377d53602
+      size: 440019
+    - path: 
+        results/deepseek_bestofn_pilot/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 0a0815a1c89161b2cc2a0a67bfbc0ba2
+      size: 78323
+    - path: 
+        results/deepseek_bestofn_pilot/math500/math500_bestofn_concordance.json
+      hash: md5
+      md5: 0aa993c1a3e62e50a50c8fac4f974143
+      size: 853
     - path: results/deepseek_llama/gsm8k/gsm8k_results.json
       hash: md5
       md5: 6de7e051b8e1e2760a4acd486b6df83f
@@ -472,6 +517,35 @@ stages:
       hash: md5
       md5: 9547336a8969a600f199660c085f8a85
       size: 79742
+    - path: 
+        results/deepseek_llama_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: e1e722f142f0f44f91f5091e0d7137d4
+      size: 10755
+    - path: 
+        results/deepseek_llama_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: f7f374b3c213f079e64149e76f990d30
+      size: 135488
+    - path: 
+        results/deepseek_llama_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 7e8cc24a0701d0260a2ce16333ff6b80
+      size: 466113
+    - path: results/deepseek_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: b278866909c0a6af372acec86c99db64
+      size: 10749
+    - path: 
+        results/deepseek_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: 4a624d52d250f281147ca1b0c8916231
+      size: 135993
+    - path: 
+        results/deepseek_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 54c8e80e2d62bc4693d08915bc75e648
+      size: 465106
     - path: results/deepseek_temp/gsm8k/gsm8k_results.json
       hash: md5
       md5: bbf8c64a496e58a1b54a8dfe41afa259
@@ -484,6 +558,19 @@ stages:
       hash: md5
       md5: 7875f6ecfded8d4a66196187ea3b414a
       size: 81322
+    - path: results/llama_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: c972dbd88e15e7395739d2033f6a311a
+      size: 10746
+    - path: results/llama_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: fcb92eb6b1a4dbb81564d6d46c598a7d
+      size: 135630
+    - path: 
+        results/llama_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 0ea586e71ab2b46a47aba422d44e1d40
+      size: 467136
     - path: results/qwen/gsm8k/gsm8k_pca_ablation_results.json
       hash: md5
       md5: 240d1231bf958b135a3604c62808119f
@@ -500,23 +587,71 @@ stages:
       hash: md5
       md5: 47eb70cead856537ee160f300e5987ef
       size: 81572
+    - path: results/qwen_bestofn_full/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: 9d876854b5ebf400a7227a8293037445
+      size: 50743
+    - path: results/qwen_bestofn_full/math500/math500_bestofn_concordance.json
+      hash: md5
+      md5: 57fc2418a34d82574395d125d970f4b6
+      size: 857
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
+      hash: md5
+      md5: b79d893e125aeebc1ba8a826ee2510af
+      size: 1786
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 6de086112100dc0c338457c6a96b0a36
+      size: 82280
+    - path: results/qwen_bestofn_full/math500/math500_prompt_selection_report.md
+      hash: md5
+      md5: 2aa130fcf1c4c72caef8dd6a7a735da4
+      size: 2503
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: f970bcb3f85632e7b6591f1e9c009a34
+      size: 439821
+    - path: results/qwen_bestofn_pilot/math500/math500_best_of_n_results.json
+      hash: md5
+      md5: cb9c276428f3f0d577195edb8df5f2fb
+      size: 77346
+    - path: results/qwen_bestofn_pilot/math500/math500_bestofn_concordance.json
+      hash: md5
+      md5: cfb2dd4e1b65ac6c420649cb18de8082
+      size: 850
     - path: results/qwen_dense/math500/math500_results.json
       hash: md5
-      md5: caf084254e10d3c9344215d8d5a9d5b8
-      size: 29356
+      md5: 132fbb19ef2edabdf5312d8c394fda9c
+      size: 83871
+    - path: results/qwen_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: d70febf3ed315d937ccff66cfa70491f
+      size: 10745
+    - path: results/qwen_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: b8c3ed337039b7ebe2e9cffee282ab84
+      size: 135515
+    - path: 
+        results/qwen_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 0a29c1f38514b276f07ed631e345cc28
+      size: 441686
     - path: summarize.py
       hash: md5
-      md5: dd7a725b316fe2524236ba69dccb6d01
-      size: 30941
+      md5: 28d399b3ea259fb3142fd4a967a4cc22
+      size: 49505
     outs:
     - path: results/SUMMARY.md
       hash: md5
-      md5: 162322827def05e9c0b456882cdc59bd
-      size: 108285
+      md5: 7ef45579d0924a0afe915276504d8279
+      size: 176416
     - path: results/all_results.json
       hash: md5
-      md5: 04fc5fe582b150bb0ab2b52fbe6a4433
-      size: 2892620
+      md5: e886c2714866e8ebe0ded96e972946a5
+      size: 9298789
   collect_qwen_math500_bestofn:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -1401,8 +1536,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/qwen/math500
       hash: md5
       md5: b9e512770648abf18bbfe352703d03d1.dir
@@ -1415,8 +1550,8 @@ stages:
     outs:
     - path: results/qwen/math500/math500_base_results.json
       hash: md5
-      md5: 0f8fa4382756edb313446f71d9f2e2e2
-      size: 31111
+      md5: 5b4490a7783f4d8b7e6268626db7bdb3
+      size: 31109
   analyze_controls@4:
     cmd: uv run python analyze.py --analysis_family controls --data_dir 
       data/qwen/math500 --output_dir results/qwen/math500 --dataset_label 
@@ -1425,8 +1560,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/qwen/math500
       hash: md5
       md5: b9e512770648abf18bbfe352703d03d1.dir
@@ -1476,8 +1611,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/deepseek/math500
       hash: md5
       md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
@@ -1490,8 +1625,8 @@ stages:
     outs:
     - path: results/deepseek/math500/math500_base_results.json
       hash: md5
-      md5: b1c08fa3c1b3234c8139c4badeec3e23
-      size: 30896
+      md5: 6f08fd5c9fca53eb41774ef8bb154c6b
+      size: 30895
   analyze_controls@5:
     cmd: uv run python analyze.py --analysis_family controls --data_dir 
       data/deepseek/math500 --output_dir results/deepseek/math500 
@@ -1500,8 +1635,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/deepseek/math500
       hash: md5
       md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
@@ -1524,8 +1659,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/deepseek_llama/math500
       hash: md5
       md5: 41acf4f11c565fd8628915b0ab84b91f.dir
@@ -1538,8 +1673,8 @@ stages:
     outs:
     - path: results/deepseek_llama/math500/math500_base_results.json
       hash: md5
-      md5: 48e569c44e26ff4a52831b67c006b554
-      size: 29511
+      md5: 373a0d4a8cf1ca66417947abaa0bc812
+      size: 29514
   analyze_controls@6:
     cmd: uv run python analyze.py --analysis_family controls --data_dir 
       data/deepseek_llama/math500 --output_dir results/deepseek_llama/math500 
@@ -1548,8 +1683,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/deepseek_llama/math500
       hash: md5
       md5: 41acf4f11c565fd8628915b0ab84b91f.dir
@@ -1598,8 +1733,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/llama/math500
       hash: md5
       md5: dd17e8944e86a403a877719c5f663049.dir
@@ -1612,8 +1747,8 @@ stages:
     outs:
     - path: results/llama/math500/math500_base_results.json
       hash: md5
-      md5: 93583ebf3b21f9cfc01f069cf4b6bc82
-      size: 30914
+      md5: 593d198a16f8e9bee494b3e9157bade6
+      size: 30912
   analyze_controls@7:
     cmd: uv run python analyze.py --analysis_family controls --data_dir 
       data/llama/math500 --output_dir results/llama/math500 --dataset_label 
@@ -1622,8 +1757,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 43ce4bb11927d18f2ec01ab9396e62e1
-      size: 89484
+      md5: 5cc36fdaf13c16b6f35ea23155aac7d8
+      size: 96772
     - path: data/llama/math500
       hash: md5
       md5: dd17e8944e86a403a877719c5f663049.dir
@@ -2698,8 +2833,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
     - path: data/qwen/math500
       hash: md5
       md5: b9e512770648abf18bbfe352703d03d1.dir
@@ -2707,8 +2842,8 @@ stages:
       nfiles: 10
     - path: selective_prediction.py
       hash: md5
-      md5: 0714b046fe2e42ece132ed48d750723b
-      size: 18147
+      md5: e16548e4560feb9b72ccbda4f48eda84
+      size: 20413
     params:
       params.yaml:
         analyze.cv_random_state: 42
@@ -2731,13 +2866,13 @@ stages:
     outs:
     - path: results/qwen_selective/math500/math500_selective_prediction.png
       hash: md5
-      md5: b50b8190575beba6f67ddbecc37795cc
-      size: 247859
+      md5: 494a652c79d2ee4309005a6ff610c93a
+      size: 319736
     - path: 
         results/qwen_selective/math500/math500_selective_prediction_results.json
       hash: md5
-      md5: a9a9192dea4f17069dfb5f179c6322f4
-      size: 302219
+      md5: 0a29c1f38514b276f07ed631e345cc28
+      size: 441686
   evaluate_selective_prediction@1:
     cmd: uv run python selective_prediction.py --data_dir data/deepseek/math500 
       --output_dir results/deepseek_selective/math500 --dataset_label math500 
@@ -2746,8 +2881,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
     - path: data/deepseek/math500
       hash: md5
       md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
@@ -2755,8 +2890,8 @@ stages:
       nfiles: 10
     - path: selective_prediction.py
       hash: md5
-      md5: 0714b046fe2e42ece132ed48d750723b
-      size: 18147
+      md5: e16548e4560feb9b72ccbda4f48eda84
+      size: 20413
     params:
       params.yaml:
         analyze.cv_random_state: 42
@@ -2779,13 +2914,13 @@ stages:
     outs:
     - path: results/deepseek_selective/math500/math500_selective_prediction.png
       hash: md5
-      md5: f55c18f422ea4bdfeb9559e1a02e5008
-      size: 221860
+      md5: c82708baf6a5d3b2417f6c765ccd1934
+      size: 280076
     - path: 
         results/deepseek_selective/math500/math500_selective_prediction_results.json
       hash: md5
-      md5: d88ed5bff32947d5ae7f322671c51e66
-      size: 325720
+      md5: 54c8e80e2d62bc4693d08915bc75e648
+      size: 465106
   evaluate_selective_prediction@2:
     cmd: uv run python selective_prediction.py --data_dir data/llama/math500 
       --output_dir results/llama_selective/math500 --dataset_label math500 
@@ -2794,8 +2929,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
     - path: data/llama/math500
       hash: md5
       md5: dd17e8944e86a403a877719c5f663049.dir
@@ -2803,8 +2938,8 @@ stages:
       nfiles: 10
     - path: selective_prediction.py
       hash: md5
-      md5: 0714b046fe2e42ece132ed48d750723b
-      size: 18147
+      md5: e16548e4560feb9b72ccbda4f48eda84
+      size: 20413
     params:
       params.yaml:
         analyze.cv_random_state: 42
@@ -2827,13 +2962,13 @@ stages:
     outs:
     - path: results/llama_selective/math500/math500_selective_prediction.png
       hash: md5
-      md5: b271f9982c96cc1be77a059df0c7640b
-      size: 246091
+      md5: 29550fe6e850fa8ca6cf49bc4dcb6b5c
+      size: 307473
     - path: 
         results/llama_selective/math500/math500_selective_prediction_results.json
       hash: md5
-      md5: e259036aa351e8d7b57f0f5996625304
-      size: 327129
+      md5: 0ea586e71ab2b46a47aba422d44e1d40
+      size: 467136
   evaluate_selective_prediction@3:
     cmd: uv run python selective_prediction.py --data_dir 
       data/deepseek_llama/math500 --output_dir 
@@ -2843,8 +2978,8 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
     - path: data/deepseek_llama/math500
       hash: md5
       md5: 41acf4f11c565fd8628915b0ab84b91f.dir
@@ -2852,8 +2987,8 @@ stages:
       nfiles: 10
     - path: selective_prediction.py
       hash: md5
-      md5: 0714b046fe2e42ece132ed48d750723b
-      size: 18147
+      md5: e16548e4560feb9b72ccbda4f48eda84
+      size: 20413
     params:
       params.yaml:
         analyze.cv_random_state: 42
@@ -2877,13 +3012,13 @@ stages:
     - path: 
         results/deepseek_llama_selective/math500/math500_selective_prediction.png
       hash: md5
-      md5: 4c761ff4c92b11a5bee7b540569219a5
-      size: 224648
+      md5: 07384eee18962fc6e0df078bea4a2aab
+      size: 284508
     - path: 
         results/deepseek_llama_selective/math500/math500_selective_prediction_results.json
       hash: md5
-      md5: b038884128a16dd99a6c88b033edcd46
-      size: 326336
+      md5: 7e8cc24a0701d0260a2ce16333ff6b80
+      size: 466113
   analyze_pca_ablation_runs@7:
     cmd: uv run python analyze.py --analysis_family base --data_dir 
       data/deepseek/gsm8k --output_dir results/deepseek/gsm8k --dataset_label 
@@ -4184,12 +4319,12 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 3917a5c7d73403800ba7751b435709b2
+      size: 99828
     - path: best_of_n.py
       hash: md5
-      md5: f975086d8fb786d2b8e3044137efdb18
-      size: 31629
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
     - path: data/qwen_bestofn_pilot/math500
       hash: md5
       md5: 27281d7fb29ed95cd32b02c32ba64ba3.dir
@@ -4206,7 +4341,6 @@ stages:
       hash: md5
       md5: cfb2dd4e1b65ac6c420649cb18de8082
       size: 850
-
   collect_bestofn_pilot@0:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -4250,12 +4384,12 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 68cdac3c53f1f28243ff20b9816a40e0
-      size: 94316
+      md5: 3917a5c7d73403800ba7751b435709b2
+      size: 99828
     - path: best_of_n.py
       hash: md5
-      md5: f975086d8fb786d2b8e3044137efdb18
-      size: 31629
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
     - path: data/qwen_bestofn_pilot/math500
       hash: md5
       md5: 27281d7fb29ed95cd32b02c32ba64ba3.dir
@@ -4270,12 +4404,12 @@ stages:
     outs:
     - path: results/qwen_bestofn_pilot/math500/math500_best_of_n.png
       hash: md5
-      md5: 18a8a634925efbcebd74878eb710ee0b
-      size: 88247
+      md5: fac7c67390dccdb038216c9a6ca11fd1
+      size: 74975
     - path: results/qwen_bestofn_pilot/math500/math500_best_of_n_results.json
       hash: md5
-      md5: 533e86a9eabf9182247122158304d8a3
-      size: 49780
+      md5: cb9c276428f3f0d577195edb8df5f2fb
+      size: 77346
   collect_bestofn_full@0:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -4459,12 +4593,12 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 5860ec30206fdc58de97593a6a80bc9d
-      size: 95468
+      md5: 3917a5c7d73403800ba7751b435709b2
+      size: 99828
     - path: best_of_n.py
       hash: md5
-      md5: f975086d8fb786d2b8e3044137efdb18
-      size: 31629
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
     - path: data/deepseek_bestofn_pilot/math500
       hash: md5
       md5: 6a969c721a45a09d26766de7f4b9cc7f.dir
@@ -4479,13 +4613,13 @@ stages:
     outs:
     - path: results/deepseek_bestofn_pilot/math500/math500_best_of_n.png
       hash: md5
-      md5: d53507f2319ee138d0ded464c6b0613e
-      size: 99735
+      md5: 172cb283d6ae4bdf4e5feb0e15eb1f8b
+      size: 84981
     - path: 
         results/deepseek_bestofn_pilot/math500/math500_best_of_n_results.json
       hash: md5
-      md5: 4571bd73f6912452bf998a068c92c33f
-      size: 50377
+      md5: 0a0815a1c89161b2cc2a0a67bfbc0ba2
+      size: 78323
   evaluate_bestofn_concordance@1:
     cmd: uv run python best_of_n.py --data_dir 
       data/deepseek_bestofn_pilot/math500 --output_dir 
@@ -4495,12 +4629,12 @@ stages:
     deps:
     - path: analyze.py
       hash: md5
-      md5: 5860ec30206fdc58de97593a6a80bc9d
-      size: 95468
+      md5: 3917a5c7d73403800ba7751b435709b2
+      size: 99828
     - path: best_of_n.py
       hash: md5
-      md5: f975086d8fb786d2b8e3044137efdb18
-      size: 31629
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
     - path: data/deepseek_bestofn_pilot/math500
       hash: md5
       md5: 6a969c721a45a09d26766de7f4b9cc7f.dir
@@ -4518,3 +4652,514 @@ stages:
       hash: md5
       md5: 0aa993c1a3e62e50a50c8fac4f974143
       size: 853
+  evaluate_prompt_decomposition@0:
+    cmd: uv run python -u prompt_decomposition.py --data_dir 
+      data/qwen_bestofn_full/math500 --output_dir 
+      results/qwen_bestofn_full/math500 --dataset_label math500 --model_label 
+      qwen --layers 7,14,21 --pca_dim 128 --n 8 --expected_prompts 500 
+      --n_splits 5 --n_bootstrap 1000 --seed 42 --load_workers 4
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: best_of_n.py
+      hash: md5
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
+    - path: data/qwen_bestofn_full/math500
+      hash: md5
+      md5: 7855e73dd0aca0dc8df01b88fe77a1f1.dir
+      size: 44677418578
+      nfiles: 80
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: 213083532f8051f40c99221f6b79e024
+      size: 37943
+    params:
+      params.yaml:
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        prompt_decomposition.expected_prompts: 500
+        prompt_decomposition.load_workers: 4
+        prompt_decomposition.n: 8
+        prompt_decomposition.n_bootstrap: 1000
+        prompt_decomposition.n_splits: 5
+        prompt_decomposition.seed: 42
+    outs:
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: c982e341456e5c21b2c7f8e64937d61f
+      size: 2331252
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
+      hash: md5
+      md5: b79d893e125aeebc1ba8a826ee2510af
+      size: 1786
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 6de086112100dc0c338457c6a96b0a36
+      size: 82280
+  analyze_controls_qwen_dense_math500:
+    cmd: uv run python analyze.py --analysis_family controls --data_dir 
+      data/qwen_dense/math500 --output_dir results/qwen_dense/math500 
+      --dataset_label math500 --output_name math500_controls_results.json 
+      --pca_dim 128 --cv_random_state 42 --n_bootstrap 0
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 3917a5c7d73403800ba7751b435709b2
+      size: 99828
+    - path: data/qwen_dense/math500
+      hash: md5
+      md5: 3af89d2a3a4f511a57cfae3e2de6427d.dir
+      size: 25911345767
+      nfiles: 10
+    params:
+      params.yaml:
+        analyze.cv_random_state: 42
+        analyze.pca_dim: 128
+    outs:
+    - path: results/qwen_dense/math500/math500_controls_results.json
+      hash: md5
+      md5: c661846e8bf78eb572c9af9571e95e88
+      size: 55220
+  merge_analyze_qwen_dense_math500:
+    cmd: uv run python merge_results.py --output_path 
+      results/qwen_dense/math500/math500_results.json --inputs 
+      results/qwen_dense/math500/math500_base_results.json 
+      results/qwen_dense/math500/math500_controls_results.json
+    deps:
+    - path: merge_results.py
+      hash: md5
+      md5: eb67ff10bc7b4331636e27c7ff619163
+      size: 2205
+    - path: results/qwen_dense/math500/math500_base_results.json
+      hash: md5
+      md5: f151661835aa8a1897c60e90923ed14f
+      size: 29598
+    - path: results/qwen_dense/math500/math500_controls_results.json
+      hash: md5
+      md5: c661846e8bf78eb572c9af9571e95e88
+      size: 55220
+    outs:
+    - path: results/qwen_dense/math500/math500_results.json
+      hash: md5
+      md5: 132fbb19ef2edabdf5312d8c394fda9c
+      size: 83871
+  evaluate_prompt_decomposition@1:
+    cmd: uv run python -u prompt_decomposition.py --data_dir 
+      data/deepseek_bestofn_full/math500 --output_dir 
+      results/deepseek_bestofn_full/math500 --dataset_label math500 
+      --model_label deepseek --layers 7,14,21 --pca_dim 128 --n 8 
+      --expected_prompts 500 --n_splits 5 --n_bootstrap 1000 --seed 42 
+      --load_workers 4
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: best_of_n.py
+      hash: md5
+      md5: b518ece77f49dc68d92b81a0bd9e56de
+      size: 36597
+    - path: data/deepseek_bestofn_full/math500
+      hash: md5
+      md5: c4d77242bbc49bf9c154827ab5458150.dir
+      size: 136059108958
+      nfiles: 80
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: 213083532f8051f40c99221f6b79e024
+      size: 37943
+    params:
+      params.yaml:
+        analyze.pca_dim: 128
+        best_of_n.layers: 7,14,21
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        prompt_decomposition.expected_prompts: 500
+        prompt_decomposition.load_workers: 4
+        prompt_decomposition.n: 8
+        prompt_decomposition.n_bootstrap: 1000
+        prompt_decomposition.n_splits: 5
+        prompt_decomposition.seed: 42
+    outs:
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: 5f15461ebf52e7ec66bf1da00a7314be
+      size: 2287179
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_report.md
+      hash: md5
+      md5: a4fab0f5b8fdf85b868c52c84d4fc755
+      size: 1789
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 04c0cd687a28df2f0e2cbb39880c9b58
+      size: 81941
+  evaluate_one_class_sweep@0:
+    cmd: uv run python -u one_class_sweep.py --data_dir data/qwen/math500 
+      --output_dir results/qwen_one_class/math500 --dataset_label math500 
+      --model_label qwen --layers 7,14,21 --dimensions 1,2,4,8,16,32,64,128 
+      --n_splits 5 --seed 42 --ridge_scale 0.001
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: data/qwen/math500
+      hash: md5
+      md5: b9e512770648abf18bbfe352703d03d1.dir
+      size: 5547602990
+      nfiles: 10
+    - path: one_class_sweep.py
+      hash: md5
+      md5: ef8f46294ee15058b78c51cd07bece1b
+      size: 14428
+    params:
+      params.yaml:
+        one_class_sweep.dimensions: 1,2,4,8,16,32,64,128
+        one_class_sweep.n_splits: 5
+        one_class_sweep.ridge_scale: 0.001
+        one_class_sweep.seed: 42
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/qwen_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: d70febf3ed315d937ccff66cfa70491f
+      size: 10745
+    - path: results/qwen_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: b8c3ed337039b7ebe2e9cffee282ab84
+      size: 135515
+  evaluate_one_class_sweep@1:
+    cmd: uv run python -u one_class_sweep.py --data_dir data/deepseek/math500 
+      --output_dir results/deepseek_one_class/math500 --dataset_label math500 
+      --model_label deepseek --layers 7,14,21 --dimensions 1,2,4,8,16,32,64,128 
+      --n_splits 5 --seed 42 --ridge_scale 0.001
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: data/deepseek/math500
+      hash: md5
+      md5: 82170f187ccdfe8464c3a5f3ab0ecbff.dir
+      size: 16675311068
+      nfiles: 10
+    - path: one_class_sweep.py
+      hash: md5
+      md5: ef8f46294ee15058b78c51cd07bece1b
+      size: 14428
+    params:
+      params.yaml:
+        one_class_sweep.dimensions: 1,2,4,8,16,32,64,128
+        one_class_sweep.n_splits: 5
+        one_class_sweep.ridge_scale: 0.001
+        one_class_sweep.seed: 42
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/deepseek_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: b278866909c0a6af372acec86c99db64
+      size: 10749
+    - path: 
+        results/deepseek_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: 4a624d52d250f281147ca1b0c8916231
+      size: 135993
+  evaluate_one_class_sweep@2:
+    cmd: uv run python -u one_class_sweep.py --data_dir data/llama/math500 
+      --output_dir results/llama_one_class/math500 --dataset_label math500 
+      --model_label llama --layers 8,16,24 --dimensions 1,2,4,8,16,32,64,128 
+      --n_splits 5 --seed 42 --ridge_scale 0.001
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: data/llama/math500
+      hash: md5
+      md5: dd17e8944e86a403a877719c5f663049.dir
+      size: 5856489273
+      nfiles: 10
+    - path: one_class_sweep.py
+      hash: md5
+      md5: ef8f46294ee15058b78c51cd07bece1b
+      size: 14428
+    params:
+      params.yaml:
+        one_class_sweep.dimensions: 1,2,4,8,16,32,64,128
+        one_class_sweep.n_splits: 5
+        one_class_sweep.ridge_scale: 0.001
+        one_class_sweep.seed: 42
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: results/llama_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: c972dbd88e15e7395739d2033f6a311a
+      size: 10746
+    - path: results/llama_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: fcb92eb6b1a4dbb81564d6d46c598a7d
+      size: 135630
+  evaluate_one_class_sweep@3:
+    cmd: uv run python -u one_class_sweep.py --data_dir 
+      data/deepseek_llama/math500 --output_dir 
+      results/deepseek_llama_one_class/math500 --dataset_label math500 
+      --model_label deepseek_llama --layers 8,16,24 --dimensions 
+      1,2,4,8,16,32,64,128 --n_splits 5 --seed 42 --ridge_scale 0.001
+    deps:
+    - path: analyze.py
+      hash: md5
+      md5: 00ad5d4a721765f5087e717a15b19908
+      size: 102168
+    - path: data/deepseek_llama/math500
+      hash: md5
+      md5: 41acf4f11c565fd8628915b0ab84b91f.dir
+      size: 15567486853
+      nfiles: 10
+    - path: one_class_sweep.py
+      hash: md5
+      md5: ef8f46294ee15058b78c51cd07bece1b
+      size: 14428
+    params:
+      params.yaml:
+        one_class_sweep.dimensions: 1,2,4,8,16,32,64,128
+        one_class_sweep.n_splits: 5
+        one_class_sweep.ridge_scale: 0.001
+        one_class_sweep.seed: 42
+        selective_prediction_matrix:
+        - model: qwen
+          dataset: math500
+          layers: 7,14,21
+        - model: deepseek
+          dataset: math500
+          layers: 7,14,21
+        - model: llama
+          dataset: math500
+          layers: 8,16,24
+        - model: deepseek_llama
+          dataset: math500
+          layers: 8,16,24
+    outs:
+    - path: 
+        results/deepseek_llama_one_class/math500/math500_one_class_sweep_report.md
+      hash: md5
+      md5: e1e722f142f0f44f91f5091e0d7137d4
+      size: 10755
+    - path: 
+        results/deepseek_llama_one_class/math500/math500_one_class_sweep_results.json
+      hash: md5
+      md5: f7f374b3c213f079e64149e76f990d30
+      size: 135488
+  evaluate_prompt_selection@0:
+    cmd: uv run python prompt_selection.py --input_csv 
+      results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv 
+      --output_dir results/qwen_bestofn_full/math500 --dataset_label math500 
+      --model_label qwen --n_bootstrap 1000 --seed 42
+    deps:
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: 213083532f8051f40c99221f6b79e024
+      size: 37943
+    - path: prompt_selection.py
+      hash: md5
+      md5: 1f8937b06bf4ba80203d70ed73ba67fa
+      size: 13039
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: c982e341456e5c21b2c7f8e64937d61f
+      size: 2331252
+    params:
+      params.yaml:
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        prompt_selection.n_bootstrap: 1000
+        prompt_selection.seed: 42
+    outs:
+    - path: results/qwen_bestofn_full/math500/math500_prompt_selection_report.md
+      hash: md5
+      md5: 2aa130fcf1c4c72caef8dd6a7a735da4
+      size: 2503
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: f970bcb3f85632e7b6591f1e9c009a34
+      size: 439821
+  evaluate_prompt_selection@1:
+    cmd: uv run python prompt_selection.py --input_csv 
+      results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      --output_dir results/deepseek_bestofn_full/math500 --dataset_label math500
+      --model_label deepseek --n_bootstrap 1000 --seed 42
+    deps:
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: 213083532f8051f40c99221f6b79e024
+      size: 37943
+    - path: prompt_selection.py
+      hash: md5
+      md5: 1f8937b06bf4ba80203d70ed73ba67fa
+      size: 13039
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: 5f15461ebf52e7ec66bf1da00a7314be
+      size: 2287179
+    params:
+      params.yaml:
+        bestofn_matrix:
+        - model: qwen
+          scale: full
+          limit: 500
+          model_name: Qwen/Qwen2.5-7B-Instruct
+          max_new_tokens: 1024
+        - model: deepseek
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 2048
+        prompt_selection.n_bootstrap: 1000
+        prompt_selection.seed: 42
+    outs:
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_selection_report.md
+      hash: md5
+      md5: 68293db18bfb73f2402edf4dbf6cc0bd
+      size: 2513
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: a8412f3fa94d55e5fbc469e377d53602
+      size: 440019
+  evaluate_application_alignment:
+    cmd: uv run python application_alignment.py --decomposition 
+      qwen=results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      --decomposition 
+      deepseek=results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      --selection 
+      qwen=results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      --selection 
+      deepseek=results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      --selective 
+      qwen=results/qwen_selective/math500/math500_selective_prediction_results.json
+      --selective 
+      deepseek=results/deepseek_selective/math500/math500_selective_prediction_results.json
+      --output_dir results/application_alignment --dataset_label math500
+    deps:
+    - path: application_alignment.py
+      hash: md5
+      md5: f47d552b1a050bdc21344500b8810c6f
+      size: 9413
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 04c0cd687a28df2f0e2cbb39880c9b58
+      size: 81941
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: a8412f3fa94d55e5fbc469e377d53602
+      size: 440019
+    - path: 
+        results/deepseek_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 54c8e80e2d62bc4693d08915bc75e648
+      size: 465106
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      hash: md5
+      md5: 6de086112100dc0c338457c6a96b0a36
+      size: 82280
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      hash: md5
+      md5: f970bcb3f85632e7b6591f1e9c009a34
+      size: 439821
+    - path: 
+        results/qwen_selective/math500/math500_selective_prediction_results.json
+      hash: md5
+      md5: 0a29c1f38514b276f07ed631e345cc28
+      size: 441686
+    outs:
+    - path: 
+        results/application_alignment/math500_application_alignment_report.md
+      hash: md5
+      md5: af23fbbca7bc37832e390f2a1b847b7a
+      size: 1859
+    - path: 
+        results/application_alignment/math500_application_alignment_results.json
+      hash: md5
+      md5: e74ccf18805100dd3c5dd19cfe0f941a
+      size: 9275

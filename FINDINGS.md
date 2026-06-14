@@ -136,6 +136,89 @@ broader sweep sharpens the story:
   implementation, so that branch should be framed as unresolved calibration mismatch
   unless prompt-conditioned normalization also fails.
 
+## Experiment completion log (2026-06-08)
+
+The previously missing dense-merge, selective-prediction, Best-of-N pilot, and
+concordance stages are now complete and incorporated into `results/SUMMARY.md`.
+
+- **Dense Qwen MATH-500 merge:** all 14 even layers from L0-L26 are present. Base
+  combined scoring peaks at L8 (`0.760`), while one-class RMD is strongest later:
+  raw RMD reaches approximately `0.827` at L20 and norm-RMD approximately `0.832`.
+- **Selective prediction:** RMD improves over entropy for all four MATH-500 models.
+  Best AUSC is `0.721` vs `0.621` for Qwen, `0.633` vs `0.500` for DeepSeek,
+  `0.493` vs `0.384` for Llama, and `0.506` vs `0.442` for DeepSeek-Llama.
+  Raw Mahalanobis is consistently weak; background subtraction is the load-bearing
+  correction.
+- **Best-of-N pilot (`N=8`, 100 prompts):** Qwen majority vote scores `0.690`,
+  ahead of best raw combined geometry (`0.650`) and RMD-only (`0.620`).
+  DeepSeek majority vote and best RMD-only both score `0.570`; RMD+entropy reaches
+  `0.560`. The pilot therefore does not show a general geometry reranking win,
+  although DeepSeek RMD matches majority vote.
+- **Legacy concordance diagnostic:** Qwen raw-Mahalanobis concordance is `0.536` at
+  L7 and below chance at L14/L21; DeepSeek is `0.248-0.264` across layers. These are
+  descriptive in-sample raw-Mahalanobis diagnostics, not the confirmatory OOF/RMD
+  decomposition.
+
+## Outer-loop synthesis: confidence decomposition and mechanism (2026-06-14)
+
+The enriched OOF decomposition, prompt-selection analysis, fair supervised
+probes, application-alignment analysis, and one-class mechanism sweep are now
+complete. They replace the earlier binary framing of "trace correctness versus
+prompt difficulty" with a model-conditional result.
+
+- **DeepSeek RMD is genuinely trace-level.** Across L7/L14/L21, within-prompt
+  pairwise AUC is `0.927-0.931`. RMD exceeds entropy within prompts by
+  `0.134-0.138`, with paired prompt-bootstrap intervals excluding zero. In
+  top-1 selection it gains `0.109-0.111` Pass@1 over a random trace and
+  `0.018-0.020` over the strong length baseline.
+- **Qwen RMD is primarily a solvability signal.** Its pooled AUC rises to
+  `0.736-0.786`, but within-prompt AUC is only `0.550-0.602`. It does not beat
+  entropy, log-probability, or length within prompts with a confidence interval
+  excluding zero, and top-1 Pass@1 differs from random by only
+  `-0.007` to `+0.007`.
+- **Relative geometry, not covariance estimation, is the mechanism.**
+  Diagonal, empirical-ridge, and Ledoit-Wolf target-only Mahalanobis are
+  numerically almost identical throughout the dimension sweep. Background
+  subtraction changes the result by tens of AUC points and often reverses a
+  strongly anti-predictive target-only distance.
+- **The one-class signal is low-dimensional for distilled checkpoints, but not
+  rank-1 or universal.** DeepSeek plateaus near dimension 8 and
+  DeepSeek-Llama near 4-8. Qwen and Llama continue improving through
+  dimensions 64-128. This is consistent with, but does not causally establish,
+  a distillation-associated low-dimensional contrast.
+- **A fair supervised RMD probe is strongest but only modestly improves on
+  unsupervised RMD.** Best entropy+RMD AUSC is `0.737` for Qwen, `0.639` for
+  DeepSeek, `0.507` for Llama, and `0.526` for DeepSeek-Llama. Gains over the
+  best unsupervised RMD score are only `0.006-0.020`.
+- **Application alignment is promising but exploratory.** Within-prompt AUC
+  tracks top-1 gain, while prompt-score/pass-rate correlation tracks selective
+  AUSC gain. ICC alone does not. The current correlations reuse three layers
+  from only two models, so they are a hypothesis generator rather than a law.
+- **Strict voting confirms the parser artifact and preserves an RMD
+  advantage.** The answer parser succeeds on all correct traces but only
+  `22.4%` of DeepSeek incorrect traces. Parsed-only voting had made DeepSeek
+  majority vote equal Oracle Pass@8 (`0.546`). Counting unparsed traces as
+  explicit invalid outputs lowers strict majority to `0.452`; RMD
+  rank-weighted voting reaches `0.488`, while direct RMD top-1 remains best at
+  `0.524-0.526`. For Qwen, strict majority is `0.596`, still above RMD top-1
+  (`0.550-0.564`).
+- **Historical answers cannot be recovered from these files.** The existing
+  Best-of-N NPZs contain no generated text or token arrays. Future collection
+  now persists generated text and uses balanced parsing for nested
+  `\\boxed{}` and `\\fbox{}` expressions.
+
+The strongest paper spine is now:
+
+> Relative hidden-state geometry separates correctness-specific structure from
+> generic representation spread. Whether that signal supports abstention or
+> within-prompt selection depends on its prompt-level decomposition, and that
+> decomposition differs sharply across model training regimes.
+
+The next smallest useful work is to add paired application-level uncertainty
+and run length-matched/confidently-wrong controls. Broader
+application-alignment claims require additional independent model conditions
+rather than more layers from the same two checkpoints.
+
 ---
 
 ## Difficulty Stratification (MATH-500)
@@ -553,12 +636,11 @@ selector win, which makes prefix pruning even less urgent.
 ## Best-of-N Selection (Qwen MATH-500, full 500 problems, N=8)
 
 > **Status note (2026-06):** the negative result below was measured with **base
-> Mahalanobis** — the *weak* geometry variant. Robust/relative Mahalanobis (RMD)
-> is the variant that wins discrimination and selective prediction, so an
-> `rmd_only` / `rmd_combined` BoN selector was added to `best_of_n.py` and is
-> being re-evaluated. The base-Mahalanobis conclusion stands; RMD numbers will
-> update this section. Prefix filtering, by contrast, is settled negative — see
-> the prefix section and the note in `dvc.yaml`.
+> Mahalanobis** — the *weak* geometry variant. The RMD selector rerun is complete
+> on the 100-problem pilot, but the full 500-problem result below has not been rerun
+> with RMD. On the pilot, RMD does not rescue Qwen reranking and only matches majority
+> vote for DeepSeek. Prefix filtering remains negative — see the prefix section and
+> the note in `dvc.yaml`.
 
 Qwen2.5-7B-Instruct on the full MATH-500 benchmark with `N=8` sampled traces per
 problem. Selectors and Mahalanobis references are fit leakage-safely on train folds
@@ -603,6 +685,18 @@ translate into a strong multi-sample reranker for Qwen. Agreement between sample
 (majority vote) is a better heuristic than hidden-state geometry in this regime. The
 next question is whether this is a Qwen-specific limitation or whether geometry-guided
 selection only becomes competitive for more reasoning-distilled models and/or larger `N`.
+
+### RMD pilot update (100 problems, N=8)
+
+| Model | Random | Majority | Entropy | Best raw combined | Best RMD | Best RMD+entropy |
+|---|---:|---:|---:|---:|---:|---:|
+| Qwen | 0.606 | **0.690** | 0.620 | 0.650 (L14) | 0.620 (L14) | 0.580 (L14) |
+| DeepSeek | 0.439 | **0.570** | 0.500 | 0.550 (L7) | **0.570 (L21)** | 0.560 (L14/L21) |
+
+The pilot sharpens rather than reverses the negative application result. RMD is highly
+useful for single-trace abstention, but it does not consistently rank samples from the
+same prompt. DeepSeek is the more promising case, where RMD-only matches majority vote,
+but this requires confirmation on the full 500-problem set with OOF RMD scoring.
 
 ---
 
@@ -653,10 +747,13 @@ chance.
 3. ~~Early-layer prefix pilot~~ — **Done (mixed/negative).** A shallow-layer prefix
    signal exists at the first ~5 generated tokens (best: Qwen MATH-500, L2, AUC 0.631),
    but it is too weak and unstable to justify an early-pruning policy yet.
-4. ~~Best-of-N run on Qwen MATH-500 (`N=8`)~~ — **Done (negative for geometry).**
+4. ~~Best-of-N run on Qwen MATH-500 (`N=8`)~~ — **Done (negative for geometry);
+   RMD pilot also complete.**
    Majority vote is best at Pass@1 = 0.620, ahead of entropy-only (0.590), best combined
    (0.582, L14), best Mahal-only (0.576, L21), and mean log-prob (0.574). Geometry-aware
-   reranking is not yet the strongest downstream application on Qwen.
+   reranking is not yet the strongest downstream application on Qwen. In the 100-problem
+   RMD pilot, Qwen RMD-only reaches 0.620 vs majority 0.690; DeepSeek RMD-only matches
+   majority at 0.570.
 5. ~~Functional trajectory encoding (Track A)~~ — **Done (negative).** The completed
    `probe.py` / `trajectory_*` DVC run never beats scalar Mahalanobis summaries. Best
    trajectory AUC is 0.808 (DeepSeek GSM8K, L21), still below scalar Mahal (0.831) and

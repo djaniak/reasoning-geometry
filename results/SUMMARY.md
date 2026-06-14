@@ -60,20 +60,20 @@ Unsupervised methods only: the reference distribution is fitted on correct trace
 | qwen | math500 | L7 | 0.713 | +0.0587 | +0.0269 | +0.0832 | +0.0842 |
 | qwen | math500 | L14 | 0.713 | +0.0152 | -0.0062 | +0.0861 | +0.0907 |
 | qwen | math500 | L21 | 0.713 | +0.0240 | -0.0005 | +0.1178 | +0.1215 |
-| qwen_dense | math500 | L0 | 0.713 | +0.0024 | +0.0023 | — | — |
-| qwen_dense | math500 | L2 | 0.713 | +0.0308 | +0.0105 | — | — |
-| qwen_dense | math500 | L4 | 0.713 | +0.0266 | +0.0131 | — | — |
-| qwen_dense | math500 | L6 | 0.713 | +0.0449 | +0.0214 | — | — |
-| qwen_dense | math500 | L8 | 0.713 | +0.0466 | +0.0184 | — | — |
-| qwen_dense | math500 | L10 | 0.713 | +0.0348 | +0.0075 | — | — |
-| qwen_dense | math500 | L12 | 0.713 | +0.0302 | +0.0055 | — | — |
-| qwen_dense | math500 | L14 | 0.713 | +0.0150 | -0.0060 | — | — |
-| qwen_dense | math500 | L16 | 0.713 | +0.0138 | -0.0068 | — | — |
-| qwen_dense | math500 | L18 | 0.713 | +0.0169 | -0.0110 | — | — |
-| qwen_dense | math500 | L20 | 0.713 | +0.0358 | -0.0014 | — | — |
-| qwen_dense | math500 | L22 | 0.713 | +0.0298 | -0.0023 | — | — |
-| qwen_dense | math500 | L24 | 0.713 | +0.0176 | -0.0027 | — | — |
-| qwen_dense | math500 | L26 | 0.713 | +0.0404 | +0.0146 | — | — |
+| qwen_dense | math500 | L0 | 0.713 | +0.0048 | +0.0020 | +0.0570 | +0.0563 |
+| qwen_dense | math500 | L2 | 0.713 | +0.0309 | +0.0105 | +0.0580 | +0.0602 |
+| qwen_dense | math500 | L4 | 0.713 | +0.0266 | +0.0131 | +0.0702 | +0.0777 |
+| qwen_dense | math500 | L6 | 0.713 | +0.0448 | +0.0214 | +0.0685 | +0.0815 |
+| qwen_dense | math500 | L8 | 0.713 | +0.0467 | +0.0184 | +0.0879 | +0.0908 |
+| qwen_dense | math500 | L10 | 0.713 | +0.0348 | +0.0075 | +0.0724 | +0.0765 |
+| qwen_dense | math500 | L12 | 0.713 | +0.0303 | +0.0056 | +0.0876 | +0.0884 |
+| qwen_dense | math500 | L14 | 0.713 | +0.0152 | -0.0062 | +0.0861 | +0.0907 |
+| qwen_dense | math500 | L16 | 0.713 | +0.0138 | -0.0067 | +0.1028 | +0.1034 |
+| qwen_dense | math500 | L18 | 0.713 | +0.0170 | -0.0111 | +0.1124 | +0.1179 |
+| qwen_dense | math500 | L20 | 0.713 | +0.0358 | -0.0014 | +0.1143 | +0.1193 |
+| qwen_dense | math500 | L22 | 0.713 | +0.0299 | -0.0023 | +0.1049 | +0.1076 |
+| qwen_dense | math500 | L24 | 0.713 | +0.0176 | -0.0027 | +0.0935 | +0.0915 |
+| qwen_dense | math500 | L26 | 0.713 | +0.0406 | +0.0146 | +0.0898 | +0.0786 |
 
 ## Per-layer detail
 
@@ -193,20 +193,20 @@ Entropy-only baseline: 0.713 ± 0.036
 
 | Layer | Mahal-only | Combined | Δ (raw) | Δ (len-ctrl) | Conf-wrong p |
 |---|---|---|---|---|---|
-| L0 | 0.616 ± 0.046 | 0.716 ± 0.044 | +0.0024 | +0.0023 | 4.37e-05 *** |
-| L2 | 0.705 ± 0.026 | 0.744 ± 0.021 | +0.0308 | +0.0105 | 2.88e-05 *** |
-| L4 | 0.689 ± 0.030 | 0.740 ± 0.030 | +0.0266 | +0.0131 | 9.09e-07 *** |
-| L6 | 0.726 ± 0.049 | 0.758 ± 0.048 | +0.0449 | +0.0214 | 3.66e-03 *** |
-| L8 | 0.733 ± 0.041 | 0.760 ± 0.042 | +0.0466 | +0.0184 | 5.69e-03 *** |
-| L10 | 0.720 ± 0.037 | 0.748 ± 0.041 | +0.0348 | +0.0075 | 9.24e-03 *** |
-| L12 | 0.703 ± 0.048 | 0.744 ± 0.042 | +0.0302 | +0.0055 | 3.26e-02 * |
-| L14 | 0.678 ± 0.044 | 0.728 ± 0.038 | +0.0150 | -0.0060 | 3.69e-02 * |
-| L16 | 0.682 ± 0.045 | 0.727 ± 0.048 | +0.0138 | -0.0068 | 6.64e-02 ns |
-| L18 | 0.700 ± 0.042 | 0.730 ± 0.043 | +0.0169 | -0.0110 | 1.28e-01 ns |
-| L20 | 0.725 ± 0.046 | 0.749 ± 0.049 | +0.0358 | -0.0014 | 2.59e-02 * |
-| L22 | 0.712 ± 0.034 | 0.743 ± 0.043 | +0.0298 | -0.0023 | 1.19e-01 ns |
-| L24 | 0.689 ± 0.050 | 0.731 ± 0.058 | +0.0176 | -0.0027 | 1.35e-05 *** |
-| L26 | 0.728 ± 0.063 | 0.754 ± 0.054 | +0.0404 | +0.0146 | 6.74e-07 *** |
+| L0 | 0.620 ± 0.046 | 0.718 ± 0.044 | +0.0048 | +0.0020 | 4.86e-05 *** |
+| L2 | 0.705 ± 0.026 | 0.744 ± 0.021 | +0.0309 | +0.0105 | 2.88e-05 *** |
+| L4 | 0.689 ± 0.030 | 0.740 ± 0.030 | +0.0266 | +0.0131 | 9.21e-07 *** |
+| L6 | 0.725 ± 0.049 | 0.758 ± 0.048 | +0.0448 | +0.0214 | 3.68e-03 *** |
+| L8 | 0.733 ± 0.041 | 0.760 ± 0.042 | +0.0467 | +0.0184 | 5.71e-03 *** |
+| L10 | 0.720 ± 0.037 | 0.748 ± 0.041 | +0.0348 | +0.0075 | 9.29e-03 *** |
+| L12 | 0.704 ± 0.048 | 0.744 ± 0.042 | +0.0303 | +0.0056 | 3.27e-02 * |
+| L14 | 0.678 ± 0.044 | 0.729 ± 0.038 | +0.0152 | -0.0062 | 3.67e-02 * |
+| L16 | 0.682 ± 0.045 | 0.727 ± 0.048 | +0.0138 | -0.0067 | 6.64e-02 ns |
+| L18 | 0.700 ± 0.042 | 0.730 ± 0.043 | +0.0170 | -0.0111 | 1.29e-01 ns |
+| L20 | 0.725 ± 0.046 | 0.749 ± 0.049 | +0.0358 | -0.0014 | 2.60e-02 * |
+| L22 | 0.712 ± 0.034 | 0.743 ± 0.043 | +0.0299 | -0.0023 | 1.19e-01 ns |
+| L24 | 0.689 ± 0.050 | 0.731 ± 0.058 | +0.0176 | -0.0027 | 1.36e-05 *** |
+| L26 | 0.728 ± 0.063 | 0.754 ± 0.054 | +0.0406 | +0.0146 | 6.66e-07 *** |
 
 ## PCA-dimension ablation (base geometry)
 
@@ -302,20 +302,20 @@ Checks whether the raw Mahalanobis signal survives length-normalization and robu
 | qwen | math500 | L7 | +0.0587 | +0.0921 | +0.0832 | +0.0842 |
 | qwen | math500 | L14 | +0.0152 | +0.0345 | +0.0861 | +0.0907 |
 | qwen | math500 | L21 | +0.0240 | -0.0151 | +0.1178 | +0.1215 |
-| qwen_dense | math500 | L0 | +0.0024 | — | — | — |
-| qwen_dense | math500 | L2 | +0.0308 | — | — | — |
-| qwen_dense | math500 | L4 | +0.0266 | — | — | — |
-| qwen_dense | math500 | L6 | +0.0449 | — | — | — |
-| qwen_dense | math500 | L8 | +0.0466 | — | — | — |
-| qwen_dense | math500 | L10 | +0.0348 | — | — | — |
-| qwen_dense | math500 | L12 | +0.0302 | — | — | — |
-| qwen_dense | math500 | L14 | +0.0150 | — | — | — |
-| qwen_dense | math500 | L16 | +0.0138 | — | — | — |
-| qwen_dense | math500 | L18 | +0.0169 | — | — | — |
-| qwen_dense | math500 | L20 | +0.0358 | — | — | — |
-| qwen_dense | math500 | L22 | +0.0298 | — | — | — |
-| qwen_dense | math500 | L24 | +0.0176 | — | — | — |
-| qwen_dense | math500 | L26 | +0.0404 | — | — | — |
+| qwen_dense | math500 | L0 | +0.0048 | +0.0047 | +0.0570 | +0.0563 |
+| qwen_dense | math500 | L2 | +0.0309 | +0.0431 | +0.0580 | +0.0602 |
+| qwen_dense | math500 | L4 | +0.0266 | +0.0471 | +0.0702 | +0.0777 |
+| qwen_dense | math500 | L6 | +0.0448 | +0.0786 | +0.0685 | +0.0815 |
+| qwen_dense | math500 | L8 | +0.0467 | +0.0657 | +0.0879 | +0.0908 |
+| qwen_dense | math500 | L10 | +0.0348 | +0.0463 | +0.0724 | +0.0765 |
+| qwen_dense | math500 | L12 | +0.0303 | +0.0434 | +0.0876 | +0.0884 |
+| qwen_dense | math500 | L14 | +0.0152 | +0.0345 | +0.0861 | +0.0907 |
+| qwen_dense | math500 | L16 | +0.0138 | +0.0185 | +0.1028 | +0.1034 |
+| qwen_dense | math500 | L18 | +0.0170 | +0.0198 | +0.1124 | +0.1179 |
+| qwen_dense | math500 | L20 | +0.0358 | +0.0331 | +0.1143 | +0.1193 |
+| qwen_dense | math500 | L22 | +0.0299 | +0.0331 | +0.1049 | +0.1076 |
+| qwen_dense | math500 | L24 | +0.0176 | +0.0268 | +0.0935 | +0.0915 |
+| qwen_dense | math500 | L26 | +0.0406 | +0.0448 | +0.0898 | +0.0786 |
 
 ## Subspace analysis — label-informed geometry
 
@@ -1192,6 +1192,776 @@ Full sweep over all settings and threshold quantiles. All operating points are s
 | qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.65 | 0.570 | 0.570 | +0.000 | -0.649 | 0.600 | 2.950 | 3 |
 | qwen_prefix_filter_pilot | math500 | combined L16 k=125 | 0.80 | 0.570 | 0.570 | +0.000 | -0.649 | 0.600 | 2.950 | 3 |
 
+## Best-of-N Selection
+
+Leakage-safe prompt-grouped CV. Each row reports the largest available N for that artifact; layer-based columns select the best layer for that selector within the reported run.
+
+| Model | Scale | Dataset | N | Random | Majority | Entropy | Best Mahal | Best combined | Best RMD | Best RMD+entropy | Oracle |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: |
+| deepseek | full | math500 | 8 | 0.415 | 0.546 | 0.490 | 0.520 (L7) | 0.532 (L7) | — | — | 0.546 |
+| deepseek | pilot | math500 | 8 | 0.439 | 0.570 | 0.500 | 0.530 (L7) | 0.550 (L7) | 0.570 (L21) | 0.560 (L21) | 0.570 |
+| qwen | full | math500 | 8 | 0.557 | 0.620 | 0.590 | 0.576 (L21) | 0.582 (L14) | — | — | 0.676 |
+| qwen | pilot | math500 | 8 | 0.606 | 0.690 | 0.620 | 0.640 (L7) | 0.650 (L14) | 0.620 (L14) | 0.580 (L14) | 0.720 |
+
+### Within-prompt concordance diagnostic
+
+Legacy diagnostic using raw Mahalanobis with an in-sample reference fit on all correct pilot traces. Treat this as descriptive only; the OOF raw/RMD prompt decomposition is the confirmatory replacement.
+
+| Model | Scale | Dataset | Layer | Concordance | SD | Mixed prompts |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| deepseek | pilot | math500 | L7 | 0.264 | 0.299 | 31 |
+| deepseek | pilot | math500 | L14 | 0.249 | 0.270 | 31 |
+| deepseek | pilot | math500 | L21 | 0.262 | 0.277 | 31 |
+| qwen | full | math500 | L7 | 0.464 | 0.291 | 131 |
+| qwen | full | math500 | L14 | 0.455 | 0.315 | 131 |
+| qwen | full | math500 | L21 | 0.408 | 0.291 | 131 |
+| qwen | pilot | math500 | L7 | 0.536 | 0.332 | 25 |
+| qwen | pilot | math500 | L14 | 0.382 | 0.284 | 25 |
+| qwen | pilot | math500 | L21 | 0.345 | 0.308 | 25 |
+
+## Prompt Decomposition
+
+Prompt-grouped out-of-fold scores. Higher scores predict correctness; all reference-dependent quantities are fit on training prompts only.
+
+| Model | Dataset | Layer | Method | Pooled AUC | Centered AUC | Within AUC | ICC | Prompt/pass Spearman |
+|:---|:---|:---|:---|---:|---:|---:|---:|---:|
+| deepseek | math500 | L7 | entropy | 0.668 | 0.724 | 0.793 | 0.658 | 0.295 |
+| deepseek | math500 | L7 | logprob | 0.672 | 0.720 | 0.788 | 0.645 | 0.306 |
+| deepseek | math500 | L7 | length | 0.832 | 0.663 | 0.763 | 0.661 | 0.676 |
+| deepseek | math500 | L7 | activation_norm | 0.297 | 0.423 | 0.418 | 0.812 | -0.408 |
+| deepseek | math500 | L7 | centroid | 0.223 | 0.294 | 0.227 | 0.908 | -0.515 |
+| deepseek | math500 | L7 | raw | 0.266 | 0.362 | 0.318 | 0.878 | -0.444 |
+| deepseek | math500 | L7 | rmd | 0.885 | 0.841 | 0.931 | 0.878 | 0.682 |
+| deepseek | math500 | L14 | entropy | 0.668 | 0.724 | 0.793 | 0.658 | 0.295 |
+| deepseek | math500 | L14 | logprob | 0.672 | 0.720 | 0.788 | 0.645 | 0.306 |
+| deepseek | math500 | L14 | length | 0.832 | 0.663 | 0.763 | 0.661 | 0.676 |
+| deepseek | math500 | L14 | activation_norm | 0.544 | 0.600 | 0.638 | 0.690 | 0.065 |
+| deepseek | math500 | L14 | centroid | 0.283 | 0.431 | 0.418 | 0.849 | -0.431 |
+| deepseek | math500 | L14 | raw | 0.247 | 0.371 | 0.338 | 0.906 | -0.484 |
+| deepseek | math500 | L14 | rmd | 0.887 | 0.837 | 0.927 | 0.920 | 0.694 |
+| deepseek | math500 | L21 | entropy | 0.668 | 0.724 | 0.793 | 0.658 | 0.295 |
+| deepseek | math500 | L21 | logprob | 0.672 | 0.720 | 0.788 | 0.645 | 0.306 |
+| deepseek | math500 | L21 | length | 0.832 | 0.663 | 0.763 | 0.661 | 0.676 |
+| deepseek | math500 | L21 | activation_norm | 0.277 | 0.459 | 0.460 | 0.761 | -0.462 |
+| deepseek | math500 | L21 | centroid | 0.147 | 0.236 | 0.178 | 0.919 | -0.650 |
+| deepseek | math500 | L21 | raw | 0.182 | 0.369 | 0.353 | 0.904 | -0.613 |
+| deepseek | math500 | L21 | rmd | 0.892 | 0.797 | 0.930 | 0.831 | 0.698 |
+| qwen | math500 | L7 | entropy | 0.571 | 0.559 | 0.595 | 0.738 | 0.151 |
+| qwen | math500 | L7 | logprob | 0.575 | 0.559 | 0.589 | 0.669 | 0.153 |
+| qwen | math500 | L7 | length | 0.737 | 0.563 | 0.582 | 0.867 | 0.478 |
+| qwen | math500 | L7 | activation_norm | 0.407 | 0.481 | 0.488 | 0.874 | -0.191 |
+| qwen | math500 | L7 | centroid | 0.406 | 0.475 | 0.451 | 0.885 | -0.198 |
+| qwen | math500 | L7 | raw | 0.408 | 0.484 | 0.491 | 0.878 | -0.195 |
+| qwen | math500 | L7 | rmd | 0.736 | 0.555 | 0.551 | 0.943 | 0.452 |
+| qwen | math500 | L14 | entropy | 0.571 | 0.559 | 0.595 | 0.738 | 0.151 |
+| qwen | math500 | L14 | logprob | 0.575 | 0.559 | 0.589 | 0.669 | 0.153 |
+| qwen | math500 | L14 | length | 0.737 | 0.563 | 0.582 | 0.867 | 0.478 |
+| qwen | math500 | L14 | activation_norm | 0.386 | 0.446 | 0.443 | 0.886 | -0.233 |
+| qwen | math500 | L14 | centroid | 0.414 | 0.471 | 0.451 | 0.891 | -0.175 |
+| qwen | math500 | L14 | raw | 0.411 | 0.476 | 0.484 | 0.901 | -0.175 |
+| qwen | math500 | L14 | rmd | 0.763 | 0.550 | 0.550 | 0.970 | 0.499 |
+| qwen | math500 | L21 | entropy | 0.571 | 0.559 | 0.595 | 0.738 | 0.151 |
+| qwen | math500 | L21 | logprob | 0.575 | 0.559 | 0.589 | 0.669 | 0.153 |
+| qwen | math500 | L21 | length | 0.737 | 0.563 | 0.582 | 0.867 | 0.478 |
+| qwen | math500 | L21 | activation_norm | 0.279 | 0.441 | 0.442 | 0.907 | -0.449 |
+| qwen | math500 | L21 | centroid | 0.322 | 0.472 | 0.456 | 0.870 | -0.367 |
+| qwen | math500 | L21 | raw | 0.324 | 0.467 | 0.441 | 0.901 | -0.357 |
+| qwen | math500 | L21 | rmd | 0.786 | 0.592 | 0.602 | 0.960 | 0.547 |
+
+## OOF Prompt Selection
+
+Unparsed answers are counted as failures. They are not silently removed from voting.
+
+### Answer Parsing
+
+| Model | Dataset | Layer | Parsed traces | Parse rate | Correct parse rate | Incorrect parse rate | Prompts with no parsed answer |
+|:---|:---|:---|---:|---:|---:|---:|---:|
+| deepseek | math500 | L7 | 2186/4000 | 0.546 | 1.000 | 0.224 | 136 |
+| deepseek | math500 | L14 | 2186/4000 | 0.546 | 1.000 | 0.224 | 136 |
+| deepseek | math500 | L21 | 2186/4000 | 0.546 | 1.000 | 0.224 | 136 |
+| qwen | math500 | L7 | 3672/4000 | 0.918 | 1.000 | 0.815 | 2 |
+| qwen | math500 | L14 | 3672/4000 | 0.918 | 1.000 | 0.815 | 2 |
+| qwen | math500 | L21 | 3672/4000 | 0.918 | 1.000 | 0.815 | 2 |
+
+### Selection Results
+
+| Model | Dataset | Layer | Selector | Pass@1 |
+|:---|:---|:---|:---|---:|
+| deepseek | math500 | L7 | random | 0.415 |
+| deepseek | math500 | L7 | oracle_pass_at_n | 0.546 |
+| deepseek | math500 | L7 | majority_vote | 0.452 |
+| deepseek | math500 | L7 | rmd_rank_weighted_vote | 0.488 |
+| deepseek | math500 | L7 | majority_rmd_tiebreak | 0.452 |
+| deepseek | math500 | L7 | top1_entropy | 0.488 |
+| deepseek | math500 | L7 | top1_logprob | 0.488 |
+| deepseek | math500 | L7 | top1_length | 0.506 |
+| deepseek | math500 | L7 | top1_activation_norm | 0.368 |
+| deepseek | math500 | L7 | top1_centroid | 0.320 |
+| deepseek | math500 | L7 | top1_raw | 0.340 |
+| deepseek | math500 | L7 | top1_rmd | 0.524 |
+| deepseek | math500 | L14 | random | 0.415 |
+| deepseek | math500 | L14 | oracle_pass_at_n | 0.546 |
+| deepseek | math500 | L14 | majority_vote | 0.452 |
+| deepseek | math500 | L14 | rmd_rank_weighted_vote | 0.488 |
+| deepseek | math500 | L14 | majority_rmd_tiebreak | 0.452 |
+| deepseek | math500 | L14 | top1_entropy | 0.488 |
+| deepseek | math500 | L14 | top1_logprob | 0.488 |
+| deepseek | math500 | L14 | top1_length | 0.506 |
+| deepseek | math500 | L14 | top1_activation_norm | 0.458 |
+| deepseek | math500 | L14 | top1_centroid | 0.400 |
+| deepseek | math500 | L14 | top1_raw | 0.370 |
+| deepseek | math500 | L14 | top1_rmd | 0.526 |
+| deepseek | math500 | L21 | random | 0.415 |
+| deepseek | math500 | L21 | oracle_pass_at_n | 0.546 |
+| deepseek | math500 | L21 | majority_vote | 0.452 |
+| deepseek | math500 | L21 | rmd_rank_weighted_vote | 0.488 |
+| deepseek | math500 | L21 | majority_rmd_tiebreak | 0.452 |
+| deepseek | math500 | L21 | top1_entropy | 0.488 |
+| deepseek | math500 | L21 | top1_logprob | 0.488 |
+| deepseek | math500 | L21 | top1_length | 0.506 |
+| deepseek | math500 | L21 | top1_activation_norm | 0.390 |
+| deepseek | math500 | L21 | top1_centroid | 0.296 |
+| deepseek | math500 | L21 | top1_raw | 0.364 |
+| deepseek | math500 | L21 | top1_rmd | 0.524 |
+| qwen | math500 | L7 | random | 0.557 |
+| qwen | math500 | L7 | oracle_pass_at_n | 0.676 |
+| qwen | math500 | L7 | majority_vote | 0.596 |
+| qwen | math500 | L7 | rmd_rank_weighted_vote | 0.584 |
+| qwen | math500 | L7 | majority_rmd_tiebreak | 0.596 |
+| qwen | math500 | L7 | top1_entropy | 0.572 |
+| qwen | math500 | L7 | top1_logprob | 0.574 |
+| qwen | math500 | L7 | top1_length | 0.566 |
+| qwen | math500 | L7 | top1_activation_norm | 0.546 |
+| qwen | math500 | L7 | top1_centroid | 0.518 |
+| qwen | math500 | L7 | top1_raw | 0.546 |
+| qwen | math500 | L7 | top1_rmd | 0.550 |
+| qwen | math500 | L14 | random | 0.557 |
+| qwen | math500 | L14 | oracle_pass_at_n | 0.676 |
+| qwen | math500 | L14 | majority_vote | 0.596 |
+| qwen | math500 | L14 | rmd_rank_weighted_vote | 0.582 |
+| qwen | math500 | L14 | majority_rmd_tiebreak | 0.594 |
+| qwen | math500 | L14 | top1_entropy | 0.572 |
+| qwen | math500 | L14 | top1_logprob | 0.574 |
+| qwen | math500 | L14 | top1_length | 0.566 |
+| qwen | math500 | L14 | top1_activation_norm | 0.536 |
+| qwen | math500 | L14 | top1_centroid | 0.518 |
+| qwen | math500 | L14 | top1_raw | 0.522 |
+| qwen | math500 | L14 | top1_rmd | 0.552 |
+| qwen | math500 | L21 | random | 0.557 |
+| qwen | math500 | L21 | oracle_pass_at_n | 0.676 |
+| qwen | math500 | L21 | majority_vote | 0.596 |
+| qwen | math500 | L21 | rmd_rank_weighted_vote | 0.582 |
+| qwen | math500 | L21 | majority_rmd_tiebreak | 0.594 |
+| qwen | math500 | L21 | top1_entropy | 0.572 |
+| qwen | math500 | L21 | top1_logprob | 0.574 |
+| qwen | math500 | L21 | top1_length | 0.566 |
+| qwen | math500 | L21 | top1_activation_norm | 0.532 |
+| qwen | math500 | L21 | top1_centroid | 0.534 |
+| qwen | math500 | L21 | top1_raw | 0.522 |
+| qwen | math500 | L21 | top1_rmd | 0.564 |
+
+## Application Alignment
+
+Exploratory descriptive correlations only; the number of independent model-layer conditions is too small for significance claims.
+
+| Model | Layer | Method | Within AUC | ICC | Top-1 gain | Selective AUSC gain |
+|:---|---:|:---|---:|---:|---:|---:|
+| deepseek | 7 | raw | 0.318 | 0.878 | -0.075 | -0.200 |
+| deepseek | 7 | rmd | 0.931 | 0.878 | 0.109 | 0.126 |
+| deepseek | 14 | raw | 0.338 | 0.906 | -0.045 | -0.202 |
+| deepseek | 14 | rmd | 0.927 | 0.920 | 0.111 | 0.125 |
+| deepseek | 21 | raw | 0.353 | 0.904 | -0.051 | -0.234 |
+| deepseek | 21 | rmd | 0.930 | 0.831 | 0.109 | 0.133 |
+| qwen | 7 | raw | 0.491 | 0.878 | -0.011 | -0.103 |
+| qwen | 7 | rmd | 0.551 | 0.943 | -0.007 | 0.073 |
+| qwen | 14 | raw | 0.484 | 0.901 | -0.035 | -0.104 |
+| qwen | 14 | rmd | 0.550 | 0.970 | -0.005 | 0.086 |
+| qwen | 21 | raw | 0.441 | 0.901 | -0.035 | -0.158 |
+| qwen | 21 | rmd | 0.602 | 0.960 | 0.007 | 0.100 |
+
+## One-Class Mechanism Sweep
+
+All configured dimensions are shown; no post-hoc best dimension is selected.
+
+| Model | Dataset | Layer | Dimension | Method | Pooled ROC | Fold ROC | Pooled PR | N |
+|:---|:---|:---|---:|:---|---:|:---|---:|---:|
+| deepseek | math500 | L7 | 1 | centroid | 0.314 | 0.309 ± 0.058 | 0.319 | 500 |
+| deepseek | math500 | L7 | 1 | diagonal_mahalanobis | 0.315 | 0.309 ± 0.058 | 0.319 | 500 |
+| deepseek | math500 | L7 | 1 | empirical_ridge_mahalanobis | 0.315 | 0.309 ± 0.058 | 0.319 | 500 |
+| deepseek | math500 | L7 | 1 | ledoit_wolf_mahalanobis | 0.315 | 0.309 ± 0.058 | 0.319 | 500 |
+| deepseek | math500 | L7 | 1 | rmd_ledoit_wolf | 0.702 | 0.702 ± 0.039 | 0.605 | 500 |
+| deepseek | math500 | L7 | 1 | normalized_rmd_ledoit_wolf | 0.601 | 0.601 ± 0.033 | 0.531 | 500 |
+| deepseek | math500 | L7 | 2 | centroid | 0.298 | 0.295 ± 0.037 | 0.314 | 500 |
+| deepseek | math500 | L7 | 2 | diagonal_mahalanobis | 0.299 | 0.296 ± 0.038 | 0.314 | 500 |
+| deepseek | math500 | L7 | 2 | empirical_ridge_mahalanobis | 0.299 | 0.296 ± 0.038 | 0.314 | 500 |
+| deepseek | math500 | L7 | 2 | ledoit_wolf_mahalanobis | 0.299 | 0.296 ± 0.038 | 0.314 | 500 |
+| deepseek | math500 | L7 | 2 | rmd_ledoit_wolf | 0.738 | 0.745 ± 0.034 | 0.641 | 500 |
+| deepseek | math500 | L7 | 2 | normalized_rmd_ledoit_wolf | 0.728 | 0.734 ± 0.032 | 0.634 | 500 |
+| deepseek | math500 | L7 | 4 | centroid | 0.259 | 0.259 ± 0.033 | 0.302 | 500 |
+| deepseek | math500 | L7 | 4 | diagonal_mahalanobis | 0.254 | 0.256 ± 0.027 | 0.301 | 500 |
+| deepseek | math500 | L7 | 4 | empirical_ridge_mahalanobis | 0.254 | 0.256 ± 0.027 | 0.301 | 500 |
+| deepseek | math500 | L7 | 4 | ledoit_wolf_mahalanobis | 0.254 | 0.256 ± 0.027 | 0.301 | 500 |
+| deepseek | math500 | L7 | 4 | rmd_ledoit_wolf | 0.779 | 0.785 ± 0.031 | 0.686 | 500 |
+| deepseek | math500 | L7 | 4 | normalized_rmd_ledoit_wolf | 0.778 | 0.787 ± 0.030 | 0.687 | 500 |
+| deepseek | math500 | L7 | 8 | centroid | 0.184 | 0.186 ± 0.012 | 0.284 | 500 |
+| deepseek | math500 | L7 | 8 | diagonal_mahalanobis | 0.177 | 0.175 ± 0.020 | 0.282 | 500 |
+| deepseek | math500 | L7 | 8 | empirical_ridge_mahalanobis | 0.177 | 0.175 ± 0.020 | 0.282 | 500 |
+| deepseek | math500 | L7 | 8 | ledoit_wolf_mahalanobis | 0.177 | 0.175 ± 0.020 | 0.282 | 500 |
+| deepseek | math500 | L7 | 8 | rmd_ledoit_wolf | 0.850 | 0.851 ± 0.025 | 0.735 | 500 |
+| deepseek | math500 | L7 | 8 | normalized_rmd_ledoit_wolf | 0.840 | 0.841 ± 0.025 | 0.723 | 500 |
+| deepseek | math500 | L7 | 16 | centroid | 0.178 | 0.177 ± 0.017 | 0.282 | 500 |
+| deepseek | math500 | L7 | 16 | diagonal_mahalanobis | 0.176 | 0.177 ± 0.018 | 0.282 | 500 |
+| deepseek | math500 | L7 | 16 | empirical_ridge_mahalanobis | 0.176 | 0.177 ± 0.018 | 0.282 | 500 |
+| deepseek | math500 | L7 | 16 | ledoit_wolf_mahalanobis | 0.176 | 0.177 ± 0.018 | 0.282 | 500 |
+| deepseek | math500 | L7 | 16 | rmd_ledoit_wolf | 0.859 | 0.859 ± 0.028 | 0.742 | 500 |
+| deepseek | math500 | L7 | 16 | normalized_rmd_ledoit_wolf | 0.856 | 0.856 ± 0.029 | 0.736 | 500 |
+| deepseek | math500 | L7 | 32 | centroid | 0.211 | 0.208 ± 0.024 | 0.289 | 500 |
+| deepseek | math500 | L7 | 32 | diagonal_mahalanobis | 0.248 | 0.247 ± 0.025 | 0.299 | 500 |
+| deepseek | math500 | L7 | 32 | empirical_ridge_mahalanobis | 0.247 | 0.247 ± 0.025 | 0.299 | 500 |
+| deepseek | math500 | L7 | 32 | ledoit_wolf_mahalanobis | 0.248 | 0.247 ± 0.025 | 0.299 | 500 |
+| deepseek | math500 | L7 | 32 | rmd_ledoit_wolf | 0.864 | 0.866 ± 0.027 | 0.752 | 500 |
+| deepseek | math500 | L7 | 32 | normalized_rmd_ledoit_wolf | 0.861 | 0.863 ± 0.029 | 0.752 | 500 |
+| deepseek | math500 | L7 | 64 | centroid | 0.220 | 0.221 ± 0.029 | 0.291 | 500 |
+| deepseek | math500 | L7 | 64 | diagonal_mahalanobis | 0.250 | 0.249 ± 0.034 | 0.299 | 500 |
+| deepseek | math500 | L7 | 64 | empirical_ridge_mahalanobis | 0.250 | 0.248 ± 0.034 | 0.299 | 500 |
+| deepseek | math500 | L7 | 64 | ledoit_wolf_mahalanobis | 0.250 | 0.248 ± 0.034 | 0.299 | 500 |
+| deepseek | math500 | L7 | 64 | rmd_ledoit_wolf | 0.868 | 0.870 ± 0.026 | 0.768 | 500 |
+| deepseek | math500 | L7 | 64 | normalized_rmd_ledoit_wolf | 0.868 | 0.869 ± 0.026 | 0.771 | 500 |
+| deepseek | math500 | L7 | 128 | centroid | 0.213 | 0.214 ± 0.028 | 0.290 | 500 |
+| deepseek | math500 | L7 | 128 | diagonal_mahalanobis | 0.249 | 0.250 ± 0.034 | 0.300 | 500 |
+| deepseek | math500 | L7 | 128 | empirical_ridge_mahalanobis | 0.249 | 0.250 ± 0.035 | 0.300 | 500 |
+| deepseek | math500 | L7 | 128 | ledoit_wolf_mahalanobis | 0.249 | 0.250 ± 0.034 | 0.300 | 500 |
+| deepseek | math500 | L7 | 128 | rmd_ledoit_wolf | 0.865 | 0.867 ± 0.026 | 0.768 | 500 |
+| deepseek | math500 | L7 | 128 | normalized_rmd_ledoit_wolf | 0.864 | 0.867 ± 0.028 | 0.772 | 500 |
+| deepseek | math500 | L14 | 1 | centroid | 0.453 | 0.456 ± 0.023 | 0.446 | 500 |
+| deepseek | math500 | L14 | 1 | diagonal_mahalanobis | 0.454 | 0.456 ± 0.023 | 0.447 | 500 |
+| deepseek | math500 | L14 | 1 | empirical_ridge_mahalanobis | 0.454 | 0.456 ± 0.023 | 0.447 | 500 |
+| deepseek | math500 | L14 | 1 | ledoit_wolf_mahalanobis | 0.454 | 0.456 ± 0.023 | 0.447 | 500 |
+| deepseek | math500 | L14 | 1 | rmd_ledoit_wolf | 0.560 | 0.563 ± 0.046 | 0.474 | 500 |
+| deepseek | math500 | L14 | 1 | normalized_rmd_ledoit_wolf | 0.802 | 0.805 ± 0.031 | 0.729 | 500 |
+| deepseek | math500 | L14 | 2 | centroid | 0.484 | 0.489 ± 0.042 | 0.445 | 500 |
+| deepseek | math500 | L14 | 2 | diagonal_mahalanobis | 0.467 | 0.467 ± 0.050 | 0.407 | 500 |
+| deepseek | math500 | L14 | 2 | empirical_ridge_mahalanobis | 0.468 | 0.467 ± 0.050 | 0.407 | 500 |
+| deepseek | math500 | L14 | 2 | ledoit_wolf_mahalanobis | 0.468 | 0.467 ± 0.050 | 0.407 | 500 |
+| deepseek | math500 | L14 | 2 | rmd_ledoit_wolf | 0.815 | 0.819 ± 0.033 | 0.737 | 500 |
+| deepseek | math500 | L14 | 2 | normalized_rmd_ledoit_wolf | 0.811 | 0.816 ± 0.030 | 0.706 | 500 |
+| deepseek | math500 | L14 | 4 | centroid | 0.402 | 0.406 ± 0.051 | 0.365 | 500 |
+| deepseek | math500 | L14 | 4 | diagonal_mahalanobis | 0.308 | 0.309 ± 0.032 | 0.318 | 500 |
+| deepseek | math500 | L14 | 4 | empirical_ridge_mahalanobis | 0.308 | 0.309 ± 0.032 | 0.318 | 500 |
+| deepseek | math500 | L14 | 4 | ledoit_wolf_mahalanobis | 0.309 | 0.310 ± 0.032 | 0.318 | 500 |
+| deepseek | math500 | L14 | 4 | rmd_ledoit_wolf | 0.815 | 0.817 ± 0.039 | 0.722 | 500 |
+| deepseek | math500 | L14 | 4 | normalized_rmd_ledoit_wolf | 0.833 | 0.837 ± 0.032 | 0.720 | 500 |
+| deepseek | math500 | L14 | 8 | centroid | 0.304 | 0.303 ± 0.040 | 0.319 | 500 |
+| deepseek | math500 | L14 | 8 | diagonal_mahalanobis | 0.194 | 0.195 ± 0.028 | 0.286 | 500 |
+| deepseek | math500 | L14 | 8 | empirical_ridge_mahalanobis | 0.195 | 0.196 ± 0.028 | 0.286 | 500 |
+| deepseek | math500 | L14 | 8 | ledoit_wolf_mahalanobis | 0.195 | 0.196 ± 0.028 | 0.286 | 500 |
+| deepseek | math500 | L14 | 8 | rmd_ledoit_wolf | 0.876 | 0.877 ± 0.027 | 0.782 | 500 |
+| deepseek | math500 | L14 | 8 | normalized_rmd_ledoit_wolf | 0.866 | 0.866 ± 0.027 | 0.752 | 500 |
+| deepseek | math500 | L14 | 16 | centroid | 0.293 | 0.293 ± 0.035 | 0.316 | 500 |
+| deepseek | math500 | L14 | 16 | diagonal_mahalanobis | 0.204 | 0.205 ± 0.021 | 0.288 | 500 |
+| deepseek | math500 | L14 | 16 | empirical_ridge_mahalanobis | 0.204 | 0.205 ± 0.021 | 0.288 | 500 |
+| deepseek | math500 | L14 | 16 | ledoit_wolf_mahalanobis | 0.204 | 0.205 ± 0.021 | 0.288 | 500 |
+| deepseek | math500 | L14 | 16 | rmd_ledoit_wolf | 0.866 | 0.867 ± 0.024 | 0.764 | 500 |
+| deepseek | math500 | L14 | 16 | normalized_rmd_ledoit_wolf | 0.861 | 0.863 ± 0.024 | 0.752 | 500 |
+| deepseek | math500 | L14 | 32 | centroid | 0.290 | 0.289 ± 0.033 | 0.313 | 500 |
+| deepseek | math500 | L14 | 32 | diagonal_mahalanobis | 0.221 | 0.220 ± 0.022 | 0.292 | 500 |
+| deepseek | math500 | L14 | 32 | empirical_ridge_mahalanobis | 0.221 | 0.220 ± 0.022 | 0.292 | 500 |
+| deepseek | math500 | L14 | 32 | ledoit_wolf_mahalanobis | 0.221 | 0.220 ± 0.022 | 0.292 | 500 |
+| deepseek | math500 | L14 | 32 | rmd_ledoit_wolf | 0.876 | 0.877 ± 0.027 | 0.773 | 500 |
+| deepseek | math500 | L14 | 32 | normalized_rmd_ledoit_wolf | 0.872 | 0.874 ± 0.028 | 0.764 | 500 |
+| deepseek | math500 | L14 | 64 | centroid | 0.287 | 0.287 ± 0.031 | 0.311 | 500 |
+| deepseek | math500 | L14 | 64 | diagonal_mahalanobis | 0.237 | 0.235 ± 0.034 | 0.296 | 500 |
+| deepseek | math500 | L14 | 64 | empirical_ridge_mahalanobis | 0.237 | 0.235 ± 0.034 | 0.296 | 500 |
+| deepseek | math500 | L14 | 64 | ledoit_wolf_mahalanobis | 0.236 | 0.235 ± 0.033 | 0.296 | 500 |
+| deepseek | math500 | L14 | 64 | rmd_ledoit_wolf | 0.868 | 0.868 ± 0.025 | 0.768 | 500 |
+| deepseek | math500 | L14 | 64 | normalized_rmd_ledoit_wolf | 0.871 | 0.873 ± 0.022 | 0.770 | 500 |
+| deepseek | math500 | L14 | 128 | centroid | 0.279 | 0.280 ± 0.031 | 0.308 | 500 |
+| deepseek | math500 | L14 | 128 | diagonal_mahalanobis | 0.243 | 0.239 ± 0.033 | 0.299 | 500 |
+| deepseek | math500 | L14 | 128 | empirical_ridge_mahalanobis | 0.243 | 0.239 ± 0.033 | 0.299 | 500 |
+| deepseek | math500 | L14 | 128 | ledoit_wolf_mahalanobis | 0.243 | 0.239 ± 0.033 | 0.299 | 500 |
+| deepseek | math500 | L14 | 128 | rmd_ledoit_wolf | 0.866 | 0.867 ± 0.021 | 0.775 | 500 |
+| deepseek | math500 | L14 | 128 | normalized_rmd_ledoit_wolf | 0.870 | 0.871 ± 0.022 | 0.781 | 500 |
+| deepseek | math500 | L21 | 1 | centroid | 0.555 | 0.553 ± 0.048 | 0.505 | 500 |
+| deepseek | math500 | L21 | 1 | diagonal_mahalanobis | 0.555 | 0.553 ± 0.048 | 0.505 | 500 |
+| deepseek | math500 | L21 | 1 | empirical_ridge_mahalanobis | 0.555 | 0.553 ± 0.048 | 0.505 | 500 |
+| deepseek | math500 | L21 | 1 | ledoit_wolf_mahalanobis | 0.555 | 0.553 ± 0.048 | 0.505 | 500 |
+| deepseek | math500 | L21 | 1 | rmd_ledoit_wolf | 0.587 | 0.591 ± 0.047 | 0.527 | 500 |
+| deepseek | math500 | L21 | 1 | normalized_rmd_ledoit_wolf | 0.626 | 0.627 ± 0.025 | 0.540 | 500 |
+| deepseek | math500 | L21 | 2 | centroid | 0.323 | 0.320 ± 0.030 | 0.325 | 500 |
+| deepseek | math500 | L21 | 2 | diagonal_mahalanobis | 0.282 | 0.281 ± 0.020 | 0.309 | 500 |
+| deepseek | math500 | L21 | 2 | empirical_ridge_mahalanobis | 0.282 | 0.281 ± 0.020 | 0.309 | 500 |
+| deepseek | math500 | L21 | 2 | ledoit_wolf_mahalanobis | 0.282 | 0.281 ± 0.020 | 0.309 | 500 |
+| deepseek | math500 | L21 | 2 | rmd_ledoit_wolf | 0.859 | 0.863 ± 0.032 | 0.745 | 500 |
+| deepseek | math500 | L21 | 2 | normalized_rmd_ledoit_wolf | 0.840 | 0.847 ± 0.034 | 0.709 | 500 |
+| deepseek | math500 | L21 | 4 | centroid | 0.219 | 0.216 ± 0.028 | 0.291 | 500 |
+| deepseek | math500 | L21 | 4 | diagonal_mahalanobis | 0.181 | 0.180 ± 0.025 | 0.284 | 500 |
+| deepseek | math500 | L21 | 4 | empirical_ridge_mahalanobis | 0.181 | 0.180 ± 0.025 | 0.284 | 500 |
+| deepseek | math500 | L21 | 4 | ledoit_wolf_mahalanobis | 0.181 | 0.180 ± 0.025 | 0.284 | 500 |
+| deepseek | math500 | L21 | 4 | rmd_ledoit_wolf | 0.870 | 0.874 ± 0.030 | 0.740 | 500 |
+| deepseek | math500 | L21 | 4 | normalized_rmd_ledoit_wolf | 0.868 | 0.871 ± 0.032 | 0.739 | 500 |
+| deepseek | math500 | L21 | 8 | centroid | 0.163 | 0.161 ± 0.034 | 0.280 | 500 |
+| deepseek | math500 | L21 | 8 | diagonal_mahalanobis | 0.140 | 0.138 ± 0.030 | 0.276 | 500 |
+| deepseek | math500 | L21 | 8 | empirical_ridge_mahalanobis | 0.140 | 0.138 ± 0.030 | 0.276 | 500 |
+| deepseek | math500 | L21 | 8 | ledoit_wolf_mahalanobis | 0.140 | 0.138 ± 0.030 | 0.276 | 500 |
+| deepseek | math500 | L21 | 8 | rmd_ledoit_wolf | 0.874 | 0.876 ± 0.028 | 0.767 | 500 |
+| deepseek | math500 | L21 | 8 | normalized_rmd_ledoit_wolf | 0.870 | 0.871 ± 0.032 | 0.753 | 500 |
+| deepseek | math500 | L21 | 16 | centroid | 0.166 | 0.164 ± 0.034 | 0.280 | 500 |
+| deepseek | math500 | L21 | 16 | diagonal_mahalanobis | 0.160 | 0.157 ± 0.029 | 0.279 | 500 |
+| deepseek | math500 | L21 | 16 | empirical_ridge_mahalanobis | 0.160 | 0.157 ± 0.029 | 0.279 | 500 |
+| deepseek | math500 | L21 | 16 | ledoit_wolf_mahalanobis | 0.160 | 0.157 ± 0.029 | 0.279 | 500 |
+| deepseek | math500 | L21 | 16 | rmd_ledoit_wolf | 0.870 | 0.871 ± 0.028 | 0.749 | 500 |
+| deepseek | math500 | L21 | 16 | normalized_rmd_ledoit_wolf | 0.868 | 0.870 ± 0.027 | 0.749 | 500 |
+| deepseek | math500 | L21 | 32 | centroid | 0.155 | 0.154 ± 0.030 | 0.278 | 500 |
+| deepseek | math500 | L21 | 32 | diagonal_mahalanobis | 0.158 | 0.160 ± 0.032 | 0.278 | 500 |
+| deepseek | math500 | L21 | 32 | empirical_ridge_mahalanobis | 0.158 | 0.160 ± 0.032 | 0.278 | 500 |
+| deepseek | math500 | L21 | 32 | ledoit_wolf_mahalanobis | 0.158 | 0.160 ± 0.032 | 0.278 | 500 |
+| deepseek | math500 | L21 | 32 | rmd_ledoit_wolf | 0.869 | 0.870 ± 0.026 | 0.762 | 500 |
+| deepseek | math500 | L21 | 32 | normalized_rmd_ledoit_wolf | 0.868 | 0.869 ± 0.027 | 0.755 | 500 |
+| deepseek | math500 | L21 | 64 | centroid | 0.154 | 0.155 ± 0.028 | 0.277 | 500 |
+| deepseek | math500 | L21 | 64 | diagonal_mahalanobis | 0.167 | 0.167 ± 0.022 | 0.280 | 500 |
+| deepseek | math500 | L21 | 64 | empirical_ridge_mahalanobis | 0.167 | 0.167 ± 0.022 | 0.280 | 500 |
+| deepseek | math500 | L21 | 64 | ledoit_wolf_mahalanobis | 0.167 | 0.167 ± 0.022 | 0.280 | 500 |
+| deepseek | math500 | L21 | 64 | rmd_ledoit_wolf | 0.873 | 0.875 ± 0.027 | 0.764 | 500 |
+| deepseek | math500 | L21 | 64 | normalized_rmd_ledoit_wolf | 0.873 | 0.875 ± 0.027 | 0.767 | 500 |
+| deepseek | math500 | L21 | 128 | centroid | 0.157 | 0.158 ± 0.030 | 0.278 | 500 |
+| deepseek | math500 | L21 | 128 | diagonal_mahalanobis | 0.183 | 0.182 ± 0.033 | 0.283 | 500 |
+| deepseek | math500 | L21 | 128 | empirical_ridge_mahalanobis | 0.183 | 0.182 ± 0.033 | 0.283 | 500 |
+| deepseek | math500 | L21 | 128 | ledoit_wolf_mahalanobis | 0.183 | 0.182 ± 0.033 | 0.283 | 500 |
+| deepseek | math500 | L21 | 128 | rmd_ledoit_wolf | 0.876 | 0.877 ± 0.028 | 0.777 | 500 |
+| deepseek | math500 | L21 | 128 | normalized_rmd_ledoit_wolf | 0.878 | 0.880 ± 0.029 | 0.780 | 500 |
+| deepseek_llama | math500 | L8 | 1 | centroid | 0.311 | 0.304 ± 0.062 | 0.265 | 500 |
+| deepseek_llama | math500 | L8 | 1 | diagonal_mahalanobis | 0.311 | 0.304 ± 0.062 | 0.266 | 500 |
+| deepseek_llama | math500 | L8 | 1 | empirical_ridge_mahalanobis | 0.311 | 0.304 ± 0.062 | 0.266 | 500 |
+| deepseek_llama | math500 | L8 | 1 | ledoit_wolf_mahalanobis | 0.311 | 0.304 ± 0.062 | 0.266 | 500 |
+| deepseek_llama | math500 | L8 | 1 | rmd_ledoit_wolf | 0.699 | 0.706 ± 0.066 | 0.496 | 500 |
+| deepseek_llama | math500 | L8 | 1 | normalized_rmd_ledoit_wolf | 0.716 | 0.724 ± 0.065 | 0.516 | 500 |
+| deepseek_llama | math500 | L8 | 2 | centroid | 0.307 | 0.302 ± 0.077 | 0.263 | 500 |
+| deepseek_llama | math500 | L8 | 2 | diagonal_mahalanobis | 0.312 | 0.305 ± 0.080 | 0.265 | 500 |
+| deepseek_llama | math500 | L8 | 2 | empirical_ridge_mahalanobis | 0.312 | 0.305 ± 0.080 | 0.265 | 500 |
+| deepseek_llama | math500 | L8 | 2 | ledoit_wolf_mahalanobis | 0.312 | 0.305 ± 0.080 | 0.265 | 500 |
+| deepseek_llama | math500 | L8 | 2 | rmd_ledoit_wolf | 0.791 | 0.801 ± 0.031 | 0.665 | 500 |
+| deepseek_llama | math500 | L8 | 2 | normalized_rmd_ledoit_wolf | 0.780 | 0.789 ± 0.043 | 0.619 | 500 |
+| deepseek_llama | math500 | L8 | 4 | centroid | 0.264 | 0.266 ± 0.071 | 0.251 | 500 |
+| deepseek_llama | math500 | L8 | 4 | diagonal_mahalanobis | 0.257 | 0.259 ± 0.068 | 0.249 | 500 |
+| deepseek_llama | math500 | L8 | 4 | empirical_ridge_mahalanobis | 0.257 | 0.259 ± 0.068 | 0.249 | 500 |
+| deepseek_llama | math500 | L8 | 4 | ledoit_wolf_mahalanobis | 0.257 | 0.259 ± 0.068 | 0.249 | 500 |
+| deepseek_llama | math500 | L8 | 4 | rmd_ledoit_wolf | 0.793 | 0.801 ± 0.035 | 0.650 | 500 |
+| deepseek_llama | math500 | L8 | 4 | normalized_rmd_ledoit_wolf | 0.778 | 0.790 ± 0.035 | 0.622 | 500 |
+| deepseek_llama | math500 | L8 | 8 | centroid | 0.226 | 0.229 ± 0.058 | 0.242 | 500 |
+| deepseek_llama | math500 | L8 | 8 | diagonal_mahalanobis | 0.215 | 0.216 ± 0.049 | 0.239 | 500 |
+| deepseek_llama | math500 | L8 | 8 | empirical_ridge_mahalanobis | 0.215 | 0.216 ± 0.049 | 0.239 | 500 |
+| deepseek_llama | math500 | L8 | 8 | ledoit_wolf_mahalanobis | 0.215 | 0.216 ± 0.049 | 0.239 | 500 |
+| deepseek_llama | math500 | L8 | 8 | rmd_ledoit_wolf | 0.782 | 0.788 ± 0.068 | 0.605 | 500 |
+| deepseek_llama | math500 | L8 | 8 | normalized_rmd_ledoit_wolf | 0.780 | 0.787 ± 0.067 | 0.606 | 500 |
+| deepseek_llama | math500 | L8 | 16 | centroid | 0.241 | 0.244 ± 0.069 | 0.245 | 500 |
+| deepseek_llama | math500 | L8 | 16 | diagonal_mahalanobis | 0.251 | 0.251 ± 0.073 | 0.248 | 500 |
+| deepseek_llama | math500 | L8 | 16 | empirical_ridge_mahalanobis | 0.251 | 0.251 ± 0.073 | 0.248 | 500 |
+| deepseek_llama | math500 | L8 | 16 | ledoit_wolf_mahalanobis | 0.251 | 0.251 ± 0.073 | 0.248 | 500 |
+| deepseek_llama | math500 | L8 | 16 | rmd_ledoit_wolf | 0.787 | 0.792 ± 0.064 | 0.613 | 500 |
+| deepseek_llama | math500 | L8 | 16 | normalized_rmd_ledoit_wolf | 0.781 | 0.787 ± 0.064 | 0.598 | 500 |
+| deepseek_llama | math500 | L8 | 32 | centroid | 0.250 | 0.254 ± 0.068 | 0.248 | 500 |
+| deepseek_llama | math500 | L8 | 32 | diagonal_mahalanobis | 0.266 | 0.267 ± 0.070 | 0.252 | 500 |
+| deepseek_llama | math500 | L8 | 32 | empirical_ridge_mahalanobis | 0.266 | 0.267 ± 0.070 | 0.252 | 500 |
+| deepseek_llama | math500 | L8 | 32 | ledoit_wolf_mahalanobis | 0.266 | 0.267 ± 0.070 | 0.252 | 500 |
+| deepseek_llama | math500 | L8 | 32 | rmd_ledoit_wolf | 0.787 | 0.793 ± 0.064 | 0.609 | 500 |
+| deepseek_llama | math500 | L8 | 32 | normalized_rmd_ledoit_wolf | 0.785 | 0.791 ± 0.064 | 0.604 | 500 |
+| deepseek_llama | math500 | L8 | 64 | centroid | 0.275 | 0.274 ± 0.072 | 0.255 | 500 |
+| deepseek_llama | math500 | L8 | 64 | diagonal_mahalanobis | 0.320 | 0.320 ± 0.076 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 64 | empirical_ridge_mahalanobis | 0.320 | 0.320 ± 0.076 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 64 | ledoit_wolf_mahalanobis | 0.320 | 0.320 ± 0.076 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 64 | rmd_ledoit_wolf | 0.786 | 0.791 ± 0.059 | 0.612 | 500 |
+| deepseek_llama | math500 | L8 | 64 | normalized_rmd_ledoit_wolf | 0.785 | 0.791 ± 0.059 | 0.607 | 500 |
+| deepseek_llama | math500 | L8 | 128 | centroid | 0.279 | 0.279 ± 0.071 | 0.256 | 500 |
+| deepseek_llama | math500 | L8 | 128 | diagonal_mahalanobis | 0.325 | 0.323 ± 0.077 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 128 | empirical_ridge_mahalanobis | 0.325 | 0.323 ± 0.077 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 128 | ledoit_wolf_mahalanobis | 0.325 | 0.323 ± 0.077 | 0.270 | 500 |
+| deepseek_llama | math500 | L8 | 128 | rmd_ledoit_wolf | 0.786 | 0.789 ± 0.057 | 0.615 | 500 |
+| deepseek_llama | math500 | L8 | 128 | normalized_rmd_ledoit_wolf | 0.784 | 0.789 ± 0.057 | 0.609 | 500 |
+| deepseek_llama | math500 | L16 | 1 | centroid | 0.343 | 0.342 ± 0.069 | 0.275 | 500 |
+| deepseek_llama | math500 | L16 | 1 | diagonal_mahalanobis | 0.345 | 0.342 ± 0.069 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 1 | empirical_ridge_mahalanobis | 0.345 | 0.342 ± 0.069 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 1 | ledoit_wolf_mahalanobis | 0.345 | 0.342 ± 0.069 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 1 | rmd_ledoit_wolf | 0.592 | 0.600 ± 0.093 | 0.417 | 500 |
+| deepseek_llama | math500 | L16 | 1 | normalized_rmd_ledoit_wolf | 0.607 | 0.623 ± 0.080 | 0.427 | 500 |
+| deepseek_llama | math500 | L16 | 2 | centroid | 0.425 | 0.427 ± 0.068 | 0.311 | 500 |
+| deepseek_llama | math500 | L16 | 2 | diagonal_mahalanobis | 0.442 | 0.443 ± 0.063 | 0.320 | 500 |
+| deepseek_llama | math500 | L16 | 2 | empirical_ridge_mahalanobis | 0.442 | 0.443 ± 0.063 | 0.320 | 500 |
+| deepseek_llama | math500 | L16 | 2 | ledoit_wolf_mahalanobis | 0.442 | 0.443 ± 0.063 | 0.320 | 500 |
+| deepseek_llama | math500 | L16 | 2 | rmd_ledoit_wolf | 0.742 | 0.745 ± 0.044 | 0.592 | 500 |
+| deepseek_llama | math500 | L16 | 2 | normalized_rmd_ledoit_wolf | 0.769 | 0.770 ± 0.054 | 0.601 | 500 |
+| deepseek_llama | math500 | L16 | 4 | centroid | 0.288 | 0.285 ± 0.064 | 0.258 | 500 |
+| deepseek_llama | math500 | L16 | 4 | diagonal_mahalanobis | 0.265 | 0.263 ± 0.063 | 0.252 | 500 |
+| deepseek_llama | math500 | L16 | 4 | empirical_ridge_mahalanobis | 0.265 | 0.263 ± 0.063 | 0.252 | 500 |
+| deepseek_llama | math500 | L16 | 4 | ledoit_wolf_mahalanobis | 0.265 | 0.263 ± 0.063 | 0.252 | 500 |
+| deepseek_llama | math500 | L16 | 4 | rmd_ledoit_wolf | 0.800 | 0.804 ± 0.045 | 0.644 | 500 |
+| deepseek_llama | math500 | L16 | 4 | normalized_rmd_ledoit_wolf | 0.799 | 0.802 ± 0.059 | 0.619 | 500 |
+| deepseek_llama | math500 | L16 | 8 | centroid | 0.235 | 0.236 ± 0.047 | 0.244 | 500 |
+| deepseek_llama | math500 | L16 | 8 | diagonal_mahalanobis | 0.220 | 0.223 ± 0.038 | 0.240 | 500 |
+| deepseek_llama | math500 | L16 | 8 | empirical_ridge_mahalanobis | 0.220 | 0.223 ± 0.038 | 0.240 | 500 |
+| deepseek_llama | math500 | L16 | 8 | ledoit_wolf_mahalanobis | 0.220 | 0.223 ± 0.038 | 0.240 | 500 |
+| deepseek_llama | math500 | L16 | 8 | rmd_ledoit_wolf | 0.781 | 0.787 ± 0.068 | 0.599 | 500 |
+| deepseek_llama | math500 | L16 | 8 | normalized_rmd_ledoit_wolf | 0.774 | 0.778 ± 0.071 | 0.581 | 500 |
+| deepseek_llama | math500 | L16 | 16 | centroid | 0.219 | 0.219 ± 0.051 | 0.240 | 500 |
+| deepseek_llama | math500 | L16 | 16 | diagonal_mahalanobis | 0.211 | 0.207 ± 0.048 | 0.238 | 500 |
+| deepseek_llama | math500 | L16 | 16 | empirical_ridge_mahalanobis | 0.211 | 0.207 ± 0.048 | 0.238 | 500 |
+| deepseek_llama | math500 | L16 | 16 | ledoit_wolf_mahalanobis | 0.211 | 0.207 ± 0.048 | 0.238 | 500 |
+| deepseek_llama | math500 | L16 | 16 | rmd_ledoit_wolf | 0.783 | 0.788 ± 0.063 | 0.602 | 500 |
+| deepseek_llama | math500 | L16 | 16 | normalized_rmd_ledoit_wolf | 0.778 | 0.783 ± 0.065 | 0.583 | 500 |
+| deepseek_llama | math500 | L16 | 32 | centroid | 0.217 | 0.216 ± 0.042 | 0.241 | 500 |
+| deepseek_llama | math500 | L16 | 32 | diagonal_mahalanobis | 0.214 | 0.209 ± 0.036 | 0.242 | 500 |
+| deepseek_llama | math500 | L16 | 32 | empirical_ridge_mahalanobis | 0.214 | 0.209 ± 0.036 | 0.242 | 500 |
+| deepseek_llama | math500 | L16 | 32 | ledoit_wolf_mahalanobis | 0.214 | 0.209 ± 0.036 | 0.242 | 500 |
+| deepseek_llama | math500 | L16 | 32 | rmd_ledoit_wolf | 0.783 | 0.788 ± 0.063 | 0.601 | 500 |
+| deepseek_llama | math500 | L16 | 32 | normalized_rmd_ledoit_wolf | 0.779 | 0.785 ± 0.064 | 0.590 | 500 |
+| deepseek_llama | math500 | L16 | 64 | centroid | 0.246 | 0.246 ± 0.043 | 0.252 | 500 |
+| deepseek_llama | math500 | L16 | 64 | diagonal_mahalanobis | 0.289 | 0.288 ± 0.044 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 64 | empirical_ridge_mahalanobis | 0.289 | 0.288 ± 0.044 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 64 | ledoit_wolf_mahalanobis | 0.289 | 0.288 ± 0.044 | 0.277 | 500 |
+| deepseek_llama | math500 | L16 | 64 | rmd_ledoit_wolf | 0.791 | 0.797 ± 0.058 | 0.621 | 500 |
+| deepseek_llama | math500 | L16 | 64 | normalized_rmd_ledoit_wolf | 0.787 | 0.795 ± 0.061 | 0.606 | 500 |
+| deepseek_llama | math500 | L16 | 128 | centroid | 0.265 | 0.261 ± 0.040 | 0.262 | 500 |
+| deepseek_llama | math500 | L16 | 128 | diagonal_mahalanobis | 0.349 | 0.347 ± 0.039 | 0.306 | 500 |
+| deepseek_llama | math500 | L16 | 128 | empirical_ridge_mahalanobis | 0.348 | 0.347 ± 0.039 | 0.306 | 500 |
+| deepseek_llama | math500 | L16 | 128 | ledoit_wolf_mahalanobis | 0.349 | 0.347 ± 0.039 | 0.306 | 500 |
+| deepseek_llama | math500 | L16 | 128 | rmd_ledoit_wolf | 0.795 | 0.800 ± 0.055 | 0.640 | 500 |
+| deepseek_llama | math500 | L16 | 128 | normalized_rmd_ledoit_wolf | 0.791 | 0.796 ± 0.056 | 0.624 | 500 |
+| deepseek_llama | math500 | L24 | 1 | centroid | 0.499 | 0.498 ± 0.013 | 0.350 | 500 |
+| deepseek_llama | math500 | L24 | 1 | diagonal_mahalanobis | 0.498 | 0.498 ± 0.013 | 0.350 | 500 |
+| deepseek_llama | math500 | L24 | 1 | empirical_ridge_mahalanobis | 0.498 | 0.498 ± 0.013 | 0.350 | 500 |
+| deepseek_llama | math500 | L24 | 1 | ledoit_wolf_mahalanobis | 0.498 | 0.498 ± 0.013 | 0.350 | 500 |
+| deepseek_llama | math500 | L24 | 1 | rmd_ledoit_wolf | 0.679 | 0.683 ± 0.065 | 0.470 | 500 |
+| deepseek_llama | math500 | L24 | 1 | normalized_rmd_ledoit_wolf | 0.669 | 0.671 ± 0.057 | 0.468 | 500 |
+| deepseek_llama | math500 | L24 | 2 | centroid | 0.496 | 0.498 ± 0.052 | 0.361 | 500 |
+| deepseek_llama | math500 | L24 | 2 | diagonal_mahalanobis | 0.493 | 0.495 ± 0.057 | 0.364 | 500 |
+| deepseek_llama | math500 | L24 | 2 | empirical_ridge_mahalanobis | 0.493 | 0.495 ± 0.057 | 0.364 | 500 |
+| deepseek_llama | math500 | L24 | 2 | ledoit_wolf_mahalanobis | 0.493 | 0.495 ± 0.057 | 0.364 | 500 |
+| deepseek_llama | math500 | L24 | 2 | rmd_ledoit_wolf | 0.674 | 0.678 ± 0.086 | 0.467 | 500 |
+| deepseek_llama | math500 | L24 | 2 | normalized_rmd_ledoit_wolf | 0.685 | 0.686 ± 0.082 | 0.478 | 500 |
+| deepseek_llama | math500 | L24 | 4 | centroid | 0.262 | 0.254 ± 0.061 | 0.254 | 500 |
+| deepseek_llama | math500 | L24 | 4 | diagonal_mahalanobis | 0.229 | 0.223 ± 0.057 | 0.244 | 500 |
+| deepseek_llama | math500 | L24 | 4 | empirical_ridge_mahalanobis | 0.229 | 0.223 ± 0.057 | 0.244 | 500 |
+| deepseek_llama | math500 | L24 | 4 | ledoit_wolf_mahalanobis | 0.229 | 0.223 ± 0.057 | 0.244 | 500 |
+| deepseek_llama | math500 | L24 | 4 | rmd_ledoit_wolf | 0.755 | 0.768 ± 0.069 | 0.541 | 500 |
+| deepseek_llama | math500 | L24 | 4 | normalized_rmd_ledoit_wolf | 0.747 | 0.760 ± 0.075 | 0.543 | 500 |
+| deepseek_llama | math500 | L24 | 8 | centroid | 0.222 | 0.221 ± 0.056 | 0.245 | 500 |
+| deepseek_llama | math500 | L24 | 8 | diagonal_mahalanobis | 0.199 | 0.194 ± 0.056 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 8 | empirical_ridge_mahalanobis | 0.199 | 0.194 ± 0.056 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 8 | ledoit_wolf_mahalanobis | 0.199 | 0.194 ± 0.056 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 8 | rmd_ledoit_wolf | 0.788 | 0.796 ± 0.068 | 0.603 | 500 |
+| deepseek_llama | math500 | L24 | 8 | normalized_rmd_ledoit_wolf | 0.776 | 0.788 ± 0.070 | 0.577 | 500 |
+| deepseek_llama | math500 | L24 | 16 | centroid | 0.209 | 0.207 ± 0.047 | 0.241 | 500 |
+| deepseek_llama | math500 | L24 | 16 | diagonal_mahalanobis | 0.195 | 0.190 ± 0.041 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 16 | empirical_ridge_mahalanobis | 0.195 | 0.190 ± 0.041 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 16 | ledoit_wolf_mahalanobis | 0.195 | 0.190 ± 0.041 | 0.238 | 500 |
+| deepseek_llama | math500 | L24 | 16 | rmd_ledoit_wolf | 0.785 | 0.793 ± 0.067 | 0.596 | 500 |
+| deepseek_llama | math500 | L24 | 16 | normalized_rmd_ledoit_wolf | 0.780 | 0.790 ± 0.069 | 0.589 | 500 |
+| deepseek_llama | math500 | L24 | 32 | centroid | 0.225 | 0.221 ± 0.039 | 0.251 | 500 |
+| deepseek_llama | math500 | L24 | 32 | diagonal_mahalanobis | 0.232 | 0.230 ± 0.038 | 0.253 | 500 |
+| deepseek_llama | math500 | L24 | 32 | empirical_ridge_mahalanobis | 0.232 | 0.230 ± 0.038 | 0.253 | 500 |
+| deepseek_llama | math500 | L24 | 32 | ledoit_wolf_mahalanobis | 0.232 | 0.230 ± 0.038 | 0.253 | 500 |
+| deepseek_llama | math500 | L24 | 32 | rmd_ledoit_wolf | 0.786 | 0.793 ± 0.065 | 0.606 | 500 |
+| deepseek_llama | math500 | L24 | 32 | normalized_rmd_ledoit_wolf | 0.783 | 0.792 ± 0.066 | 0.597 | 500 |
+| deepseek_llama | math500 | L24 | 64 | centroid | 0.262 | 0.259 ± 0.045 | 0.264 | 500 |
+| deepseek_llama | math500 | L24 | 64 | diagonal_mahalanobis | 0.308 | 0.308 ± 0.044 | 0.284 | 500 |
+| deepseek_llama | math500 | L24 | 64 | empirical_ridge_mahalanobis | 0.308 | 0.308 ± 0.044 | 0.284 | 500 |
+| deepseek_llama | math500 | L24 | 64 | ledoit_wolf_mahalanobis | 0.308 | 0.308 ± 0.044 | 0.284 | 500 |
+| deepseek_llama | math500 | L24 | 64 | rmd_ledoit_wolf | 0.790 | 0.797 ± 0.058 | 0.621 | 500 |
+| deepseek_llama | math500 | L24 | 64 | normalized_rmd_ledoit_wolf | 0.786 | 0.794 ± 0.057 | 0.609 | 500 |
+| deepseek_llama | math500 | L24 | 128 | centroid | 0.297 | 0.293 ± 0.042 | 0.279 | 500 |
+| deepseek_llama | math500 | L24 | 128 | diagonal_mahalanobis | 0.383 | 0.380 ± 0.039 | 0.317 | 500 |
+| deepseek_llama | math500 | L24 | 128 | empirical_ridge_mahalanobis | 0.383 | 0.380 ± 0.039 | 0.317 | 500 |
+| deepseek_llama | math500 | L24 | 128 | ledoit_wolf_mahalanobis | 0.383 | 0.380 ± 0.039 | 0.317 | 500 |
+| deepseek_llama | math500 | L24 | 128 | rmd_ledoit_wolf | 0.797 | 0.802 ± 0.053 | 0.640 | 500 |
+| deepseek_llama | math500 | L24 | 128 | normalized_rmd_ledoit_wolf | 0.791 | 0.798 ± 0.055 | 0.625 | 500 |
+| llama | math500 | L8 | 1 | centroid | 0.482 | 0.478 ± 0.052 | 0.344 | 500 |
+| llama | math500 | L8 | 1 | diagonal_mahalanobis | 0.482 | 0.478 ± 0.052 | 0.345 | 500 |
+| llama | math500 | L8 | 1 | empirical_ridge_mahalanobis | 0.482 | 0.478 ± 0.052 | 0.345 | 500 |
+| llama | math500 | L8 | 1 | ledoit_wolf_mahalanobis | 0.482 | 0.478 ± 0.052 | 0.345 | 500 |
+| llama | math500 | L8 | 1 | rmd_ledoit_wolf | 0.602 | 0.607 ± 0.039 | 0.431 | 500 |
+| llama | math500 | L8 | 1 | normalized_rmd_ledoit_wolf | 0.612 | 0.616 ± 0.037 | 0.439 | 500 |
+| llama | math500 | L8 | 2 | centroid | 0.392 | 0.384 ± 0.066 | 0.295 | 500 |
+| llama | math500 | L8 | 2 | diagonal_mahalanobis | 0.363 | 0.357 ± 0.072 | 0.281 | 500 |
+| llama | math500 | L8 | 2 | empirical_ridge_mahalanobis | 0.363 | 0.357 ± 0.072 | 0.281 | 500 |
+| llama | math500 | L8 | 2 | ledoit_wolf_mahalanobis | 0.363 | 0.357 ± 0.072 | 0.281 | 500 |
+| llama | math500 | L8 | 2 | rmd_ledoit_wolf | 0.729 | 0.729 ± 0.046 | 0.610 | 500 |
+| llama | math500 | L8 | 2 | normalized_rmd_ledoit_wolf | 0.702 | 0.702 ± 0.039 | 0.568 | 500 |
+| llama | math500 | L8 | 4 | centroid | 0.375 | 0.372 ± 0.061 | 0.284 | 500 |
+| llama | math500 | L8 | 4 | diagonal_mahalanobis | 0.355 | 0.350 ± 0.060 | 0.275 | 500 |
+| llama | math500 | L8 | 4 | empirical_ridge_mahalanobis | 0.355 | 0.350 ± 0.060 | 0.275 | 500 |
+| llama | math500 | L8 | 4 | ledoit_wolf_mahalanobis | 0.355 | 0.350 ± 0.060 | 0.275 | 500 |
+| llama | math500 | L8 | 4 | rmd_ledoit_wolf | 0.736 | 0.743 ± 0.040 | 0.609 | 500 |
+| llama | math500 | L8 | 4 | normalized_rmd_ledoit_wolf | 0.706 | 0.707 ± 0.043 | 0.583 | 500 |
+| llama | math500 | L8 | 8 | centroid | 0.372 | 0.364 ± 0.065 | 0.282 | 500 |
+| llama | math500 | L8 | 8 | diagonal_mahalanobis | 0.354 | 0.346 ± 0.065 | 0.273 | 500 |
+| llama | math500 | L8 | 8 | empirical_ridge_mahalanobis | 0.354 | 0.346 ± 0.065 | 0.273 | 500 |
+| llama | math500 | L8 | 8 | ledoit_wolf_mahalanobis | 0.354 | 0.346 ± 0.065 | 0.273 | 500 |
+| llama | math500 | L8 | 8 | rmd_ledoit_wolf | 0.748 | 0.751 ± 0.035 | 0.603 | 500 |
+| llama | math500 | L8 | 8 | normalized_rmd_ledoit_wolf | 0.747 | 0.747 ± 0.028 | 0.621 | 500 |
+| llama | math500 | L8 | 16 | centroid | 0.367 | 0.362 ± 0.073 | 0.282 | 500 |
+| llama | math500 | L8 | 16 | diagonal_mahalanobis | 0.360 | 0.357 ± 0.073 | 0.279 | 500 |
+| llama | math500 | L8 | 16 | empirical_ridge_mahalanobis | 0.360 | 0.357 ± 0.073 | 0.279 | 500 |
+| llama | math500 | L8 | 16 | ledoit_wolf_mahalanobis | 0.360 | 0.357 ± 0.073 | 0.279 | 500 |
+| llama | math500 | L8 | 16 | rmd_ledoit_wolf | 0.776 | 0.777 ± 0.027 | 0.629 | 500 |
+| llama | math500 | L8 | 16 | normalized_rmd_ledoit_wolf | 0.764 | 0.767 ± 0.025 | 0.609 | 500 |
+| llama | math500 | L8 | 32 | centroid | 0.357 | 0.352 ± 0.067 | 0.274 | 500 |
+| llama | math500 | L8 | 32 | diagonal_mahalanobis | 0.345 | 0.340 ± 0.061 | 0.268 | 500 |
+| llama | math500 | L8 | 32 | empirical_ridge_mahalanobis | 0.345 | 0.341 ± 0.061 | 0.268 | 500 |
+| llama | math500 | L8 | 32 | ledoit_wolf_mahalanobis | 0.345 | 0.341 ± 0.061 | 0.268 | 500 |
+| llama | math500 | L8 | 32 | rmd_ledoit_wolf | 0.773 | 0.774 ± 0.019 | 0.617 | 500 |
+| llama | math500 | L8 | 32 | normalized_rmd_ledoit_wolf | 0.772 | 0.774 ± 0.021 | 0.612 | 500 |
+| llama | math500 | L8 | 64 | centroid | 0.361 | 0.354 ± 0.072 | 0.275 | 500 |
+| llama | math500 | L8 | 64 | diagonal_mahalanobis | 0.370 | 0.364 ± 0.069 | 0.276 | 500 |
+| llama | math500 | L8 | 64 | empirical_ridge_mahalanobis | 0.370 | 0.364 ± 0.069 | 0.276 | 500 |
+| llama | math500 | L8 | 64 | ledoit_wolf_mahalanobis | 0.370 | 0.364 ± 0.069 | 0.276 | 500 |
+| llama | math500 | L8 | 64 | rmd_ledoit_wolf | 0.773 | 0.776 ± 0.013 | 0.608 | 500 |
+| llama | math500 | L8 | 64 | normalized_rmd_ledoit_wolf | 0.773 | 0.774 ± 0.013 | 0.605 | 500 |
+| llama | math500 | L8 | 128 | centroid | 0.362 | 0.357 ± 0.070 | 0.274 | 500 |
+| llama | math500 | L8 | 128 | diagonal_mahalanobis | 0.385 | 0.379 ± 0.069 | 0.282 | 500 |
+| llama | math500 | L8 | 128 | empirical_ridge_mahalanobis | 0.385 | 0.379 ± 0.069 | 0.282 | 500 |
+| llama | math500 | L8 | 128 | ledoit_wolf_mahalanobis | 0.385 | 0.379 ± 0.069 | 0.282 | 500 |
+| llama | math500 | L8 | 128 | rmd_ledoit_wolf | 0.771 | 0.771 ± 0.011 | 0.600 | 500 |
+| llama | math500 | L8 | 128 | normalized_rmd_ledoit_wolf | 0.771 | 0.772 ± 0.010 | 0.604 | 500 |
+| llama | math500 | L16 | 1 | centroid | 0.638 | 0.638 ± 0.062 | 0.463 | 500 |
+| llama | math500 | L16 | 1 | diagonal_mahalanobis | 0.638 | 0.638 ± 0.062 | 0.465 | 500 |
+| llama | math500 | L16 | 1 | empirical_ridge_mahalanobis | 0.638 | 0.638 ± 0.062 | 0.465 | 500 |
+| llama | math500 | L16 | 1 | ledoit_wolf_mahalanobis | 0.638 | 0.638 ± 0.062 | 0.465 | 500 |
+| llama | math500 | L16 | 1 | rmd_ledoit_wolf | 0.672 | 0.675 ± 0.058 | 0.490 | 500 |
+| llama | math500 | L16 | 1 | normalized_rmd_ledoit_wolf | 0.656 | 0.658 ± 0.050 | 0.454 | 500 |
+| llama | math500 | L16 | 2 | centroid | 0.588 | 0.588 ± 0.047 | 0.414 | 500 |
+| llama | math500 | L16 | 2 | diagonal_mahalanobis | 0.571 | 0.569 ± 0.041 | 0.400 | 500 |
+| llama | math500 | L16 | 2 | empirical_ridge_mahalanobis | 0.571 | 0.569 ± 0.041 | 0.400 | 500 |
+| llama | math500 | L16 | 2 | ledoit_wolf_mahalanobis | 0.571 | 0.569 ± 0.041 | 0.400 | 500 |
+| llama | math500 | L16 | 2 | rmd_ledoit_wolf | 0.704 | 0.707 ± 0.061 | 0.508 | 500 |
+| llama | math500 | L16 | 2 | normalized_rmd_ledoit_wolf | 0.673 | 0.676 ± 0.063 | 0.470 | 500 |
+| llama | math500 | L16 | 4 | centroid | 0.440 | 0.437 ± 0.077 | 0.317 | 500 |
+| llama | math500 | L16 | 4 | diagonal_mahalanobis | 0.358 | 0.356 ± 0.084 | 0.276 | 500 |
+| llama | math500 | L16 | 4 | empirical_ridge_mahalanobis | 0.358 | 0.356 ± 0.083 | 0.276 | 500 |
+| llama | math500 | L16 | 4 | ledoit_wolf_mahalanobis | 0.358 | 0.356 ± 0.083 | 0.276 | 500 |
+| llama | math500 | L16 | 4 | rmd_ledoit_wolf | 0.751 | 0.755 ± 0.052 | 0.618 | 500 |
+| llama | math500 | L16 | 4 | normalized_rmd_ledoit_wolf | 0.726 | 0.730 ± 0.050 | 0.582 | 500 |
+| llama | math500 | L16 | 8 | centroid | 0.384 | 0.382 ± 0.078 | 0.292 | 500 |
+| llama | math500 | L16 | 8 | diagonal_mahalanobis | 0.309 | 0.309 ± 0.072 | 0.257 | 500 |
+| llama | math500 | L16 | 8 | empirical_ridge_mahalanobis | 0.309 | 0.309 ± 0.072 | 0.257 | 500 |
+| llama | math500 | L16 | 8 | ledoit_wolf_mahalanobis | 0.309 | 0.309 ± 0.072 | 0.257 | 500 |
+| llama | math500 | L16 | 8 | rmd_ledoit_wolf | 0.753 | 0.755 ± 0.040 | 0.615 | 500 |
+| llama | math500 | L16 | 8 | normalized_rmd_ledoit_wolf | 0.737 | 0.738 ± 0.040 | 0.607 | 500 |
+| llama | math500 | L16 | 16 | centroid | 0.348 | 0.343 ± 0.075 | 0.279 | 500 |
+| llama | math500 | L16 | 16 | diagonal_mahalanobis | 0.291 | 0.288 ± 0.062 | 0.262 | 500 |
+| llama | math500 | L16 | 16 | empirical_ridge_mahalanobis | 0.291 | 0.288 ± 0.062 | 0.262 | 500 |
+| llama | math500 | L16 | 16 | ledoit_wolf_mahalanobis | 0.291 | 0.288 ± 0.062 | 0.262 | 500 |
+| llama | math500 | L16 | 16 | rmd_ledoit_wolf | 0.762 | 0.761 ± 0.036 | 0.582 | 500 |
+| llama | math500 | L16 | 16 | normalized_rmd_ledoit_wolf | 0.759 | 0.758 ± 0.035 | 0.589 | 500 |
+| llama | math500 | L16 | 32 | centroid | 0.338 | 0.336 ± 0.074 | 0.272 | 500 |
+| llama | math500 | L16 | 32 | diagonal_mahalanobis | 0.299 | 0.298 ± 0.052 | 0.255 | 500 |
+| llama | math500 | L16 | 32 | empirical_ridge_mahalanobis | 0.299 | 0.298 ± 0.052 | 0.255 | 500 |
+| llama | math500 | L16 | 32 | ledoit_wolf_mahalanobis | 0.299 | 0.298 ± 0.052 | 0.255 | 500 |
+| llama | math500 | L16 | 32 | rmd_ledoit_wolf | 0.788 | 0.792 ± 0.029 | 0.632 | 500 |
+| llama | math500 | L16 | 32 | normalized_rmd_ledoit_wolf | 0.787 | 0.789 ± 0.028 | 0.632 | 500 |
+| llama | math500 | L16 | 64 | centroid | 0.346 | 0.346 ± 0.074 | 0.278 | 500 |
+| llama | math500 | L16 | 64 | diagonal_mahalanobis | 0.342 | 0.340 ± 0.055 | 0.268 | 500 |
+| llama | math500 | L16 | 64 | empirical_ridge_mahalanobis | 0.342 | 0.340 ± 0.055 | 0.268 | 500 |
+| llama | math500 | L16 | 64 | ledoit_wolf_mahalanobis | 0.342 | 0.340 ± 0.055 | 0.268 | 500 |
+| llama | math500 | L16 | 64 | rmd_ledoit_wolf | 0.800 | 0.804 ± 0.021 | 0.620 | 500 |
+| llama | math500 | L16 | 64 | normalized_rmd_ledoit_wolf | 0.802 | 0.805 ± 0.019 | 0.630 | 500 |
+| llama | math500 | L16 | 128 | centroid | 0.348 | 0.348 ± 0.070 | 0.277 | 500 |
+| llama | math500 | L16 | 128 | diagonal_mahalanobis | 0.369 | 0.369 ± 0.051 | 0.275 | 500 |
+| llama | math500 | L16 | 128 | empirical_ridge_mahalanobis | 0.369 | 0.369 ± 0.051 | 0.275 | 500 |
+| llama | math500 | L16 | 128 | ledoit_wolf_mahalanobis | 0.369 | 0.369 ± 0.051 | 0.276 | 500 |
+| llama | math500 | L16 | 128 | rmd_ledoit_wolf | 0.798 | 0.799 ± 0.017 | 0.621 | 500 |
+| llama | math500 | L16 | 128 | normalized_rmd_ledoit_wolf | 0.800 | 0.801 ± 0.015 | 0.630 | 500 |
+| llama | math500 | L24 | 1 | centroid | 0.647 | 0.647 ± 0.012 | 0.443 | 500 |
+| llama | math500 | L24 | 1 | diagonal_mahalanobis | 0.646 | 0.647 ± 0.012 | 0.443 | 500 |
+| llama | math500 | L24 | 1 | empirical_ridge_mahalanobis | 0.646 | 0.647 ± 0.012 | 0.443 | 500 |
+| llama | math500 | L24 | 1 | ledoit_wolf_mahalanobis | 0.646 | 0.647 ± 0.012 | 0.443 | 500 |
+| llama | math500 | L24 | 1 | rmd_ledoit_wolf | 0.667 | 0.667 ± 0.043 | 0.477 | 500 |
+| llama | math500 | L24 | 1 | normalized_rmd_ledoit_wolf | 0.644 | 0.643 ± 0.049 | 0.462 | 500 |
+| llama | math500 | L24 | 2 | centroid | 0.570 | 0.566 ± 0.029 | 0.378 | 500 |
+| llama | math500 | L24 | 2 | diagonal_mahalanobis | 0.525 | 0.520 ± 0.045 | 0.354 | 500 |
+| llama | math500 | L24 | 2 | empirical_ridge_mahalanobis | 0.525 | 0.520 ± 0.045 | 0.354 | 500 |
+| llama | math500 | L24 | 2 | ledoit_wolf_mahalanobis | 0.525 | 0.520 ± 0.045 | 0.354 | 500 |
+| llama | math500 | L24 | 2 | rmd_ledoit_wolf | 0.690 | 0.690 ± 0.040 | 0.496 | 500 |
+| llama | math500 | L24 | 2 | normalized_rmd_ledoit_wolf | 0.698 | 0.697 ± 0.040 | 0.517 | 500 |
+| llama | math500 | L24 | 4 | centroid | 0.482 | 0.482 ± 0.026 | 0.330 | 500 |
+| llama | math500 | L24 | 4 | diagonal_mahalanobis | 0.379 | 0.382 ± 0.047 | 0.284 | 500 |
+| llama | math500 | L24 | 4 | empirical_ridge_mahalanobis | 0.379 | 0.382 ± 0.047 | 0.284 | 500 |
+| llama | math500 | L24 | 4 | ledoit_wolf_mahalanobis | 0.379 | 0.382 ± 0.047 | 0.284 | 500 |
+| llama | math500 | L24 | 4 | rmd_ledoit_wolf | 0.710 | 0.708 ± 0.036 | 0.512 | 500 |
+| llama | math500 | L24 | 4 | normalized_rmd_ledoit_wolf | 0.703 | 0.699 ± 0.036 | 0.527 | 500 |
+| llama | math500 | L24 | 8 | centroid | 0.394 | 0.393 ± 0.045 | 0.295 | 500 |
+| llama | math500 | L24 | 8 | diagonal_mahalanobis | 0.301 | 0.299 ± 0.044 | 0.252 | 500 |
+| llama | math500 | L24 | 8 | empirical_ridge_mahalanobis | 0.301 | 0.299 ± 0.044 | 0.252 | 500 |
+| llama | math500 | L24 | 8 | ledoit_wolf_mahalanobis | 0.301 | 0.299 ± 0.044 | 0.252 | 500 |
+| llama | math500 | L24 | 8 | rmd_ledoit_wolf | 0.748 | 0.748 ± 0.029 | 0.587 | 500 |
+| llama | math500 | L24 | 8 | normalized_rmd_ledoit_wolf | 0.761 | 0.760 ± 0.028 | 0.600 | 500 |
+| llama | math500 | L24 | 16 | centroid | 0.371 | 0.370 ± 0.055 | 0.285 | 500 |
+| llama | math500 | L24 | 16 | diagonal_mahalanobis | 0.313 | 0.312 ± 0.059 | 0.258 | 500 |
+| llama | math500 | L24 | 16 | empirical_ridge_mahalanobis | 0.313 | 0.312 ± 0.059 | 0.258 | 500 |
+| llama | math500 | L24 | 16 | ledoit_wolf_mahalanobis | 0.313 | 0.312 ± 0.059 | 0.258 | 500 |
+| llama | math500 | L24 | 16 | rmd_ledoit_wolf | 0.766 | 0.767 ± 0.014 | 0.577 | 500 |
+| llama | math500 | L24 | 16 | normalized_rmd_ledoit_wolf | 0.766 | 0.766 ± 0.016 | 0.596 | 500 |
+| llama | math500 | L24 | 32 | centroid | 0.381 | 0.377 ± 0.055 | 0.284 | 500 |
+| llama | math500 | L24 | 32 | diagonal_mahalanobis | 0.360 | 0.358 ± 0.050 | 0.274 | 500 |
+| llama | math500 | L24 | 32 | empirical_ridge_mahalanobis | 0.360 | 0.358 ± 0.050 | 0.274 | 500 |
+| llama | math500 | L24 | 32 | ledoit_wolf_mahalanobis | 0.360 | 0.358 ± 0.050 | 0.274 | 500 |
+| llama | math500 | L24 | 32 | rmd_ledoit_wolf | 0.771 | 0.772 ± 0.011 | 0.583 | 500 |
+| llama | math500 | L24 | 32 | normalized_rmd_ledoit_wolf | 0.775 | 0.776 ± 0.011 | 0.600 | 500 |
+| llama | math500 | L24 | 64 | centroid | 0.413 | 0.413 ± 0.062 | 0.297 | 500 |
+| llama | math500 | L24 | 64 | diagonal_mahalanobis | 0.441 | 0.442 ± 0.068 | 0.310 | 500 |
+| llama | math500 | L24 | 64 | empirical_ridge_mahalanobis | 0.441 | 0.442 ± 0.068 | 0.310 | 500 |
+| llama | math500 | L24 | 64 | ledoit_wolf_mahalanobis | 0.441 | 0.442 ± 0.068 | 0.310 | 500 |
+| llama | math500 | L24 | 64 | rmd_ledoit_wolf | 0.781 | 0.781 ± 0.012 | 0.590 | 500 |
+| llama | math500 | L24 | 64 | normalized_rmd_ledoit_wolf | 0.789 | 0.789 ± 0.010 | 0.612 | 500 |
+| llama | math500 | L24 | 128 | centroid | 0.407 | 0.409 ± 0.058 | 0.295 | 500 |
+| llama | math500 | L24 | 128 | diagonal_mahalanobis | 0.433 | 0.432 ± 0.059 | 0.300 | 500 |
+| llama | math500 | L24 | 128 | empirical_ridge_mahalanobis | 0.433 | 0.432 ± 0.059 | 0.300 | 500 |
+| llama | math500 | L24 | 128 | ledoit_wolf_mahalanobis | 0.433 | 0.432 ± 0.059 | 0.300 | 500 |
+| llama | math500 | L24 | 128 | rmd_ledoit_wolf | 0.775 | 0.775 ± 0.011 | 0.584 | 500 |
+| llama | math500 | L24 | 128 | normalized_rmd_ledoit_wolf | 0.783 | 0.783 ± 0.010 | 0.609 | 500 |
+| qwen | math500 | L7 | 1 | centroid | 0.400 | 0.402 ± 0.012 | 0.511 | 500 |
+| qwen | math500 | L7 | 1 | diagonal_mahalanobis | 0.400 | 0.402 ± 0.012 | 0.512 | 500 |
+| qwen | math500 | L7 | 1 | empirical_ridge_mahalanobis | 0.400 | 0.402 ± 0.012 | 0.512 | 500 |
+| qwen | math500 | L7 | 1 | ledoit_wolf_mahalanobis | 0.400 | 0.402 ± 0.012 | 0.512 | 500 |
+| qwen | math500 | L7 | 1 | rmd_ledoit_wolf | 0.634 | 0.634 ± 0.020 | 0.658 | 500 |
+| qwen | math500 | L7 | 1 | normalized_rmd_ledoit_wolf | 0.642 | 0.642 ± 0.021 | 0.675 | 500 |
+| qwen | math500 | L7 | 2 | centroid | 0.391 | 0.395 ± 0.021 | 0.498 | 500 |
+| qwen | math500 | L7 | 2 | diagonal_mahalanobis | 0.394 | 0.395 ± 0.025 | 0.500 | 500 |
+| qwen | math500 | L7 | 2 | empirical_ridge_mahalanobis | 0.394 | 0.395 ± 0.025 | 0.500 | 500 |
+| qwen | math500 | L7 | 2 | ledoit_wolf_mahalanobis | 0.394 | 0.395 ± 0.025 | 0.500 | 500 |
+| qwen | math500 | L7 | 2 | rmd_ledoit_wolf | 0.597 | 0.593 ± 0.033 | 0.609 | 500 |
+| qwen | math500 | L7 | 2 | normalized_rmd_ledoit_wolf | 0.613 | 0.610 ± 0.030 | 0.620 | 500 |
+| qwen | math500 | L7 | 4 | centroid | 0.419 | 0.422 ± 0.025 | 0.527 | 500 |
+| qwen | math500 | L7 | 4 | diagonal_mahalanobis | 0.430 | 0.430 ± 0.030 | 0.534 | 500 |
+| qwen | math500 | L7 | 4 | empirical_ridge_mahalanobis | 0.430 | 0.430 ± 0.030 | 0.534 | 500 |
+| qwen | math500 | L7 | 4 | ledoit_wolf_mahalanobis | 0.430 | 0.430 ± 0.030 | 0.534 | 500 |
+| qwen | math500 | L7 | 4 | rmd_ledoit_wolf | 0.660 | 0.663 ± 0.044 | 0.668 | 500 |
+| qwen | math500 | L7 | 4 | normalized_rmd_ledoit_wolf | 0.679 | 0.682 ± 0.036 | 0.689 | 500 |
+| qwen | math500 | L7 | 8 | centroid | 0.416 | 0.420 ± 0.031 | 0.522 | 500 |
+| qwen | math500 | L7 | 8 | diagonal_mahalanobis | 0.428 | 0.432 ± 0.040 | 0.525 | 500 |
+| qwen | math500 | L7 | 8 | empirical_ridge_mahalanobis | 0.428 | 0.432 ± 0.040 | 0.525 | 500 |
+| qwen | math500 | L7 | 8 | ledoit_wolf_mahalanobis | 0.428 | 0.432 ± 0.040 | 0.525 | 500 |
+| qwen | math500 | L7 | 8 | rmd_ledoit_wolf | 0.694 | 0.700 ± 0.049 | 0.719 | 500 |
+| qwen | math500 | L7 | 8 | normalized_rmd_ledoit_wolf | 0.684 | 0.691 ± 0.048 | 0.701 | 500 |
+| qwen | math500 | L7 | 16 | centroid | 0.446 | 0.449 ± 0.039 | 0.532 | 500 |
+| qwen | math500 | L7 | 16 | diagonal_mahalanobis | 0.473 | 0.477 ± 0.035 | 0.542 | 500 |
+| qwen | math500 | L7 | 16 | empirical_ridge_mahalanobis | 0.473 | 0.477 ± 0.035 | 0.542 | 500 |
+| qwen | math500 | L7 | 16 | ledoit_wolf_mahalanobis | 0.473 | 0.477 ± 0.035 | 0.542 | 500 |
+| qwen | math500 | L7 | 16 | rmd_ledoit_wolf | 0.723 | 0.724 ± 0.041 | 0.745 | 500 |
+| qwen | math500 | L7 | 16 | normalized_rmd_ledoit_wolf | 0.719 | 0.722 ± 0.043 | 0.741 | 500 |
+| qwen | math500 | L7 | 32 | centroid | 0.428 | 0.429 ± 0.037 | 0.520 | 500 |
+| qwen | math500 | L7 | 32 | diagonal_mahalanobis | 0.430 | 0.432 ± 0.038 | 0.509 | 500 |
+| qwen | math500 | L7 | 32 | empirical_ridge_mahalanobis | 0.430 | 0.432 ± 0.038 | 0.509 | 500 |
+| qwen | math500 | L7 | 32 | ledoit_wolf_mahalanobis | 0.430 | 0.432 ± 0.038 | 0.509 | 500 |
+| qwen | math500 | L7 | 32 | rmd_ledoit_wolf | 0.728 | 0.728 ± 0.036 | 0.747 | 500 |
+| qwen | math500 | L7 | 32 | normalized_rmd_ledoit_wolf | 0.726 | 0.725 ± 0.036 | 0.746 | 500 |
+| qwen | math500 | L7 | 64 | centroid | 0.411 | 0.411 ± 0.034 | 0.502 | 500 |
+| qwen | math500 | L7 | 64 | diagonal_mahalanobis | 0.411 | 0.410 ± 0.047 | 0.492 | 500 |
+| qwen | math500 | L7 | 64 | empirical_ridge_mahalanobis | 0.411 | 0.410 ± 0.047 | 0.492 | 500 |
+| qwen | math500 | L7 | 64 | ledoit_wolf_mahalanobis | 0.411 | 0.410 ± 0.047 | 0.492 | 500 |
+| qwen | math500 | L7 | 64 | rmd_ledoit_wolf | 0.734 | 0.734 ± 0.031 | 0.724 | 500 |
+| qwen | math500 | L7 | 64 | normalized_rmd_ledoit_wolf | 0.731 | 0.732 ± 0.035 | 0.727 | 500 |
+| qwen | math500 | L7 | 128 | centroid | 0.390 | 0.388 ± 0.041 | 0.487 | 500 |
+| qwen | math500 | L7 | 128 | diagonal_mahalanobis | 0.412 | 0.411 ± 0.045 | 0.502 | 500 |
+| qwen | math500 | L7 | 128 | empirical_ridge_mahalanobis | 0.412 | 0.411 ± 0.045 | 0.502 | 500 |
+| qwen | math500 | L7 | 128 | ledoit_wolf_mahalanobis | 0.412 | 0.411 ± 0.045 | 0.502 | 500 |
+| qwen | math500 | L7 | 128 | rmd_ledoit_wolf | 0.744 | 0.742 ± 0.029 | 0.732 | 500 |
+| qwen | math500 | L7 | 128 | normalized_rmd_ledoit_wolf | 0.744 | 0.743 ± 0.031 | 0.736 | 500 |
+| qwen | math500 | L14 | 1 | centroid | 0.465 | 0.468 ± 0.036 | 0.536 | 500 |
+| qwen | math500 | L14 | 1 | diagonal_mahalanobis | 0.465 | 0.468 ± 0.036 | 0.536 | 500 |
+| qwen | math500 | L14 | 1 | empirical_ridge_mahalanobis | 0.465 | 0.468 ± 0.036 | 0.536 | 500 |
+| qwen | math500 | L14 | 1 | ledoit_wolf_mahalanobis | 0.465 | 0.468 ± 0.036 | 0.536 | 500 |
+| qwen | math500 | L14 | 1 | rmd_ledoit_wolf | 0.610 | 0.608 ± 0.030 | 0.632 | 500 |
+| qwen | math500 | L14 | 1 | normalized_rmd_ledoit_wolf | 0.636 | 0.636 ± 0.017 | 0.661 | 500 |
+| qwen | math500 | L14 | 2 | centroid | 0.475 | 0.475 ± 0.054 | 0.542 | 500 |
+| qwen | math500 | L14 | 2 | diagonal_mahalanobis | 0.479 | 0.478 ± 0.055 | 0.545 | 500 |
+| qwen | math500 | L14 | 2 | empirical_ridge_mahalanobis | 0.479 | 0.478 ± 0.055 | 0.545 | 500 |
+| qwen | math500 | L14 | 2 | ledoit_wolf_mahalanobis | 0.479 | 0.478 ± 0.055 | 0.545 | 500 |
+| qwen | math500 | L14 | 2 | rmd_ledoit_wolf | 0.613 | 0.613 ± 0.029 | 0.624 | 500 |
+| qwen | math500 | L14 | 2 | normalized_rmd_ledoit_wolf | 0.610 | 0.607 ± 0.028 | 0.619 | 500 |
+| qwen | math500 | L14 | 4 | centroid | 0.472 | 0.474 ± 0.052 | 0.553 | 500 |
+| qwen | math500 | L14 | 4 | diagonal_mahalanobis | 0.476 | 0.477 ± 0.052 | 0.558 | 500 |
+| qwen | math500 | L14 | 4 | empirical_ridge_mahalanobis | 0.476 | 0.477 ± 0.052 | 0.558 | 500 |
+| qwen | math500 | L14 | 4 | ledoit_wolf_mahalanobis | 0.476 | 0.477 ± 0.052 | 0.558 | 500 |
+| qwen | math500 | L14 | 4 | rmd_ledoit_wolf | 0.713 | 0.716 ± 0.018 | 0.755 | 500 |
+| qwen | math500 | L14 | 4 | normalized_rmd_ledoit_wolf | 0.685 | 0.682 ± 0.019 | 0.720 | 500 |
+| qwen | math500 | L14 | 8 | centroid | 0.416 | 0.416 ± 0.051 | 0.511 | 500 |
+| qwen | math500 | L14 | 8 | diagonal_mahalanobis | 0.383 | 0.383 ± 0.051 | 0.489 | 500 |
+| qwen | math500 | L14 | 8 | empirical_ridge_mahalanobis | 0.383 | 0.383 ± 0.051 | 0.489 | 500 |
+| qwen | math500 | L14 | 8 | ledoit_wolf_mahalanobis | 0.383 | 0.383 ± 0.051 | 0.489 | 500 |
+| qwen | math500 | L14 | 8 | rmd_ledoit_wolf | 0.726 | 0.725 ± 0.024 | 0.761 | 500 |
+| qwen | math500 | L14 | 8 | normalized_rmd_ledoit_wolf | 0.721 | 0.720 ± 0.034 | 0.760 | 500 |
+| qwen | math500 | L14 | 16 | centroid | 0.421 | 0.423 ± 0.049 | 0.521 | 500 |
+| qwen | math500 | L14 | 16 | diagonal_mahalanobis | 0.412 | 0.412 ± 0.048 | 0.515 | 500 |
+| qwen | math500 | L14 | 16 | empirical_ridge_mahalanobis | 0.412 | 0.412 ± 0.048 | 0.515 | 500 |
+| qwen | math500 | L14 | 16 | ledoit_wolf_mahalanobis | 0.412 | 0.412 ± 0.048 | 0.515 | 500 |
+| qwen | math500 | L14 | 16 | rmd_ledoit_wolf | 0.758 | 0.758 ± 0.031 | 0.758 | 500 |
+| qwen | math500 | L14 | 16 | normalized_rmd_ledoit_wolf | 0.753 | 0.754 ± 0.030 | 0.761 | 500 |
+| qwen | math500 | L14 | 32 | centroid | 0.400 | 0.400 ± 0.047 | 0.503 | 500 |
+| qwen | math500 | L14 | 32 | diagonal_mahalanobis | 0.385 | 0.385 ± 0.041 | 0.491 | 500 |
+| qwen | math500 | L14 | 32 | empirical_ridge_mahalanobis | 0.385 | 0.385 ± 0.041 | 0.491 | 500 |
+| qwen | math500 | L14 | 32 | ledoit_wolf_mahalanobis | 0.385 | 0.385 ± 0.041 | 0.491 | 500 |
+| qwen | math500 | L14 | 32 | rmd_ledoit_wolf | 0.767 | 0.766 ± 0.030 | 0.765 | 500 |
+| qwen | math500 | L14 | 32 | normalized_rmd_ledoit_wolf | 0.769 | 0.767 ± 0.032 | 0.775 | 500 |
+| qwen | math500 | L14 | 64 | centroid | 0.405 | 0.406 ± 0.052 | 0.502 | 500 |
+| qwen | math500 | L14 | 64 | diagonal_mahalanobis | 0.405 | 0.403 ± 0.050 | 0.499 | 500 |
+| qwen | math500 | L14 | 64 | empirical_ridge_mahalanobis | 0.405 | 0.403 ± 0.050 | 0.499 | 500 |
+| qwen | math500 | L14 | 64 | ledoit_wolf_mahalanobis | 0.405 | 0.403 ± 0.050 | 0.499 | 500 |
+| qwen | math500 | L14 | 64 | rmd_ledoit_wolf | 0.776 | 0.777 ± 0.028 | 0.760 | 500 |
+| qwen | math500 | L14 | 64 | normalized_rmd_ledoit_wolf | 0.779 | 0.778 ± 0.025 | 0.766 | 500 |
+| qwen | math500 | L14 | 128 | centroid | 0.398 | 0.394 ± 0.049 | 0.497 | 500 |
+| qwen | math500 | L14 | 128 | diagonal_mahalanobis | 0.405 | 0.401 ± 0.050 | 0.497 | 500 |
+| qwen | math500 | L14 | 128 | empirical_ridge_mahalanobis | 0.405 | 0.401 ± 0.050 | 0.497 | 500 |
+| qwen | math500 | L14 | 128 | ledoit_wolf_mahalanobis | 0.405 | 0.401 ± 0.050 | 0.497 | 500 |
+| qwen | math500 | L14 | 128 | rmd_ledoit_wolf | 0.772 | 0.772 ± 0.025 | 0.762 | 500 |
+| qwen | math500 | L14 | 128 | normalized_rmd_ledoit_wolf | 0.774 | 0.773 ± 0.025 | 0.764 | 500 |
+| qwen | math500 | L21 | 1 | centroid | 0.558 | 0.559 ± 0.046 | 0.596 | 500 |
+| qwen | math500 | L21 | 1 | diagonal_mahalanobis | 0.559 | 0.559 ± 0.046 | 0.596 | 500 |
+| qwen | math500 | L21 | 1 | empirical_ridge_mahalanobis | 0.559 | 0.559 ± 0.046 | 0.596 | 500 |
+| qwen | math500 | L21 | 1 | ledoit_wolf_mahalanobis | 0.559 | 0.559 ± 0.046 | 0.596 | 500 |
+| qwen | math500 | L21 | 1 | rmd_ledoit_wolf | 0.623 | 0.624 ± 0.032 | 0.628 | 500 |
+| qwen | math500 | L21 | 1 | normalized_rmd_ledoit_wolf | 0.610 | 0.611 ± 0.033 | 0.612 | 500 |
+| qwen | math500 | L21 | 2 | centroid | 0.464 | 0.466 ± 0.074 | 0.536 | 500 |
+| qwen | math500 | L21 | 2 | diagonal_mahalanobis | 0.417 | 0.418 ± 0.069 | 0.508 | 500 |
+| qwen | math500 | L21 | 2 | empirical_ridge_mahalanobis | 0.417 | 0.418 ± 0.069 | 0.508 | 500 |
+| qwen | math500 | L21 | 2 | ledoit_wolf_mahalanobis | 0.417 | 0.418 ± 0.069 | 0.508 | 500 |
+| qwen | math500 | L21 | 2 | rmd_ledoit_wolf | 0.642 | 0.643 ± 0.031 | 0.648 | 500 |
+| qwen | math500 | L21 | 2 | normalized_rmd_ledoit_wolf | 0.621 | 0.622 ± 0.033 | 0.624 | 500 |
+| qwen | math500 | L21 | 4 | centroid | 0.415 | 0.415 ± 0.065 | 0.518 | 500 |
+| qwen | math500 | L21 | 4 | diagonal_mahalanobis | 0.379 | 0.382 ± 0.055 | 0.491 | 500 |
+| qwen | math500 | L21 | 4 | empirical_ridge_mahalanobis | 0.379 | 0.382 ± 0.055 | 0.491 | 500 |
+| qwen | math500 | L21 | 4 | ledoit_wolf_mahalanobis | 0.379 | 0.382 ± 0.055 | 0.491 | 500 |
+| qwen | math500 | L21 | 4 | rmd_ledoit_wolf | 0.682 | 0.682 ± 0.013 | 0.719 | 500 |
+| qwen | math500 | L21 | 4 | normalized_rmd_ledoit_wolf | 0.642 | 0.643 ± 0.028 | 0.659 | 500 |
+| qwen | math500 | L21 | 8 | centroid | 0.357 | 0.359 ± 0.048 | 0.480 | 500 |
+| qwen | math500 | L21 | 8 | diagonal_mahalanobis | 0.323 | 0.325 ± 0.038 | 0.453 | 500 |
+| qwen | math500 | L21 | 8 | empirical_ridge_mahalanobis | 0.323 | 0.325 ± 0.038 | 0.453 | 500 |
+| qwen | math500 | L21 | 8 | ledoit_wolf_mahalanobis | 0.323 | 0.325 ± 0.038 | 0.453 | 500 |
+| qwen | math500 | L21 | 8 | rmd_ledoit_wolf | 0.730 | 0.728 ± 0.028 | 0.768 | 500 |
+| qwen | math500 | L21 | 8 | normalized_rmd_ledoit_wolf | 0.705 | 0.704 ± 0.036 | 0.740 | 500 |
+| qwen | math500 | L21 | 16 | centroid | 0.321 | 0.324 ± 0.042 | 0.460 | 500 |
+| qwen | math500 | L21 | 16 | diagonal_mahalanobis | 0.287 | 0.286 ± 0.031 | 0.435 | 500 |
+| qwen | math500 | L21 | 16 | empirical_ridge_mahalanobis | 0.287 | 0.286 ± 0.031 | 0.435 | 500 |
+| qwen | math500 | L21 | 16 | ledoit_wolf_mahalanobis | 0.287 | 0.286 ± 0.031 | 0.435 | 500 |
+| qwen | math500 | L21 | 16 | rmd_ledoit_wolf | 0.759 | 0.760 ± 0.022 | 0.786 | 500 |
+| qwen | math500 | L21 | 16 | normalized_rmd_ledoit_wolf | 0.747 | 0.748 ± 0.033 | 0.784 | 500 |
+| qwen | math500 | L21 | 32 | centroid | 0.309 | 0.309 ± 0.036 | 0.451 | 500 |
+| qwen | math500 | L21 | 32 | diagonal_mahalanobis | 0.299 | 0.301 ± 0.024 | 0.442 | 500 |
+| qwen | math500 | L21 | 32 | empirical_ridge_mahalanobis | 0.299 | 0.301 ± 0.024 | 0.442 | 500 |
+| qwen | math500 | L21 | 32 | ledoit_wolf_mahalanobis | 0.299 | 0.301 ± 0.024 | 0.442 | 500 |
+| qwen | math500 | L21 | 32 | rmd_ledoit_wolf | 0.790 | 0.789 ± 0.030 | 0.803 | 500 |
+| qwen | math500 | L21 | 32 | normalized_rmd_ledoit_wolf | 0.788 | 0.787 ± 0.031 | 0.801 | 500 |
+| qwen | math500 | L21 | 64 | centroid | 0.312 | 0.310 ± 0.031 | 0.451 | 500 |
+| qwen | math500 | L21 | 64 | diagonal_mahalanobis | 0.316 | 0.315 ± 0.028 | 0.451 | 500 |
+| qwen | math500 | L21 | 64 | empirical_ridge_mahalanobis | 0.316 | 0.315 ± 0.029 | 0.451 | 500 |
+| qwen | math500 | L21 | 64 | ledoit_wolf_mahalanobis | 0.316 | 0.315 ± 0.029 | 0.451 | 500 |
+| qwen | math500 | L21 | 64 | rmd_ledoit_wolf | 0.798 | 0.798 ± 0.027 | 0.806 | 500 |
+| qwen | math500 | L21 | 64 | normalized_rmd_ledoit_wolf | 0.796 | 0.796 ± 0.026 | 0.804 | 500 |
+| qwen | math500 | L21 | 128 | centroid | 0.310 | 0.310 ± 0.032 | 0.448 | 500 |
+| qwen | math500 | L21 | 128 | diagonal_mahalanobis | 0.318 | 0.316 ± 0.032 | 0.452 | 500 |
+| qwen | math500 | L21 | 128 | empirical_ridge_mahalanobis | 0.318 | 0.316 ± 0.032 | 0.452 | 500 |
+| qwen | math500 | L21 | 128 | ledoit_wolf_mahalanobis | 0.318 | 0.316 ± 0.032 | 0.452 | 500 |
+| qwen | math500 | L21 | 128 | rmd_ledoit_wolf | 0.800 | 0.801 ± 0.027 | 0.803 | 500 |
+| qwen | math500 | L21 | 128 | normalized_rmd_ledoit_wolf | 0.799 | 0.800 ± 0.027 | 0.798 | 500 |
+
 ## Selective Prediction
 
 Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUSC is normalised over [min_coverage, 1.0]. Acc@K = accuracy at the most selective operating point with coverage ≥ K.
@@ -1207,12 +1977,18 @@ Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUS
 | deepseek | math500 | raw_rmd_L7 | 500 | 0.6256 | 0.670 | 0.603 | 0.535 | 0.478 |
 | deepseek | math500 | norm_rmd_L7 | 500 | 0.6245 | 0.670 | 0.600 | 0.532 | 0.478 |
 | deepseek | math500 | combined_lr_L7 | 500 | 0.6202 | 0.680 | 0.603 | 0.537 | 0.478 |
+| deepseek | math500 | rmd_combined_lr_L7 | 500 | 0.6328 | 0.700 | 0.611 | 0.537 | 0.478 |
+| deepseek | math500 | norm_rmd_combined_lr_L7 | 500 | 0.6325 | 0.687 | 0.606 | 0.537 | 0.478 |
 | deepseek | math500 | raw_rmd_L14 | 500 | 0.6244 | 0.670 | 0.606 | 0.535 | 0.478 |
 | deepseek | math500 | norm_rmd_L14 | 500 | 0.6268 | 0.673 | 0.606 | 0.535 | 0.478 |
 | deepseek | math500 | combined_lr_L14 | 500 | 0.5934 | 0.627 | 0.574 | 0.522 | 0.473 |
+| deepseek | math500 | rmd_combined_lr_L14 | 500 | 0.6316 | 0.690 | 0.611 | 0.537 | 0.478 |
+| deepseek | math500 | norm_rmd_combined_lr_L14 | 500 | 0.6320 | 0.690 | 0.609 | 0.537 | 0.478 |
 | deepseek | math500 | raw_rmd_L21 | 500 | 0.6322 | 0.680 | 0.603 | 0.537 | 0.478 |
 | deepseek | math500 | norm_rmd_L21 | 500 | 0.6334 | 0.677 | 0.603 | 0.537 | 0.478 |
 | deepseek | math500 | combined_lr_L21 | 500 | 0.6046 | 0.650 | 0.586 | 0.530 | 0.473 |
+| deepseek | math500 | rmd_combined_lr_L21 | 500 | 0.6346 | 0.700 | 0.614 | 0.537 | 0.478 |
+| deepseek | math500 | norm_rmd_combined_lr_L21 | 500 | 0.6390 | 0.707 | 0.614 | 0.537 | 0.478 |
 
 | deepseek_llama | math500 | no_abstain | 500 | — | 0.364 | 0.364 | 0.364 | 0.364 |
 | deepseek_llama | math500 | entropy_mean | 500 | 0.4419 | 0.440 | 0.429 | 0.420 | 0.396 |
@@ -1223,12 +1999,18 @@ Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUS
 | deepseek_llama | math500 | raw_rmd_L8 | 500 | 0.5032 | 0.560 | 0.511 | 0.450 | 0.404 |
 | deepseek_llama | math500 | norm_rmd_L8 | 500 | 0.5023 | 0.563 | 0.511 | 0.450 | 0.404 |
 | deepseek_llama | math500 | combined_lr_L8 | 500 | 0.4812 | 0.497 | 0.460 | 0.425 | 0.398 |
+| deepseek_llama | math500 | rmd_combined_lr_L8 | 500 | 0.5184 | 0.557 | 0.511 | 0.453 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_combined_lr_L8 | 500 | 0.5201 | 0.560 | 0.511 | 0.453 | 0.404 |
 | deepseek_llama | math500 | raw_rmd_L16 | 500 | 0.5061 | 0.560 | 0.511 | 0.455 | 0.404 |
 | deepseek_llama | math500 | norm_rmd_L16 | 500 | 0.5050 | 0.567 | 0.511 | 0.453 | 0.404 |
 | deepseek_llama | math500 | combined_lr_L16 | 500 | 0.4734 | 0.493 | 0.449 | 0.420 | 0.389 |
+| deepseek_llama | math500 | rmd_combined_lr_L16 | 500 | 0.5257 | 0.560 | 0.509 | 0.453 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_combined_lr_L16 | 500 | 0.5182 | 0.563 | 0.506 | 0.448 | 0.402 |
 | deepseek_llama | math500 | raw_rmd_L24 | 500 | 0.5053 | 0.560 | 0.511 | 0.450 | 0.404 |
 | deepseek_llama | math500 | norm_rmd_L24 | 500 | 0.5036 | 0.567 | 0.511 | 0.450 | 0.404 |
 | deepseek_llama | math500 | combined_lr_L24 | 500 | 0.4792 | 0.497 | 0.460 | 0.420 | 0.391 |
+| deepseek_llama | math500 | rmd_combined_lr_L24 | 500 | 0.5226 | 0.557 | 0.514 | 0.453 | 0.404 |
+| deepseek_llama | math500 | norm_rmd_combined_lr_L24 | 500 | 0.5111 | 0.553 | 0.506 | 0.450 | 0.400 |
 
 | llama | math500 | no_abstain | 500 | — | 0.348 | 0.348 | 0.348 | 0.348 |
 | llama | math500 | entropy_mean | 500 | 0.3835 | 0.393 | 0.391 | 0.380 | 0.364 |
@@ -1239,12 +2021,18 @@ Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUS
 | llama | math500 | raw_rmd_L8 | 500 | 0.4795 | 0.507 | 0.463 | 0.420 | 0.382 |
 | llama | math500 | norm_rmd_L8 | 500 | 0.4790 | 0.500 | 0.463 | 0.420 | 0.382 |
 | llama | math500 | combined_lr_L8 | 500 | 0.4652 | 0.483 | 0.446 | 0.420 | 0.382 |
+| llama | math500 | rmd_combined_lr_L8 | 500 | 0.4940 | 0.513 | 0.471 | 0.427 | 0.387 |
+| llama | math500 | norm_rmd_combined_lr_L8 | 500 | 0.4958 | 0.513 | 0.469 | 0.427 | 0.387 |
 | llama | math500 | raw_rmd_L16 | 500 | 0.4929 | 0.517 | 0.477 | 0.430 | 0.387 |
 | llama | math500 | norm_rmd_L16 | 500 | 0.4932 | 0.513 | 0.474 | 0.427 | 0.387 |
 | llama | math500 | combined_lr_L16 | 500 | 0.4636 | 0.473 | 0.446 | 0.415 | 0.378 |
+| llama | math500 | rmd_combined_lr_L16 | 500 | 0.5059 | 0.533 | 0.477 | 0.432 | 0.387 |
+| llama | math500 | norm_rmd_combined_lr_L16 | 500 | 0.5066 | 0.527 | 0.480 | 0.430 | 0.387 |
 | llama | math500 | raw_rmd_L24 | 500 | 0.4826 | 0.510 | 0.471 | 0.425 | 0.387 |
 | llama | math500 | norm_rmd_L24 | 500 | 0.4854 | 0.510 | 0.469 | 0.422 | 0.387 |
 | llama | math500 | combined_lr_L24 | 500 | 0.4592 | 0.463 | 0.457 | 0.415 | 0.382 |
+| llama | math500 | rmd_combined_lr_L24 | 500 | 0.4994 | 0.507 | 0.474 | 0.430 | 0.387 |
+| llama | math500 | norm_rmd_combined_lr_L24 | 500 | 0.5049 | 0.527 | 0.477 | 0.432 | 0.387 |
 
 | qwen | math500 | no_abstain | 500 | — | 0.562 | 0.562 | 0.562 | 0.562 |
 | qwen | math500 | entropy_mean | 500 | 0.6209 | 0.623 | 0.637 | 0.620 | 0.600 |
@@ -1255,10 +2043,16 @@ Coverage-accuracy evaluation: trust vs. abstain on a single completed trace. AUS
 | qwen | math500 | raw_rmd_L7 | 500 | 0.6942 | 0.737 | 0.691 | 0.645 | 0.591 |
 | qwen | math500 | norm_rmd_L7 | 500 | 0.6951 | 0.737 | 0.694 | 0.647 | 0.591 |
 | qwen | math500 | combined_lr_L7 | 500 | 0.7006 | 0.733 | 0.694 | 0.650 | 0.609 |
+| qwen | math500 | rmd_combined_lr_L7 | 500 | 0.7191 | 0.750 | 0.714 | 0.662 | 0.616 |
+| qwen | math500 | norm_rmd_combined_lr_L7 | 500 | 0.7195 | 0.757 | 0.711 | 0.665 | 0.613 |
 | qwen | math500 | raw_rmd_L14 | 500 | 0.7072 | 0.740 | 0.700 | 0.650 | 0.604 |
 | qwen | math500 | norm_rmd_L14 | 500 | 0.7079 | 0.750 | 0.703 | 0.660 | 0.604 |
 | qwen | math500 | combined_lr_L14 | 500 | 0.6811 | 0.707 | 0.674 | 0.645 | 0.607 |
+| qwen | math500 | rmd_combined_lr_L14 | 500 | 0.7189 | 0.743 | 0.711 | 0.670 | 0.620 |
+| qwen | math500 | norm_rmd_combined_lr_L14 | 500 | 0.7220 | 0.750 | 0.717 | 0.670 | 0.618 |
 | qwen | math500 | raw_rmd_L21 | 500 | 0.7209 | 0.743 | 0.714 | 0.667 | 0.611 |
 | qwen | math500 | norm_rmd_L21 | 500 | 0.7194 | 0.743 | 0.714 | 0.670 | 0.611 |
 | qwen | math500 | combined_lr_L21 | 500 | 0.6858 | 0.730 | 0.694 | 0.637 | 0.600 |
+| qwen | math500 | rmd_combined_lr_L21 | 500 | 0.7362 | 0.750 | 0.726 | 0.665 | 0.622 |
+| qwen | math500 | norm_rmd_combined_lr_L21 | 500 | 0.7372 | 0.757 | 0.729 | 0.672 | 0.622 |
 

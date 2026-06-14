@@ -110,6 +110,117 @@ def load_selective_results(results_dir: str) -> dict:
     return selective
 
 
+def load_bestofn_results(results_dir: str) -> tuple[dict, dict]:
+    """Load Best-of-N evaluations and concordance diagnostics by model/scale/dataset."""
+    bestofn: dict = {}
+    concordance: dict = {}
+    base = Path(results_dir)
+    marker = "_bestofn_"
+
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir() or marker not in model_dir.name:
+            continue
+        model, scale = model_dir.name.rsplit(marker, 1)
+        if scale not in {"pilot", "full"}:
+            continue
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            result_path = ds_dir / f"{ds}_best_of_n_results.json"
+            if result_path.exists():
+                with open(result_path) as fh:
+                    data = json.load(fh)
+                if isinstance(data, dict) and "n_values" in data:
+                    bestofn.setdefault(model, {}).setdefault(scale, {})[ds] = data
+
+            concordance_path = ds_dir / f"{ds}_bestofn_concordance.json"
+            if concordance_path.exists():
+                with open(concordance_path) as fh:
+                    data = json.load(fh)
+                if (
+                    isinstance(data, dict)
+                    and data.get("metric") == "within_prompt_pairwise_concordance"
+                ):
+                    concordance.setdefault(model, {}).setdefault(scale, {})[ds] = data
+
+    return bestofn, concordance
+
+
+def load_prompt_decomposition_results(results_dir: str) -> dict:
+    """Load full Best-of-N prompt decomposition artifacts by model/dataset."""
+    results = {}
+    base = Path(results_dir)
+    marker = "_bestofn_full"
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir() or not model_dir.name.endswith(marker):
+            continue
+        model = model_dir.name[: -len(marker)]
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            path = ds_dir / f"{ds}_prompt_decomposition_results.json"
+            if path.exists():
+                with path.open() as handle:
+                    results.setdefault(model, {})[ds] = json.load(handle)
+    return results
+
+
+def load_prompt_selection_results(results_dir: str) -> dict:
+    """Load OOF prompt-selection artifacts by model/dataset."""
+    results = {}
+    base = Path(results_dir)
+    marker = "_bestofn_full"
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir() or not model_dir.name.endswith(marker):
+            continue
+        model = model_dir.name[: -len(marker)]
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            path = ds_dir / f"{ds}_prompt_selection_results.json"
+            if path.exists():
+                with path.open() as handle:
+                    results.setdefault(model, {})[ds] = json.load(handle)
+    return results
+
+
+def load_application_alignment_result(
+    results_dir: str, dataset: str = "math500"
+) -> dict:
+    path = (
+        Path(results_dir)
+        / "application_alignment"
+        / f"{dataset}_application_alignment_results.json"
+    )
+    if not path.exists():
+        return {}
+    with path.open() as handle:
+        return json.load(handle)
+
+
+def load_one_class_sweep_results(results_dir: str) -> dict:
+    """Load canonical one-class mechanism sweeps by model/dataset."""
+    results = {}
+    base = Path(results_dir)
+    marker = "_one_class"
+    for model_dir in sorted(base.iterdir()):
+        if not model_dir.is_dir() or not model_dir.name.endswith(marker):
+            continue
+        model = model_dir.name[: -len(marker)]
+        for ds_dir in sorted(model_dir.iterdir()):
+            if not ds_dir.is_dir():
+                continue
+            ds = ds_dir.name
+            path = ds_dir / f"{ds}_one_class_sweep_results.json"
+            if path.exists():
+                with path.open() as handle:
+                    results.setdefault(model, {})[ds] = json.load(handle)
+    return results
+
+
 def collect_typed_results(results: dict):
     """Split raw loaded results by schema."""
     probe = {}
@@ -146,6 +257,12 @@ def generate_markdown(
     output_path: str,
     pca_ablation_results: dict | None = None,
     selective_results: dict | None = None,
+    bestofn_results: dict | None = None,
+    concordance_results: dict | None = None,
+    prompt_decomposition_results: dict | None = None,
+    prompt_selection_results: dict | None = None,
+    application_alignment_result: dict | None = None,
+    one_class_sweep_results: dict | None = None,
 ):
     """Generate a markdown summary of all results."""
     probe_results, prefix_filter_results = collect_typed_results(results)
@@ -604,6 +721,23 @@ def generate_markdown(
                     )
         lines.append("")
 
+    if bestofn_results:
+        render_bestofn_section(
+            bestofn_results, concordance_results or {}, lines
+        )
+
+    if prompt_decomposition_results:
+        render_prompt_decomposition_section(prompt_decomposition_results, lines)
+
+    if prompt_selection_results:
+        render_prompt_selection_section(prompt_selection_results, lines)
+
+    if application_alignment_result:
+        render_application_alignment_section(application_alignment_result, lines)
+
+    if one_class_sweep_results:
+        render_one_class_sweep_section(one_class_sweep_results, lines)
+
     if selective_results:
         render_selective_prediction_section(selective_results, lines)
 
@@ -611,6 +745,112 @@ def generate_markdown(
     with open(output_path, "w") as f:
         f.write(md)
     print(f"Summary written to {output_path}")
+
+
+def _selector_mean(payload: dict | None) -> float | None:
+    if not payload or payload.get("skipped"):
+        return None
+    return payload.get("pass_at_1_mean")
+
+
+def _best_layer_selector(n_result: dict, selector: str) -> tuple[float, str] | None:
+    candidates = []
+    for layer, layer_result in n_result.get("layers", {}).items():
+        value = _selector_mean(layer_result.get(selector))
+        if value is not None:
+            candidates.append((float(value), str(layer)))
+    return max(candidates) if candidates else None
+
+
+def _fmt_layer_selector(candidate: tuple[float, str] | None) -> str:
+    if candidate is None:
+        return "—"
+    value, layer = candidate
+    return f"{value:.3f} (L{layer})"
+
+
+def render_bestofn_section(
+    bestofn_results: dict,
+    concordance_results: dict,
+    lines: list[str],
+) -> None:
+    """Append Best-of-N selection and legacy concordance diagnostics."""
+    lines.extend(
+        [
+            "## Best-of-N Selection",
+            "",
+            (
+                "Leakage-safe prompt-grouped CV. Each row reports the largest available "
+                "N for that artifact; layer-based columns select the best layer for that "
+                "selector within the reported run."
+            ),
+            "",
+            (
+                "| Model | Scale | Dataset | N | Random | Majority | Entropy | "
+                "Best Mahal | Best combined | Best RMD | Best RMD+entropy | Oracle |"
+            ),
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: |",
+        ]
+    )
+
+    for model in sorted(bestofn_results):
+        for scale in sorted(bestofn_results[model]):
+            for ds in sorted(bestofn_results[model][scale]):
+                data = bestofn_results[model][scale][ds]
+                valid_n = [
+                    int(key)
+                    for key, value in data.get("n_values", {}).items()
+                    if not value.get("skipped")
+                ]
+                if not valid_n:
+                    continue
+                n = max(valid_n)
+                n_result = data["n_values"][str(n)]
+                selectors = n_result.get("selectors", {})
+                lines.append(
+                    f"| {model} | {scale} | {ds} | {n} "
+                    f"| {fmt(_selector_mean(selectors.get('random')))} "
+                    f"| {fmt(_selector_mean(selectors.get('majority_vote')))} "
+                    f"| {fmt(_selector_mean(selectors.get('entropy_only')))} "
+                    f"| {_fmt_layer_selector(_best_layer_selector(n_result, 'mahalanobis_only'))} "
+                    f"| {_fmt_layer_selector(_best_layer_selector(n_result, 'combined'))} "
+                    f"| {_fmt_layer_selector(_best_layer_selector(n_result, 'rmd_only'))} "
+                    f"| {_fmt_layer_selector(_best_layer_selector(n_result, 'rmd_combined'))} "
+                    f"| {fmt(_selector_mean(selectors.get('oracle_pass_at_n')))} |"
+                )
+    lines.append("")
+
+    if not concordance_results:
+        return
+
+    lines.extend(
+        [
+            "### Within-prompt concordance diagnostic",
+            "",
+            (
+                "Legacy diagnostic using raw Mahalanobis with an in-sample reference "
+                "fit on all correct pilot traces. Treat this as descriptive only; the "
+                "OOF raw/RMD prompt decomposition is the confirmatory replacement."
+            ),
+            "",
+            "| Model | Scale | Dataset | Layer | Concordance | SD | Mixed prompts |",
+            "| --- | --- | --- | --- | ---: | ---: | ---: |",
+        ]
+    )
+    for model in sorted(concordance_results):
+        for scale in sorted(concordance_results[model]):
+            for ds in sorted(concordance_results[model][scale]):
+                data = concordance_results[model][scale][ds]
+                for layer, layer_result in sorted(
+                    data.get("layers", {}).items(), key=lambda item: int(item[0])
+                ):
+                    lines.append(
+                        f"| {model} | {scale} | {ds} | L{layer} "
+                        f"| {fmt(layer_result.get('mean_concordance'))} "
+                        f"| {fmt(layer_result.get('std_concordance'))} "
+                        f"| {layer_result.get('n_problems_evaluated', 0)} |"
+                    )
+    lines.append("")
 
 
 def render_selective_prediction_section(
@@ -665,10 +905,215 @@ def render_selective_prediction_section(
         lines.append("")
 
 
-def generate_combined_json(results: dict, output_path: str):
+def render_prompt_decomposition_section(results: dict, lines: list[str]) -> None:
+    lines.extend(
+        [
+            "## Prompt Decomposition",
+            "",
+            (
+                "Prompt-grouped out-of-fold scores. Higher scores predict correctness; "
+                "all reference-dependent quantities are fit on training prompts only."
+            ),
+            "",
+        ]
+    )
+    legacy = any(
+        set(layer_result.get("methods", {})) <= {"raw", "rmd"}
+        for model_results in results.values()
+        for data in model_results.values()
+        for layer_result in data.get("layers", {}).values()
+    )
+    if legacy:
+        lines.extend(
+            [
+                (
+                    "**Schema note:** at least one artifact has the raw/RMD-only legacy "
+                    "schema. Rerun prompt decomposition to add entropy, log-probability, "
+                    "length, activation-norm, and centroid controls."
+                ),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            (
+                "| Model | Dataset | Layer | Method | Pooled AUC | Centered AUC | "
+                "Within AUC | ICC | Prompt/pass Spearman |"
+            ),
+            "|:---|:---|:---|:---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for model in sorted(results):
+        for dataset in sorted(results[model]):
+            data = results[model][dataset]
+            for layer, layer_result in sorted(
+                data.get("layers", {}).items(), key=lambda item: int(item[0])
+            ):
+                for method, method_result in layer_result.get("methods", {}).items():
+                    metrics = method_result.get("metrics", {})
+                    lines.append(
+                        f"| {model} | {dataset} | L{layer} | {method} "
+                        f"| {fmt(metrics.get('pooled_auc'))} "
+                        f"| {fmt(metrics.get('prompt_centered_auc'))} "
+                        f"| {fmt(metrics.get('within_prompt_pair_weighted'))} "
+                        f"| {fmt(metrics.get('score_icc'))} "
+                        f"| {fmt(metrics.get('prompt_score_pass_rate_spearman'))} |"
+                    )
+    lines.append("")
+
+
+def render_prompt_selection_section(results: dict, lines: list[str]) -> None:
+    lines.extend(["## OOF Prompt Selection", ""])
+    strict_invalid_policy = any(
+        data.get("settings", {}).get("invalid_answer_policy")
+        == "count as failure"
+        for model_results in results.values()
+        for data in model_results.values()
+    )
+    if strict_invalid_policy:
+        lines.extend(
+            [
+                "Unparsed answers are counted as failures. They are not "
+                "silently removed from voting.",
+                "",
+            ]
+        )
+
+    parsing_rows = []
+    for model in sorted(results):
+        for dataset in sorted(results[model]):
+            data = results[model][dataset]
+            for layer, layer_result in sorted(
+                data.get("layers", {}).items(), key=lambda item: int(item[0])
+            ):
+                parsing = layer_result.get("answer_parsing")
+                if parsing:
+                    parsing_rows.append((model, dataset, layer, parsing))
+    if parsing_rows:
+        lines.extend(
+            [
+                "### Answer Parsing",
+                "",
+                (
+                    "| Model | Dataset | Layer | Parsed traces | Parse rate | "
+                    "Correct parse rate | Incorrect parse rate | "
+                    "Prompts with no parsed answer |"
+                ),
+                "|:---|:---|:---|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for model, dataset, layer, parsing in parsing_rows:
+            lines.append(
+                f"| {model} | {dataset} | L{layer} "
+                f"| {parsing.get('n_parsed', 0)}/{parsing.get('n_traces', 0)} "
+                f"| {fmt(parsing.get('parse_rate'))} "
+                f"| {fmt(parsing.get('correct_parse_rate'))} "
+                f"| {fmt(parsing.get('incorrect_parse_rate'))} "
+                f"| {parsing.get('n_prompts_without_parsed_answer', 0)} |"
+            )
+        lines.append("")
+
+    lines.extend(
+        [
+            "### Selection Results",
+            "",
+            "| Model | Dataset | Layer | Selector | Pass@1 |",
+            "|:---|:---|:---|:---|---:|",
+        ]
+    )
+    for model in sorted(results):
+        for dataset in sorted(results[model]):
+            data = results[model][dataset]
+            for layer, layer_result in sorted(
+                data.get("layers", {}).items(), key=lambda item: int(item[0])
+            ):
+                for selector, payload in layer_result.get("selectors", {}).items():
+                    lines.append(
+                        f"| {model} | {dataset} | L{layer} | {selector} "
+                        f"| {fmt(payload.get('pass_at_1'))} |"
+                    )
+    lines.append("")
+
+
+def render_application_alignment_section(result: dict, lines: list[str]) -> None:
+    lines.extend(
+        [
+            "## Application Alignment",
+            "",
+            result.get("warning", "Exploratory descriptive comparison."),
+            "",
+            (
+                "| Model | Layer | Method | Within AUC | ICC | Top-1 gain | "
+                "Selective AUSC gain |"
+            ),
+            "|:---|---:|:---|---:|---:|---:|---:|",
+        ]
+    )
+    for row in result.get("conditions", []):
+        lines.append(
+            f"| {row.get('model')} | {row.get('layer')} | {row.get('method')} "
+            f"| {fmt(row.get('within_prompt_pair_weighted'))} "
+            f"| {fmt(row.get('score_icc'))} "
+            f"| {fmt(row.get('top1_gain_over_random'))} "
+            f"| {fmt(row.get('selective_ausc_gain_over_entropy'))} |"
+        )
+    lines.append("")
+
+
+def render_one_class_sweep_section(results: dict, lines: list[str]) -> None:
+    lines.extend(
+        [
+            "## One-Class Mechanism Sweep",
+            "",
+            "All configured dimensions are shown; no post-hoc best dimension is selected.",
+            "",
+            (
+                "| Model | Dataset | Layer | Dimension | Method | Pooled ROC | "
+                "Fold ROC | Pooled PR | N |"
+            ),
+            "|:---|:---|:---|---:|:---|---:|:---|---:|---:|",
+        ]
+    )
+    for model in sorted(results):
+        for dataset in sorted(results[model]):
+            data = results[model][dataset]
+            for layer, layer_result in sorted(
+                data.get("layers", {}).items(), key=lambda item: int(item[0])
+            ):
+                for dimension, dimension_result in sorted(
+                    layer_result.get("dimensions", {}).items(),
+                    key=lambda item: int(item[0]),
+                ):
+                    for method, metrics in dimension_result.get(
+                        "methods", {}
+                    ).items():
+                        fold_mean = metrics.get("fold_roc_auc_mean")
+                        fold_std = metrics.get("fold_roc_auc_std")
+                        fold_text = (
+                            "—"
+                            if fold_mean is None or fold_std is None
+                            else f"{fold_mean:.3f} ± {fold_std:.3f}"
+                        )
+                        lines.append(
+                            f"| {model} | {dataset} | L{layer} | {dimension} "
+                            f"| {method} | {fmt(metrics.get('pooled_roc_auc'))} "
+                            f"| {fold_text} | {fmt(metrics.get('pooled_pr_auc'))} "
+                            f"| {metrics.get('n_eval', 0)} |"
+                        )
+    lines.append("")
+
+
+def generate_combined_json(
+    results: dict,
+    output_path: str,
+    supplemental: dict | None = None,
+):
     """Write a combined JSON with all results."""
+    payload = dict(results)
+    if supplemental:
+        payload["_supplemental"] = supplemental
     with open(output_path, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(payload, f, indent=2)
     print(f"Combined JSON written to {output_path}")
 
 
@@ -683,6 +1128,15 @@ def main():
     results = load_results(args.results_dir)
     pca_ablation_results = load_pca_ablation_results(args.results_dir)
     selective_results = load_selective_results(args.results_dir)
+    bestofn_results, concordance_results = load_bestofn_results(args.results_dir)
+    prompt_decomposition_results = load_prompt_decomposition_results(
+        args.results_dir
+    )
+    prompt_selection_results = load_prompt_selection_results(args.results_dir)
+    application_alignment_result = load_application_alignment_result(
+        args.results_dir
+    )
+    one_class_sweep_results = load_one_class_sweep_results(args.results_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
     md_path = os.path.join(args.output_dir, "SUMMARY.md")
@@ -693,8 +1147,27 @@ def main():
         md_path,
         pca_ablation_results=pca_ablation_results,
         selective_results=selective_results,
+        bestofn_results=bestofn_results,
+        concordance_results=concordance_results,
+        prompt_decomposition_results=prompt_decomposition_results,
+        prompt_selection_results=prompt_selection_results,
+        application_alignment_result=application_alignment_result,
+        one_class_sweep_results=one_class_sweep_results,
     )
-    generate_combined_json(results, json_path)
+    generate_combined_json(
+        results,
+        json_path,
+        supplemental={
+            "pca_ablation": pca_ablation_results,
+            "selective_prediction": selective_results,
+            "best_of_n": bestofn_results,
+            "bestofn_concordance": concordance_results,
+            "prompt_decomposition": prompt_decomposition_results,
+            "prompt_selection": prompt_selection_results,
+            "application_alignment": application_alignment_result,
+            "one_class_sweep": one_class_sweep_results,
+        },
+    )
 
 
 if __name__ == "__main__":

@@ -650,6 +650,140 @@ stages:
         - results/${item.model}_bestofn_${item.scale}/math500/math500_bestofn_concordance.json:
             cache: false
 
+  # ── Within-prompt vs between-prompt decomposition ────────────────────────
+  # Produces prompt-grouped OOF raw/RMD scores and separates trace-ranking
+  # signal from prompt-difficulty signal. Strictly requires full 500 x 8 data.
+
+  evaluate_prompt_decomposition:
+    foreach: ${bestofn_matrix}
+    do:
+      cmd: >-
+        uv run python -u prompt_decomposition.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/math500
+        --output_dir results/${item.model}_bestofn_${item.scale}/math500
+        --dataset_label math500
+        --model_label ${item.model}
+        --layers ${best_of_n.layers}
+        --pca_dim ${analyze.pca_dim}
+        --n ${prompt_decomposition.n}
+        --expected_prompts ${prompt_decomposition.expected_prompts}
+        --n_splits ${prompt_decomposition.n_splits}
+        --n_bootstrap ${prompt_decomposition.n_bootstrap}
+        --seed ${prompt_decomposition.seed}
+        --load_workers ${prompt_decomposition.load_workers}
+      deps:
+        - prompt_decomposition.py
+        - best_of_n.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/math500
+      params:
+        - bestofn_matrix
+        - best_of_n.layers
+        - analyze.pca_dim
+        - prompt_decomposition.n
+        - prompt_decomposition.expected_prompts
+        - prompt_decomposition.n_splits
+        - prompt_decomposition.n_bootstrap
+        - prompt_decomposition.seed
+        - prompt_decomposition.load_workers
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_oof.csv:
+            cache: false
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_report.md:
+            cache: false
+
+  # ── OOF prompt selection from saved decomposition scores ────────────────
+
+  evaluate_prompt_selection:
+    foreach: ${bestofn_matrix}
+    do:
+      cmd: >-
+        uv run python prompt_selection.py
+        --input_csv results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_oof.csv
+        --output_dir results/${item.model}_bestofn_${item.scale}/math500
+        --dataset_label math500
+        --model_label ${item.model}
+        --n_bootstrap ${prompt_selection.n_bootstrap}
+        --seed ${prompt_selection.seed}
+      deps:
+        - prompt_selection.py
+        - prompt_decomposition.py
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_oof.csv
+      params:
+        - bestofn_matrix
+        - prompt_selection.n_bootstrap
+        - prompt_selection.seed
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_selection_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_selection_report.md:
+            cache: false
+
+  # ── Application alignment across decomposition and downstream tasks ─────
+
+  evaluate_application_alignment:
+    cmd: >-
+      uv run python application_alignment.py
+      --decomposition qwen=results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      --decomposition deepseek=results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      --selection qwen=results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      --selection deepseek=results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      --selective qwen=results/qwen_selective/math500/math500_selective_prediction_results.json
+      --selective deepseek=results/deepseek_selective/math500/math500_selective_prediction_results.json
+      --output_dir results/application_alignment
+      --dataset_label math500
+    deps:
+      - application_alignment.py
+      - results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      - results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      - results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      - results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      - results/qwen_selective/math500/math500_selective_prediction_results.json
+      - results/deepseek_selective/math500/math500_selective_prediction_results.json
+    metrics:
+      - results/application_alignment/math500_application_alignment_results.json:
+          cache: false
+    outs:
+      - results/application_alignment/math500_application_alignment_report.md:
+          cache: false
+
+  # ── One-class dimension × covariance-estimator mechanism sweep ──────────
+
+  evaluate_one_class_sweep:
+    foreach: ${selective_prediction_matrix}
+    do:
+      cmd: >-
+        uv run python -u one_class_sweep.py
+        --data_dir data/${item.model}/${item.dataset}
+        --output_dir results/${item.model}_one_class/${item.dataset}
+        --dataset_label ${item.dataset}
+        --model_label ${item.model}
+        --layers ${item.layers}
+        --dimensions ${one_class_sweep.dimensions}
+        --n_splits ${one_class_sweep.n_splits}
+        --seed ${one_class_sweep.seed}
+        --ridge_scale ${one_class_sweep.ridge_scale}
+      deps:
+        - one_class_sweep.py
+        - analyze.py
+        - data/${item.model}/${item.dataset}
+      params:
+        - selective_prediction_matrix
+        - one_class_sweep.dimensions
+        - one_class_sweep.n_splits
+        - one_class_sweep.seed
+        - one_class_sweep.ridge_scale
+      metrics:
+        - results/${item.model}_one_class/${item.dataset}/${item.dataset}_one_class_sweep_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_one_class/${item.dataset}/${item.dataset}_one_class_sweep_report.md:
+            cache: false
+
   # ── Summary ──────────────────────────────────────────────────────────────
   # Aggregates all per-stage result JSONs into a single markdown + JSON.
 
@@ -674,6 +808,35 @@ stages:
       - results/qwen/math500/math500_pca_ablation_results.json
       - results/deepseek/gsm8k/gsm8k_pca_ablation_results.json
       - results/deepseek/math500/math500_pca_ablation_results.json
+      - results/qwen_selective/math500/math500_selective_prediction_results.json
+      - results/deepseek_selective/math500/math500_selective_prediction_results.json
+      - results/llama_selective/math500/math500_selective_prediction_results.json
+      - results/deepseek_llama_selective/math500/math500_selective_prediction_results.json
+      - results/qwen_bestofn_pilot/math500/math500_best_of_n_results.json
+      - results/deepseek_bestofn_pilot/math500/math500_best_of_n_results.json
+      - results/qwen_bestofn_pilot/math500/math500_bestofn_concordance.json
+      - results/deepseek_bestofn_pilot/math500/math500_bestofn_concordance.json
+      - results/qwen_bestofn_full/math500/math500_best_of_n_results.json
+      - results/deepseek_bestofn_full/math500/math500_best_of_n_results.json
+      - results/qwen_bestofn_full/math500/math500_bestofn_concordance.json
+      - results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
+      - results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
+      - results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
+      - results/deepseek_bestofn_full/math500/math500_prompt_decomposition_report.md
+      - results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
+      - results/qwen_bestofn_full/math500/math500_prompt_selection_report.md
+      - results/deepseek_bestofn_full/math500/math500_prompt_selection_results.json
+      - results/deepseek_bestofn_full/math500/math500_prompt_selection_report.md
+      - results/application_alignment/math500_application_alignment_results.json
+      - results/application_alignment/math500_application_alignment_report.md
+      - results/qwen_one_class/math500/math500_one_class_sweep_results.json
+      - results/qwen_one_class/math500/math500_one_class_sweep_report.md
+      - results/deepseek_one_class/math500/math500_one_class_sweep_results.json
+      - results/deepseek_one_class/math500/math500_one_class_sweep_report.md
+      - results/llama_one_class/math500/math500_one_class_sweep_results.json
+      - results/llama_one_class/math500/math500_one_class_sweep_report.md
+      - results/deepseek_llama_one_class/math500/math500_one_class_sweep_results.json
+      - results/deepseek_llama_one_class/math500/math500_one_class_sweep_report.md
       # Cross-model deps are optional; add them back once analyze_cross has run:
       # - results/qwen/gsm8k_cross/gsm8k_results.json
       # - results/deepseek/gsm8k_cross/gsm8k_results.json

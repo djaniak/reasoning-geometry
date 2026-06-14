@@ -13,6 +13,8 @@ import numpy as np
 import os
 import json
 import argparse
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from sklearn.covariance import LedoitWolf
 from sklearn.decomposition import PCA
@@ -21,6 +23,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import mannwhitneyu
+from tqdm import tqdm
 
 OUTPUT_DIR = "collected_data"
 PCA_DIM = 128
@@ -168,24 +171,45 @@ def get_hidden_dim(traces: list[dict], layer: int) -> int | None:
     return None
 
 
-def load_all_traces(data_dir: str, layers: list[int]) -> list[dict]:
-    """Load traces with hidden states for the specified layers."""
+def _load_trace_batch(
+    path: str,
+    layers: list[int],
+    include_auxiliary: bool,
+    auxiliary_fields: set[str] | None = None,
+) -> list[dict]:
+    known_auxiliary = {"entropies", "token_logprobs", "tokens"}
+    if auxiliary_fields is not None:
+        unknown = set(auxiliary_fields) - known_auxiliary
+        if unknown:
+            raise ValueError(f"Unknown auxiliary fields: {sorted(unknown)}")
+    requested_auxiliary = (
+        known_auxiliary
+        if include_auxiliary and auxiliary_fields is None
+        else set(auxiliary_fields or ())
+        if include_auxiliary
+        else set()
+    )
     traces = []
-    for fname in sorted(os.listdir(data_dir)):
-        if not fname.endswith(".npz"):
-            continue
-        path = os.path.join(data_dir, fname)
-        try:
-            data = np.load(path, allow_pickle=True)
-        except Exception as e:
-            print(f"  Skipping {fname} ({e})")
-            continue
+    with np.load(path, allow_pickle=True) as data:
+        available = set(data.files)
         for m in data["metadata"]:
             idx = m["idx"]
             trace_id = m["trace_id"] if "trace_id" in m else idx
-            ent_key = f"entropies_{trace_id}" if f"entropies_{trace_id}" in data else f"entropies_{idx}"
-            lp_key = f"token_logprobs_{trace_id}" if f"token_logprobs_{trace_id}" in data else None
-            tok_key = f"tokens_{trace_id}" if f"tokens_{trace_id}" in data else (f"tokens_{idx}" if f"tokens_{idx}" in data else None)
+            ent_key = (
+                f"entropies_{trace_id}"
+                if f"entropies_{trace_id}" in available
+                else f"entropies_{idx}"
+            )
+            lp_key = (
+                f"token_logprobs_{trace_id}"
+                if f"token_logprobs_{trace_id}" in available
+                else None
+            )
+            tok_key = (
+                f"tokens_{trace_id}"
+                if f"tokens_{trace_id}" in available
+                else (f"tokens_{idx}" if f"tokens_{idx}" in available else None)
+            )
             trace = {
                 "trace_id": trace_id,
                 "idx": idx,
@@ -195,19 +219,114 @@ def load_all_traces(data_dir: str, layers: list[int]) -> list[dict]:
                 "predicted_answer": m["predicted"] if "predicted" in m else None,
                 "mean_logprob": m["mean_logprob"] if "mean_logprob" in m else None,
                 "generation_seed": m["seed"] if "seed" in m else None,
-                "entropies": data[ent_key],
+                "entropies": (
+                    data[ent_key]
+                    if "entropies" in requested_auxiliary and ent_key in available
+                    else None
+                ),
                 "hiddens": {},
             }
-            trace["token_logprobs"] = data[lp_key] if lp_key and lp_key in data else None
-            trace["tokens"] = [str(x) for x in data[tok_key].tolist()] if tok_key and tok_key in data else None
+            trace["token_logprobs"] = (
+                data[lp_key]
+                if (
+                    "token_logprobs" in requested_auxiliary
+                    and lp_key
+                    and lp_key in available
+                )
+                else None
+            )
+            trace["tokens"] = (
+                [str(x) for x in data[tok_key].tolist()]
+                if "tokens" in requested_auxiliary and tok_key and tok_key in available
+                else None
+            )
             for layer in layers:
                 key = f"hidden_L{layer}_{trace_id}"
-                if key not in data:
+                if key not in available:
                     key = f"hidden_L{layer}_{idx}"
-                if key in data:
+                if key in available:
                     trace["hiddens"][layer] = data[key]
             traces.append(trace)
     return traces
+
+
+def load_all_traces(
+    data_dir: str,
+    layers: list[int],
+    *,
+    max_workers: int = 1,
+    show_progress: bool = False,
+    include_auxiliary: bool = True,
+    auxiliary_fields: set[str] | None = None,
+) -> list[dict]:
+    """Load trace batches, optionally decompressing independent NPZ files in parallel."""
+    paths = [
+        os.path.join(data_dir, fname)
+        for fname in sorted(os.listdir(data_dir))
+        if fname.endswith(".npz")
+    ]
+    if not paths:
+        return []
+
+    max_workers = max(1, min(int(max_workers), len(paths)))
+    sizes = [os.path.getsize(path) for path in paths]
+    loaded: list[list[dict] | None] = [None] * len(paths)
+
+    with tqdm(
+        total=sum(sizes),
+        desc="Loading trace batches",
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        disable=not show_progress,
+        dynamic_ncols=True,
+    ) as progress:
+        if max_workers == 1:
+            for index, (path, size) in enumerate(zip(paths, sizes)):
+                try:
+                    loaded[index] = _load_trace_batch(
+                        path, layers, include_auxiliary, auxiliary_fields
+                    )
+                except Exception as error:
+                    print(
+                        f"  Skipping {os.path.basename(path)} ({error})",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                progress.update(size)
+                progress.set_postfix(
+                    batches=f"{index + 1}/{len(paths)}", workers=max_workers
+                )
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        _load_trace_batch,
+                        path,
+                        layers,
+                        include_auxiliary,
+                        auxiliary_fields,
+                    ): (index, path, size)
+                    for index, (path, size) in enumerate(zip(paths, sizes))
+                }
+                completed = 0
+                for future in as_completed(futures):
+                    index, path, size = futures[future]
+                    try:
+                        loaded[index] = future.result()
+                    except Exception as error:
+                        print(
+                            f"  Skipping {os.path.basename(path)} ({error})",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                    completed += 1
+                    progress.update(size)
+                    progress.set_postfix(
+                        batches=f"{completed}/{len(paths)}", workers=max_workers
+                    )
+
+    return [trace for batch in loaded if batch is not None for trace in batch]
 
 
 # ---------------------------------------------------------------------------
@@ -239,14 +358,64 @@ def _prepare_hidden_tokens(hiddens: np.ndarray, normalize_input: bool = False) -
     return arr
 
 
+def _concatenate_hidden_tokens(
+    traces: list[dict],
+    layer: int,
+    normalize_input: bool = False,
+) -> np.ndarray:
+    """Concatenate directly into float64, avoiding an intermediate float32 copy."""
+    arrays = [trace["hiddens"][layer] for trace in traces]
+    combined = np.concatenate(arrays, axis=0, dtype=np.float64)
+    if normalize_input:
+        combined = _l2_normalize_rows(combined)
+    return combined
+
+
+def _project_trace_hiddens(
+    pca,
+    traces: list[dict],
+    layer: int,
+    normalize_input: bool = False,
+) -> np.ndarray:
+    """Project traces individually, retaining only the low-dimensional result."""
+    arrays = [trace["hiddens"][layer] for trace in traces]
+    total_rows = sum(array.shape[0] for array in arrays)
+    first_nonempty = next((array for array in arrays if array.shape[0]), None)
+    if first_nonempty is None:
+        raise ValueError("Cannot project an empty hidden-state collection")
+
+    first_projected = pca.transform(
+        _prepare_hidden_tokens(first_nonempty, normalize_input=normalize_input)
+    )
+    projected = np.empty(
+        (total_rows, first_projected.shape[1]), dtype=first_projected.dtype
+    )
+    offset = 0
+    used_first = False
+    for array in arrays:
+        if not array.shape[0]:
+            continue
+        if array is first_nonempty and not used_first:
+            batch = first_projected
+            used_first = True
+        else:
+            batch = pca.transform(
+                _prepare_hidden_tokens(array, normalize_input=normalize_input)
+            )
+        projected[offset : offset + batch.shape[0]] = batch
+        offset += batch.shape[0]
+    return projected
+
+
 def fit_mahalanobis_reference(
     correct_traces: list[dict],
     layer: int,
     pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
-    correct_hiddens = _prepare_hidden_tokens(
-        np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0),
+    correct_hiddens = _concatenate_hidden_tokens(
+        correct_traces,
+        layer,
         normalize_input=normalize_input,
     )
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
@@ -358,13 +527,13 @@ def fit_relative_mahalanobis_reference(
     pca_dim: PcaDimSpec,
     normalize_input: bool = False,
 ):
-    correct_hiddens = _prepare_hidden_tokens(
-        np.concatenate([t["hiddens"][layer] for t in correct_traces], axis=0),
+    correct_hiddens = _concatenate_hidden_tokens(
+        correct_traces,
+        layer,
         normalize_input=normalize_input,
     )
-    background_hiddens = _prepare_hidden_tokens(
-        np.concatenate([t["hiddens"][layer] for t in background_traces], axis=0),
-        normalize_input=normalize_input,
+    n_background_tokens = sum(
+        trace["hiddens"][layer].shape[0] for trace in background_traces
     )
 
     svd_solver = "randomized" if correct_hiddens.shape[0] > 200_000 else "full"
@@ -373,7 +542,12 @@ def fit_relative_mahalanobis_reference(
     pca.fit(correct_hiddens)
 
     correct_proj = pca.transform(correct_hiddens)
-    background_proj = pca.transform(background_hiddens)
+    background_proj = _project_trace_hiddens(
+        pca,
+        background_traces,
+        layer,
+        normalize_input=normalize_input,
+    )
 
     mu = correct_proj.mean(axis=0)
     cov_inv = _fit_lw_precision(correct_proj - mu)
@@ -383,7 +557,7 @@ def fit_relative_mahalanobis_reference(
     family = "normalized " if normalize_input else ""
     print(
         f"  Layer {layer}: {family}relative ref fit on "
-        f"{correct_hiddens.shape[0]} correct / {background_hiddens.shape[0]} background tokens"
+        f"{correct_hiddens.shape[0]} correct / {n_background_tokens} background tokens"
     )
     return pca, mu, cov_inv, bg_mu, bg_cov_inv
 
@@ -420,11 +594,12 @@ def extend_reference_with_background(
     refitting — the correct-side of fit_relative_mahalanobis_reference is identical
     to fit_mahalanobis_reference, so this is exact and avoids a duplicate PCA fit."""
     pca, mu, cov_inv = base_ref
-    background_hiddens = _prepare_hidden_tokens(
-        np.concatenate([t["hiddens"][layer] for t in background_traces], axis=0),
+    background_proj = _project_trace_hiddens(
+        pca,
+        background_traces,
+        layer,
         normalize_input=normalize_input,
     )
-    background_proj = pca.transform(background_hiddens)
     bg_mu = background_proj.mean(axis=0)
     bg_cov_inv = _fit_lw_precision(background_proj - bg_mu)
     return pca, mu, cov_inv, bg_mu, bg_cov_inv

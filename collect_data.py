@@ -106,9 +106,20 @@ def extract_gsm8k_gold(answer_text: str) -> str | None:
 
 
 def extract_math_answer(text: str) -> str | None:
-    """Extract content of last \\boxed{} in model output."""
-    matches = re.findall(r'\\boxed\{([^}]+)\}', text)
-    return matches[-1].strip() if matches else None
+    """Extract the content of the last balanced ``\\boxed`` or ``\\fbox``."""
+    starts = list(re.finditer(r"\\(?:boxed|fbox)\s*\{", text))
+    for match in reversed(starts):
+        opening = text.find("{", match.start())
+        depth = 0
+        for index in range(opening, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    answer = text[opening + 1:index].strip()
+                    return answer or None
+    return None
 
 
 def normalize_math_answer(text: str) -> str:
@@ -224,6 +235,7 @@ def save_batch(batch_results: list, batch_num: int, output_dir: str, layers: lis
             "n_tokens": r["n_tokens"],
             "gold": r["gold_answer"],
             "predicted": r["predicted_answer"],
+            "generated_text": r.get("generated_text"),
             "mean_logprob": r["mean_logprob"],
             "seed": r["generation_seed"],
         } for r in batch_results],
@@ -309,6 +321,7 @@ def main():
                 "question": question,
                 "gold_answer": gold,
                 "predicted_answer": predicted_answer,
+                "generated_text": generated_text,
                 "is_correct": is_correct,
                 "entropies": np.array(token_entropies, dtype=np.float32),
                 "token_logprobs": np.array(token_logprobs, dtype=np.float32),
