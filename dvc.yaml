@@ -422,7 +422,7 @@ stages:
         --dataset math500
         --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens}
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples}
         --limit ${item.limit}
@@ -446,7 +446,7 @@ stages:
         --data_dir data/${item.model}_bestofn_${item.scale}/math500
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --n_values ${best_of_n.n_values}
         --pca_dim ${analyze.pca_dim}
         --cv_random_state ${analyze.cv_random_state}
@@ -467,6 +467,25 @@ stages:
             cache: false
 
   # ── Best-of-N full ───────────────────────────
+  truncation_probe:
+    foreach: ${truncation_probe_matrix}
+    do:
+      cmd: >-
+        uv run python truncation_probe.py
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --limit ${item.limit}
+        --num_samples ${item.num_samples}
+        --batch_size ${item.batch_size}
+        --output results/truncation_probe/${item.name}_${item.max_new_tokens}.json
+      deps:
+        - truncation_probe.py
+      params:
+        - truncation_probe_matrix
+      outs:
+        - results/truncation_probe/${item.name}_${item.max_new_tokens}.json:
+            cache: false
+
   collect_bestofn_full:
     foreach: ${bestofn_matrix}
     do:
@@ -475,7 +494,7 @@ stages:
         --dataset math500
         --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens}
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples}
         --limit ${item.limit}
@@ -499,7 +518,7 @@ stages:
         --data_dir data/${item.model}_bestofn_${item.scale}/math500
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --n_values ${best_of_n.n_values}
         --pca_dim ${analyze.pca_dim}
         --cv_random_state ${analyze.cv_random_state}
@@ -632,7 +651,7 @@ stages:
         --data_dir data/${item.model}_bestofn_${item.scale}/math500
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --n_values ${best_of_n.n_values}
         --pca_dim ${analyze.pca_dim}
         --cv_random_state ${analyze.cv_random_state}
@@ -663,7 +682,7 @@ stages:
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500
         --model_label ${item.model}
-        --layers ${best_of_n.layers}
+        --layers ${item.layers}
         --pca_dim ${analyze.pca_dim}
         --n ${prompt_decomposition.n}
         --expected_prompts ${prompt_decomposition.expected_prompts}
@@ -671,6 +690,10 @@ stages:
         --n_bootstrap ${prompt_decomposition.n_bootstrap}
         --seed ${prompt_decomposition.seed}
         --load_workers ${prompt_decomposition.load_workers}
+        --contrastive_regions ${prompt_decomposition.contrastive_regions}
+        --n_alignment_shuffles ${prompt_decomposition.n_alignment_shuffles}
+        --alignment_seed ${prompt_decomposition.alignment_seed}
+        --max_new_tokens ${item.max_new_tokens}
       deps:
         - prompt_decomposition.py
         - best_of_n.py
@@ -686,6 +709,9 @@ stages:
         - prompt_decomposition.n_bootstrap
         - prompt_decomposition.seed
         - prompt_decomposition.load_workers
+        - prompt_decomposition.contrastive_regions
+        - prompt_decomposition.n_alignment_shuffles
+        - prompt_decomposition.alignment_seed
       metrics:
         - results/${item.model}_bestofn_${item.scale}/math500/math500_prompt_decomposition_results.json:
             cache: false

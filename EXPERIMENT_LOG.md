@@ -176,6 +176,210 @@ Mean pooled ROC-AUC across each model's three sparse layers:
 | 3 | Replicate enriched decomposition on Llama and DeepSeek-Llama Best-of-N traces | Test whether application alignment generalizes across architecture families | Requires Best-of-N inference |
 | 4 | Matched Qwen2.5-Math-7B comparison | Separate reasoning distillation from base-model/math-training differences | Requires inference |
 
+## 2026-06-14: Truncation-Confound Audit of the DeepSeek Within-Prompt Result
+
+### Status
+
+| Experiment family | Conditions | Status |
+|:---|:---|:---|
+| Within-prompt decomposition re-audit | Qwen and DeepSeek, existing 500x8 OOF CSVs | Complete (reanalysis, no new compute) |
+
+This is a code- and CSV-level audit of the within-prompt correctness claim, not a
+new collection run. No NPZ/hidden-state access was used; all numbers come from the
+already-written OOF CSVs.
+
+Artifacts (inputs, unchanged):
+
+- `results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv`
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv`
+
+Code changes:
+
+- `prompt_decomposition.py`: added `is_unparsed`, `truncation_report`,
+  `parseable_within_prompt_metrics`; `analyze_oof_scores` now emits a top-level
+  `truncation` block and per-layer `truncation` + `parseable_only` blocks; new
+  `--max_new_tokens` CLI arg (inferred from max observed length if omitted);
+  Markdown report gains a truncation/parseability section.
+- `dvc.yaml`: `evaluate_prompt_decomposition` now passes
+  `--max_new_tokens ${item.max_new_tokens}` so capped-trace diagnostics are exact.
+- `tests/test_prompt_decomposition.py`: added 5 tests (26 pass).
+
+### Mechanism
+
+`collect_data.py:313`:
+`is_correct = answers_match(predicted_answer, gold) if (predicted_answer and gold) else False`.
+Any trace with no parseable final answer is auto-labeled incorrect. The
+decomposition consumed `is_correct` with no parseability filter, so non-answers
+entered the "incorrect" class.
+
+### Primary findings (per layer, all 4000 traces/layer)
+
+| Quantity | DeepSeek | Qwen |
+|:---|---:|---:|
+| Unparsed (no final answer) | 1814/4000 (45.4%) | 328/4000 (8.2%) |
+| Of unparsed, length-capped at max_new_tokens | 99.4% (1804 at exactly 2048) | ~all at 1024 |
+| Unparsed share of the incorrect class | 77.6% | — |
+| within_macro RMD, ALL traces (L7/14/21) | 0.931 / 0.931 / 0.933 | 0.557 |
+| within_macro RMD, PARSEABLE-only | 0.266 / 0.274 / 0.279 | 0.503 |
+| within_macro entropy, PARSEABLE-only | 0.348 | 0.660 |
+| Mixed-prompt count, ALL -> PARSEABLE | 166 -> 13 | 131 -> 117 |
+
+DeepSeek `max_new_tokens=2048` is too small for R1-Distill on MATH500: 45% of
+generations hit the cap before emitting `\boxed{}`. RMD scores these as strongly
+anomalous (mean rmd_score correct=0.42, parseable-wrong=0.36, unparsed=0.11 at
+L7; gap widens at deeper layers). Mean length: correct=1371, parseable-wrong=1455,
+unparsed=2043.
+
+### Claims ruled out
+
+- RULED OUT (high confidence): "DeepSeek within-prompt AUC ~0.93 measures
+  within-trace reasoning correctness." It is overwhelmingly a truncation /
+  termination detector. Removing non-answers collapses the mixed-prompt set 166->13
+  (92% of within-prompt mixedness was correct-vs-truncated, not correct-vs-wrong).
+- RULED OUT (high confidence): the cross-model thesis "distillation reshapes
+  geometry from between-problem solvability (Qwen) to within-trace correctness
+  (DeepSeek)" as currently evidenced. The Qwen(0.55) vs DeepSeek(0.93) within-prompt
+  gap tracks the differential truncation rate (8% vs 45%), not distillation. Qwen
+  RMD is at chance within-prompt with or without filtering.
+- SUPERSEDES "Current Interpretation" point 1 (2026-06-14 entry, line ~144) and
+  upgrades the limitation at line ~162 from "confounded by parser missingness" to
+  "dominated by truncation" for the within-prompt metric specifically.
+
+### Claims still standing
+
+- What RMD genuinely detects here is degenerate / non-terminating generations.
+  That is real and plausibly useful for Best-of-N rejection, but is confounded
+  with length and is not evidence of within-trace correctness geometry.
+- The parseable-only contrast (n=13 mixed prompts) is too small to pin RMD's true
+  within-prompt sign; the only firm claim is that the 0.93 headline does not survive.
+
+### Limitations
+
+- Parseable-only DeepSeek estimate rests on 13 mixed prompts -> noisy.
+- True lengths of truncated traces are censored at 2048; existing data cannot say
+  what `max_new_tokens` is sufficient.
+
+### Next dependent stage
+
+- BLOCKER for the Llama decomposition: `deepseek_llama` is also `max_new_tokens=2048`
+  (params.yaml) and will inherit the identical artifact. Before the full 500x8
+  campaign, run a small smoke test (limit ~30, T=0.6) at a raised budget (try 8192)
+  on `deepseek` and `deepseek_llama`, measure cap-hit rate, pick the smallest budget
+  with single-digit truncation (watch hidden-state storage ~ tokens x layers), then
+  collect full. Do NOT run full 500x8 at 2048.
+
+## 2026-07-11: Prompt-Local RMD and Current Evidence Reconciliation
+
+### Status
+
+| Experiment family | Condition | Status |
+|:---|:---|:---|
+| Prompt-local RMD | Qwen MATH-500, 500 prompts x 8 traces, layers 7/14/21 | Complete |
+| Prompt-local top-1 selection | Same Qwen OOF scores | Complete |
+| DeepSeek-Qwen budget probe | 8192 tokens, 24 traces | Complete; 12.5% capped/unparsed |
+| DeepSeek-Llama budget probe | 12288 tokens, 24 traces | Complete; 0% capped/unparsed |
+| DeepSeek prompt-local RMD | Historical 2048-token Best-of-N data | Deliberately not interpreted; truncation-contaminated |
+| Clean cross-model prompt decomposition | Re-collected Best-of-N data | Not run |
+
+Artifacts:
+
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json`
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv`
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md`
+- `results/qwen_bestofn_full/math500/math500_prompt_selection_results.json`
+- `results/qwen_bestofn_full/math500/math500_prompt_selection_report.md`
+- `results/truncation_probe/deepseek_8192.json`
+- `results/truncation_probe/deepseek_llama_12288.json`
+
+### Prompt-Local Protocol
+
+For every held-out prompt and trace, the score uses the global OOF PCA and
+correct-trace reference fitted on training prompts. Its local background is a
+diagonal Gaussian fitted to tokens from the other seven attempts of that same
+held-out prompt. The scored trace is excluded from its local background. The
+fixed-orientation confidence score is the mean local-background distance minus
+the global raw correct-manifold distance.
+
+This is a quick test of whether removing prompt-shared semantic variation
+reveals a same-prompt correctness residual. It uses no correctness labels from
+the held-out prompt, but it is transductive because sibling attempts are
+available at scoring time.
+
+### Primary Results
+
+| Layer | Prompt-local pooled AUC | Prompt-local centered AUC | Prompt-local within pair AUC | ICC | Top-1 Pass@1 |
+|---:|---:|---:|---:|---:|---:|
+| 7 | 0.379 | 0.501 | 0.499 | 0.965 | 0.558 |
+| 14 | 0.402 | 0.480 | 0.480 | 0.955 | 0.532 |
+| 21 | 0.320 | 0.523 | 0.529 | 0.940 | 0.548 |
+
+Selection references are random trace `0.557`, strict majority vote `0.596`,
+and oracle Pass@8 `0.676`. Prompt-local RMD does not improve on random and is
+consistently below majority vote.
+
+For comparison, global RMD pooled AUC is `0.736/0.763/0.786` and global RMD
+within-prompt pair AUC is `0.551/0.550/0.602` at layers 7/14/21. Prompt-local
+subtraction removes the useful between-prompt component without exposing a
+strong same-prompt component.
+
+On parseable-only traces (117 mixed prompts), prompt-local within-macro AUC is
+`0.446/0.436/0.483`, while global RMD is `0.503/0.515/0.574` and log-probability
+is `0.649` at every layer. The apparent L21 all-trace prompt-local pair AUC of
+`0.529` therefore does not survive the stricter correctness population.
+
+### Interpretation
+
+- Rejected for this estimator and Qwen dataset: same-prompt full-trace residual
+  geometry is sufficient for correctness ranking.
+- Supported: the useful global RMD signal is largely tied to prompt-level
+  semantic/difficulty structure rather than an attempt-specific offset that can
+  be recovered with a sibling-trace Gaussian.
+- Supported: full-trace averaging is likely too coarse for local arithmetic,
+  sign, or late-answer errors. The next geometry tests should localize scoring
+  to high-entropy tokens, the trace tail, answer regions, or step transitions.
+- This negative result does not rule out all prompt-conditional geometry. It
+  rules out this simple leave-one-trace-out diagonal local-background method on
+  Qwen MATH-500.
+
+### Length and Truncation Context
+
+The Qwen global RMD-minus-length contrast is strongest at L21: pooled `+0.055`
+with 95% CI `[+0.021, +0.093]`, centered `+0.092` with
+`[+0.047, +0.134]`, and within macro `+0.116` with `[+0.065, +0.171]` on all
+traces. Parseable-only within-prompt performance is much weaker, so these
+all-trace contrasts must not be presented as clean trace-correctness estimates.
+
+The budget probes establish collection settings, not final scientific results:
+
+| Model | Budget | n | Capped | Unparsed | Completed p95 | Completed max |
+|:---|---:|---:|---:|---:|---:|---:|
+| DeepSeek-R1-Distill-Qwen-7B | 8192 | 24 | 12.5% | 12.5% | 3924 | 5193 |
+| DeepSeek-R1-Distill-Llama-8B | 12288 | 24 | 0% | 0% | 10237 | 11163 |
+
+### Repository and DVC State
+
+The result files exist, but the current worktree is not globally DVC-clean.
+`dvc status` reports many changed dependencies because analysis and collection
+code plus `params.yaml` have evolved since `dvc.lock`. In particular,
+`evaluate_prompt_decomposition@0` and `evaluate_prompt_selection@0` report
+changed dependencies despite the new Qwen outputs being present. Do not treat
+an existing artifact as proof that its current stage definition is reproduced.
+
+No files were staged or committed as part of this documentation update.
+
+### Next Dependent Experiments
+
+1. Implement and run high-entropy-token and tail-only RMD on the existing Qwen
+   OOF protocol. These are the smallest tests of localized error geometry.
+2. Add answer-cluster geometry to prompt selection using the existing enriched
+   OOF CSV before collecting more hidden states.
+3. Re-run parseable-only selective prediction with paired problem-bootstrap
+   intervals against length, entropy/log-probability, and a trained linear
+   probe. This determines whether the abstention application survives.
+4. Only after the cheap gates pass, collect clean Best-of-N data for additional
+   model families using architecture-specific token budgets. Do not rerun the
+   old DeepSeek 2048-token decomposition as evidence.
+
 ## Logging Convention
 
 For every completed experiment, append:

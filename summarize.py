@@ -961,6 +961,67 @@ def render_prompt_decomposition_section(results: dict, lines: list[str]) -> None
                     )
     lines.append("")
 
+    contrastive_entries = [
+        (model, dataset, data)
+        for model in sorted(results)
+        for dataset in sorted(results[model])
+        for data in [results[model][dataset]]
+        if data.get("contrastive", {}).get("regions")
+    ]
+    if contrastive_entries:
+        lines.extend(
+            [
+                "### Prompt-contrastive correctness (parseable-only primary)",
+                "",
+                (
+                    "These supervised direction scores are reported separately from "
+                    "the unsupervised decomposition table. Values below are restricted "
+                    "to traces with parseable final answers."
+                ),
+                "",
+                "| Model | Dataset | Layer | Region | Centered AUC | Within macro | Mixed prompts |",
+                "|:---|:---|---:|:---|---:|---:|---:|",
+            ]
+        )
+        for model, dataset, data in contrastive_entries:
+            for layer, layer_result in sorted(
+                data.get("layers", {}).items(), key=lambda item: int(item[0])
+            ):
+                parseable = layer_result.get("parseable_only", {}).get("methods", {})
+                for method in (
+                    "contrast_full",
+                    "contrast_high_entropy_q20",
+                    "contrast_tail_q20",
+                ):
+                    metrics = parseable.get(method)
+                    if not metrics:
+                        continue
+                    lines.append(
+                        f"| {model} | {dataset} | L{layer} | {method} | "
+                        f"{fmt(metrics.get('prompt_centered_auc'))} | "
+                        f"{fmt(metrics.get('within_prompt_macro'))} | "
+                        f"{metrics.get('n_mixed_prompts', 0)} |"
+                    )
+        lines.extend(
+            [
+                "",
+                "| Model | Dataset | Layer | Region | Observed alignment | Null mean | Null p |",
+                "|:---|:---|---:|:---|---:|---:|---:|",
+            ]
+        )
+        for model, dataset, data in contrastive_entries:
+            for diagnostic in data.get("contrastive", {}).get(
+                "alignment_diagnostics", []
+            ):
+                null = diagnostic.get("null", {})
+                lines.append(
+                    f"| {model} | {dataset} | L{diagnostic['layer']} | "
+                    f"{diagnostic['region']} | "
+                    f"{fmt(diagnostic.get('observed_alignment'))} | "
+                    f"{fmt(null.get('mean'))} | {fmt(null.get('p_value'))} |"
+                )
+        lines.append("")
+
 
 def render_prompt_selection_section(results: dict, lines: list[str]) -> None:
     lines.extend(["## OOF Prompt Selection", ""])

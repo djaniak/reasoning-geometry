@@ -493,6 +493,14 @@ def parse_args():
         default="0.6,0.7,0.8,0.9",
         help="Comma-separated coverage levels to report accuracy at",
     )
+    parser.add_argument(
+        "--exclude_unparsed",
+        action="store_true",
+        help="Drop traces with no parseable final answer before scoring. These are "
+        "auto-labeled incorrect upstream and are usually truncated/non-terminating, so "
+        "including them inflates abstention AUSC by letting any off-manifold score "
+        "'abstain' on non-answers rather than on genuinely wrong reasoning.",
+    )
     return parser.parse_args()
 
 
@@ -516,6 +524,21 @@ def main():
     traces = load_all_traces(args.data_dir, layers)
     print(f"Loaded {len(traces)} traces ({sum(t['is_correct'] for t in traces)} correct)")
 
+    dataset_label = args.dataset_label
+    if args.exclude_unparsed:
+        def _parsed(trace):
+            pred = trace.get("predicted_answer")
+            return pred is not None and str(pred).strip() != ""
+
+        before = len(traces)
+        traces = [trace for trace in traces if _parsed(trace)]
+        dataset_label = f"{args.dataset_label}_parseable"
+        print(
+            f"Excluded {before - len(traces)} unparsed traces; "
+            f"{len(traces)} parseable remain "
+            f"({sum(t['is_correct'] for t in traces)} correct)"
+        )
+
     results = evaluate_selective_prediction(
         traces=traces,
         layers=layers,
@@ -524,10 +547,10 @@ def main():
         cv_random_state=args.cv_random_state,
         min_coverage=args.min_coverage,
         operating_points=operating_points,
-        dataset_label=args.dataset_label,
+        dataset_label=dataset_label,
     )
 
-    prefix = args.dataset_label
+    prefix = dataset_label
     results_path = os.path.join(args.output_dir, f"{prefix}_selective_prediction_results.json")
     with open(results_path, "w") as fh:
         json.dump(results, fh, indent=2)

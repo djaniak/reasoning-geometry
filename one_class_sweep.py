@@ -385,6 +385,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_splits", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--ridge_scale", type=float, default=1e-3)
+    parser.add_argument(
+        "--exclude_unparsed",
+        action="store_true",
+        help="Drop traces with no parseable final answer (truncated/non-terminating, "
+        "auto-labeled incorrect upstream). Use to check whether the low-dimensional "
+        "plateau survives once the 'incorrect' class is genuine wrong answers, not "
+        "non-answers.",
+    )
     return parser.parse_args()
 
 
@@ -399,10 +407,24 @@ def main() -> None:
         layers,
         include_auxiliary=False,
     )
+    dataset_label = args.dataset_label
+    if args.exclude_unparsed:
+        before = len(traces)
+        traces = [
+            t for t in traces
+            if (t.get("predicted_answer") is not None
+                and str(t["predicted_answer"]).strip() != "")
+        ]
+        dataset_label = f"{args.dataset_label}_parseable"
+        print(
+            f"Excluded {before - len(traces)} unparsed traces; {len(traces)} parseable "
+            f"remain ({sum(t['is_correct'] for t in traces)} correct)",
+            flush=True,
+        )
     result = evaluate_one_class_sweep(
         traces,
         model=args.model_label,
-        dataset=args.dataset_label,
+        dataset=dataset_label,
         layers=layers,
         dimensions=dimensions,
         n_splits=args.n_splits,
@@ -411,7 +433,7 @@ def main() -> None:
     )
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    prefix = f"{args.dataset_label}_one_class_sweep"
+    prefix = f"{dataset_label}_one_class_sweep"
     (output_dir / f"{prefix}_results.json").write_text(
         json.dumps(result, indent=2) + "\n"
     )

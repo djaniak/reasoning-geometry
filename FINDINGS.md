@@ -6,6 +6,51 @@
 
 ---
 
+> ## ⚠️ Correction & contamination notice (2026-06-19)
+>
+> A truncation artifact was found that contaminates many DeepSeek results below.
+> Read this before trusting any DeepSeek headline number. Full audit:
+> `EXPERIMENT_LOG.md` (2026-06-14 audit entry).
+>
+> **Mechanism.** `collect_data.py` auto-labels any trace with no parseable `\boxed{}`
+> as `is_correct=False`. With the generation cap, a large fraction of DeepSeek traces
+> hit the cap *without emitting an answer* and were counted as "wrong." Mahalanobis/RMD
+> then flags these off-manifold/non-terminating traces — so geometry was substantially
+> detecting **truncation**, not **wrong reasoning**.
+>
+> **Measured contamination (cheap metadata scan, no rerun):**
+> | Data | unparsed | length-capped | unparsed share of "incorrect" class |
+> |---|---:|---:|---:|
+> | DeepSeek greedy MATH-500 (main table, selective pred, stratification) | **43%** | **51%** | **75–79%** |
+> | DeepSeek Best-of-N MATH-500 (within-prompt decomposition) | **45%** | ~55% | **78%** |
+> | Qwen greedy MATH-500 | 8% | 8% | 17% |
+> | Qwen Best-of-N MATH-500 | 8% | 8% | — |
+>
+> **RETRACTED:** the 2026-06-14 claim *"DeepSeek RMD is genuinely trace-level,
+> within-prompt AUC 0.927–0.931"* (below) is the artifact. On parseable-only Best-of-N
+> traces the within-prompt mixed-prompt set collapses 166→13 and within-macro falls to
+> ~chance (0.27). The "strongest paper spine" built on it is withdrawn.
+>
+> **De-confounded estimate we DO have (Best-of-N OOF, parseable-only, pooled AUC):**
+> DeepSeek correctness RMD **0.636** vs length **0.545** vs entropy 0.515 (was 0.887 with
+> truncated traces included). The RMD-over-length margin (+0.05–0.09, CI excludes zero)
+> survives and is **between-prompt (solvability)**; within-prompt (per-attempt) is at chance.
+>
+> **Contaminated and NOT yet re-validated (pending parseable-only rerun via
+> `selective_prediction.py --exclude_unparsed`):** the main-results table (DeepSeek
+> combined 0.859), selective-prediction AUSC (DeepSeek 0.633), and the difficulty/subject
+> stratification — all DeepSeek-greedy-derived, where 75–79% of the "incorrect" class is
+> non-answers. Treat their DeepSeek numbers as upper bounds.
+>
+> **Largely clean:** Qwen results (8% contamination) and any signal evaluated on
+> parseable traces or about *geometry* rather than the correctness label (mechanism /
+> low-dim / transfer), though AUC-based ones still warrant a parseable check.
+>
+> **Cross-model caveat:** the "DeepSeek shows a much larger geometry effect than Qwen"
+> story tracks the **differential truncation rate (43% vs 8%)**, not cleanly distillation.
+
+---
+
 ## Introduction
 
 Token-level entropy — the standard uncertainty signal from language models — becomes
@@ -148,7 +193,10 @@ concordance stages are now complete and incorporated into `results/SUMMARY.md`.
   Best AUSC is `0.721` vs `0.621` for Qwen, `0.633` vs `0.500` for DeepSeek,
   `0.493` vs `0.384` for Llama, and `0.506` vs `0.442` for DeepSeek-Llama.
   Raw Mahalanobis is consistently weak; background subtraction is the load-bearing
-  correction.
+  correction. ⚠️ **The DeepSeek/DeepSeek-Llama AUSC numbers are contamination-suspect**
+  (43% of DeepSeek greedy traces are unparsed/truncated, all labeled incorrect — RMD can
+  "abstain" on non-answers, inflating AUSC). Needs the parseable-only rerun
+  (`selective_prediction.py --exclude_unparsed`) before use. Qwen (8%) is largely clean.
 - **Best-of-N pilot (`N=8`, 100 prompts):** Qwen majority vote scores `0.690`,
   ahead of best raw combined geometry (`0.650`) and RMD-only (`0.620`).
   DeepSeek majority vote and best RMD-only both score `0.570`; RMD+entropy reaches
@@ -166,11 +214,14 @@ probes, application-alignment analysis, and one-class mechanism sweep are now
 complete. They replace the earlier binary framing of "trace correctness versus
 prompt difficulty" with a model-conditional result.
 
-- **DeepSeek RMD is genuinely trace-level.** Across L7/L14/L21, within-prompt
-  pairwise AUC is `0.927-0.931`. RMD exceeds entropy within prompts by
+- **DeepSeek RMD is genuinely trace-level.** ⚠️ **RETRACTED — see the correction
+  notice at the top of this file. This is the truncation artifact.** Across L7/L14/L21,
+  within-prompt pairwise AUC is `0.927-0.931`. RMD exceeds entropy within prompts by
   `0.134-0.138`, with paired prompt-bootstrap intervals excluding zero. In
   top-1 selection it gains `0.109-0.111` Pass@1 over a random trace and
-  `0.018-0.020` over the strong length baseline.
+  `0.018-0.020` over the strong length baseline. *(All of this is driven by RMD ranking
+  correct traces above unparsed/truncated ones, not above genuinely wrong answers; on
+  parseable-only traces the within-prompt signal is at chance.)*
 - **Qwen RMD is primarily a solvability signal.** Its pooled AUC rises to
   `0.736-0.786`, but within-prompt AUC is only `0.550-0.602`. It does not beat
   entropy, log-probability, or length within prompts with a confidence interval
@@ -207,12 +258,17 @@ prompt difficulty" with a model-conditional result.
   now persists generated text and uses balanced parsing for nested
   `\\boxed{}` and `\\fbox{}` expressions.
 
-The strongest paper spine is now:
+The strongest paper spine is now: ⚠️ **WITHDRAWN — rested on the retracted
+within-prompt result. See the correction notice at the top.** The revised, defensible
+spine is in the paper-strategy work: geometry is a length-and-entropy-beating
+*between-prompt solvability* signal (for abstention / compute allocation), not a
+within-prompt correctness reranker; prior "trace-correctness" readings were confounded
+by trace length and truncation.
 
-> Relative hidden-state geometry separates correctness-specific structure from
+> ~~Relative hidden-state geometry separates correctness-specific structure from
 > generic representation spread. Whether that signal supports abstention or
 > within-prompt selection depends on its prompt-level decomposition, and that
-> decomposition differs sharply across model training regimes.
+> decomposition differs sharply across model training regimes.~~
 
 The next smallest useful work is to add paired application-level uncertainty
 and run length-matched/confidently-wrong controls. Broader

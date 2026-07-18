@@ -14,6 +14,15 @@ from scipy.stats import rankdata
 from prompt_decomposition import SCORE_METHODS, available_score_methods
 
 INVALID_ANSWER = "<INVALID>"
+REQUIRED_SCORE_METHODS = (
+    "entropy",
+    "logprob",
+    "length",
+    "activation_norm",
+    "centroid",
+    "raw",
+    "rmd",
+)
 
 
 def _group_rows(rows: list[dict], key: str) -> dict[int, list[dict]]:
@@ -303,7 +312,7 @@ def read_oof_csv(path: str | Path) -> list[dict]:
             "gold_answer",
             "mean_logprob",
             "trace_length",
-            *(f"{method}_score" for method in SCORE_METHODS),
+            *(f"{method}_score" for method in REQUIRED_SCORE_METHODS),
         }
         missing = required - set(reader.fieldnames or ())
         if missing:

@@ -598,22 +598,22 @@ stages:
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
       hash: md5
-      md5: b79d893e125aeebc1ba8a826ee2510af
-      size: 1786
+      md5: 5a190ebcd0c53a9ba3865e30918bd696
+      size: 4285
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
       hash: md5
-      md5: 6de086112100dc0c338457c6a96b0a36
-      size: 82280
+      md5: 732eb5c154dce695065e438d91522cbe
+      size: 106453
     - path: results/qwen_bestofn_full/math500/math500_prompt_selection_report.md
       hash: md5
-      md5: 2aa130fcf1c4c72caef8dd6a7a735da4
-      size: 2503
+      md5: f4ee934fdc2e240dba1fb71e2aaaaaa4
+      size: 2688
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
       hash: md5
-      md5: f970bcb3f85632e7b6591f1e9c009a34
-      size: 439821
+      md5: aae59be06f809b3e16871690f1298404
+      size: 476341
     - path: results/qwen_bestofn_pilot/math500/math500_best_of_n_results.json
       hash: md5
       md5: cb9c276428f3f0d577195edb8df5f2fb
@@ -646,12 +646,12 @@ stages:
     outs:
     - path: results/SUMMARY.md
       hash: md5
-      md5: 7ef45579d0924a0afe915276504d8279
-      size: 176416
+      md5: 90c55a4f96aabc9d68c880c196d6b78c
+      size: 176840
     - path: results/all_results.json
       hash: md5
-      md5: e886c2714866e8ebe0ded96e972946a5
-      size: 9298789
+      md5: 228fa36621abbd7b78eb776ce1ebcddf
+      size: 9377436
   collect_qwen_math500_bestofn:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
@@ -4657,12 +4657,14 @@ stages:
       data/qwen_bestofn_full/math500 --output_dir 
       results/qwen_bestofn_full/math500 --dataset_label math500 --model_label 
       qwen --layers 7,14,21 --pca_dim 128 --n 8 --expected_prompts 500 
-      --n_splits 5 --n_bootstrap 1000 --seed 42 --load_workers 4
+      --n_splits 5 --n_bootstrap 1000 --seed 42 --load_workers 4 
+      --contrastive_regions full,high_entropy_q20,tail_q20 
+      --n_alignment_shuffles 1000 --alignment_seed 42 --max_new_tokens 1024
     deps:
     - path: analyze.py
       hash: md5
-      md5: 00ad5d4a721765f5087e717a15b19908
-      size: 102168
+      md5: 70dcdef6a5b569e379fad9341d3e74dd
+      size: 102862
     - path: best_of_n.py
       hash: md5
       md5: b518ece77f49dc68d92b81a0bd9e56de
@@ -4674,8 +4676,8 @@ stages:
       nfiles: 80
     - path: prompt_decomposition.py
       hash: md5
-      md5: 213083532f8051f40c99221f6b79e024
-      size: 37943
+      md5: 835ae74b4539b672a9c470e7d5d11e65
+      size: 71391
     params:
       params.yaml:
         analyze.pca_dim: 128
@@ -4686,14 +4688,31 @@ stages:
           limit: 500
           model_name: Qwen/Qwen2.5-7B-Instruct
           max_new_tokens: 1024
+          layers: 7,14,21
         - model: deepseek
           scale: full
           limit: 500
           model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-          max_new_tokens: 2048
+          max_new_tokens: 8192
+          layers: 7,14,21
+        - model: llama
+          scale: full
+          limit: 500
+          model_name: meta-llama/Llama-3.1-8B-Instruct
+          max_new_tokens: 1024
+          layers: 8,16,24
+        - model: deepseek_llama
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+          max_new_tokens: 12288
+          layers: 8,16,24
+        prompt_decomposition.alignment_seed: 42
+        prompt_decomposition.contrastive_regions: full,high_entropy_q20,tail_q20
         prompt_decomposition.expected_prompts: 500
         prompt_decomposition.load_workers: 4
         prompt_decomposition.n: 8
+        prompt_decomposition.n_alignment_shuffles: 1000
         prompt_decomposition.n_bootstrap: 1000
         prompt_decomposition.n_splits: 5
         prompt_decomposition.seed: 42
@@ -4701,18 +4720,18 @@ stages:
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: c982e341456e5c21b2c7f8e64937d61f
-      size: 2331252
+      md5: 8638e6a3c44cf3085d253d9851c8b3dd
+      size: 3263937
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
       hash: md5
-      md5: b79d893e125aeebc1ba8a826ee2510af
-      size: 1786
+      md5: 3cad63b6df98801b6dc21fde606f119e
+      size: 11201
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
       hash: md5
-      md5: 6de086112100dc0c338457c6a96b0a36
-      size: 82280
+      md5: 1a5391b00a3a5cc2aa39588f164e3a7c
+      size: 623781
   analyze_controls_qwen_dense_math500:
     cmd: uv run python analyze.py --analysis_family controls --data_dir 
       data/qwen_dense/math500 --output_dir results/qwen_dense/math500 
@@ -5022,17 +5041,17 @@ stages:
     deps:
     - path: prompt_decomposition.py
       hash: md5
-      md5: 213083532f8051f40c99221f6b79e024
-      size: 37943
+      md5: 835ae74b4539b672a9c470e7d5d11e65
+      size: 71391
     - path: prompt_selection.py
       hash: md5
-      md5: 1f8937b06bf4ba80203d70ed73ba67fa
-      size: 13039
+      md5: f265726a90b9a73678e45f84fd6a46a5
+      size: 13182
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: c982e341456e5c21b2c7f8e64937d61f
-      size: 2331252
+      md5: 8638e6a3c44cf3085d253d9851c8b3dd
+      size: 3263937
     params:
       params.yaml:
         bestofn_matrix:
@@ -5041,23 +5060,37 @@ stages:
           limit: 500
           model_name: Qwen/Qwen2.5-7B-Instruct
           max_new_tokens: 1024
+          layers: 7,14,21
         - model: deepseek
           scale: full
           limit: 500
           model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-          max_new_tokens: 2048
+          max_new_tokens: 8192
+          layers: 7,14,21
+        - model: llama
+          scale: full
+          limit: 500
+          model_name: meta-llama/Llama-3.1-8B-Instruct
+          max_new_tokens: 1024
+          layers: 8,16,24
+        - model: deepseek_llama
+          scale: full
+          limit: 500
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+          max_new_tokens: 12288
+          layers: 8,16,24
         prompt_selection.n_bootstrap: 1000
         prompt_selection.seed: 42
     outs:
     - path: results/qwen_bestofn_full/math500/math500_prompt_selection_report.md
       hash: md5
-      md5: 2aa130fcf1c4c72caef8dd6a7a735da4
-      size: 2503
+      md5: fa9cc6f852a1220d1ccaa98de7d224ed
+      size: 3264
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_selection_results.json
       hash: md5
-      md5: f970bcb3f85632e7b6591f1e9c009a34
-      size: 439821
+      md5: a08deca7b5417eab4a048e857e2c154b
+      size: 585907
   evaluate_prompt_selection@1:
     cmd: uv run python prompt_selection.py --input_csv 
       results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
@@ -5163,3 +5196,63 @@ stages:
       hash: md5
       md5: e74ccf18805100dd3c5dd19cfe0f941a
       size: 9275
+  truncation_probe@0:
+    cmd: uv run python truncation_probe.py --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --max_new_tokens 8192 --limit 24 
+      --num_samples 1 --batch_size 8 --output 
+      results/truncation_probe/deepseek_8192.json
+    deps:
+    - path: truncation_probe.py
+      hash: md5
+      md5: 5b4beedde69f99628d6ff961ebcc6cd5
+      size: 7445
+    params:
+      params.yaml:
+        truncation_probe_matrix:
+        - name: deepseek
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 8192
+          limit: 24
+          num_samples: 1
+          batch_size: 8
+        - name: deepseek_llama
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+          max_new_tokens: 12288
+          limit: 24
+          num_samples: 1
+          batch_size: 8
+    outs:
+    - path: results/truncation_probe/deepseek_8192.json
+      hash: md5
+      md5: 9a368c3d5a3aed7d30dcd7c87f191bf5
+      size: 3958
+  truncation_probe@1:
+    cmd: uv run python truncation_probe.py --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Llama-8B --max_new_tokens 12288 --limit 24
+      --num_samples 1 --batch_size 8 --output 
+      results/truncation_probe/deepseek_llama_12288.json
+    deps:
+    - path: truncation_probe.py
+      hash: md5
+      md5: 5b4beedde69f99628d6ff961ebcc6cd5
+      size: 7445
+    params:
+      params.yaml:
+        truncation_probe_matrix:
+        - name: deepseek
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+          max_new_tokens: 8192
+          limit: 24
+          num_samples: 1
+          batch_size: 8
+        - name: deepseek_llama
+          model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+          max_new_tokens: 12288
+          limit: 24
+          num_samples: 1
+          batch_size: 8
+    outs:
+    - path: results/truncation_probe/deepseek_llama_12288.json
+      hash: md5
+      md5: 44f5cceb85dc11d1b9b48c8ac1f60259
+      size: 3988

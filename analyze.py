@@ -87,6 +87,10 @@ def parse_args():
     parser.add_argument("--cv_random_state", type=int, default=CV_RANDOM_STATE)
     parser.add_argument("--cross_model_ref", type=str, default=None,
                         help="Data dir of another model with a compatible hidden space to fit cross-model Mahalanobis reference")
+    parser.add_argument("--exclude_unparsed", action="store_true",
+                        help="Drop eval traces with no parseable final answer (truncated/non-terminating, "
+                             "auto-labeled incorrect). Checks whether geometry/transfer survives once the "
+                             "incorrect class is genuine wrong answers.")
     parser.add_argument("--layers", type=str, default=None,
                         help="Comma-separated layer indices to analyze (auto-detected from data if omitted)")
     parser.add_argument("--subject", action="store_true",
@@ -2098,6 +2102,14 @@ def main():
 
     print("Loading all traces...")
     traces = load_all_traces(args.data_dir, layers_to_analyze)
+    if args.exclude_unparsed:
+        before = len(traces)
+        traces = [
+            t for t in traces
+            if (t.get("predicted_answer") is not None
+                and str(t["predicted_answer"]).strip() != "")
+        ]
+        print(f"Excluded {before - len(traces)} unparsed eval traces; {len(traces)} parseable remain")
     correct = [t for t in traces if t["is_correct"]]
     incorrect = [t for t in traces if not t["is_correct"]]
     print(f"Loaded {len(traces)} traces: {len(correct)} correct, {len(incorrect)} incorrect")

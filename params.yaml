@@ -66,13 +66,29 @@ collect_llama_arch_matrix:
   - {model: deepseek_llama, dataset: gsm8k,   model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
   - {model: deepseek_llama, dataset: math500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
 
+# max_new_tokens set from the truncation-probe budget study (2026-06-19):
+#   qwen/llama (instruct) ~1024; deepseek-distill completes by ~5k so 8192 is ample (residual
+#   ~12% are non-terminating runaways a larger budget won't save); deepseek-llama-distill has a
+#   heavy completion tail to ~11k, so 12288 -> 0% truncation in the probe.
+# layers are PER-ARCHITECTURE and consumed via ${item.layers}: Qwen2.5 arch = 7,14,21;
+# Llama arch = 8,16,24. (Do NOT rely on the global best_of_n.layers for Llama-family rows.)
 bestofn_matrix_pilot:
-  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
-  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, layers: "7,14,21"}
+  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
 
 bestofn_matrix:
-  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024}
-  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048}
+  - {model: qwen,          scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024,  layers: "7,14,21"}
+  - {model: deepseek,      scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 8192,  layers: "7,14,21"}
+  - {model: llama,         scale: full, limit: 500, model_name: meta-llama/Llama-3.1-8B-Instruct,         max_new_tokens: 1024,  layers: "8,16,24"}
+  - {model: deepseek_llama, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24"}
+
+
+# Diagnostic only: measure the generation-cap-hit rate at a candidate max_new_tokens
+# to size the budget before re-collection. GPU; run deliberately via `dvc repro truncation_probe`.
+# Not bit-reproducible (T=0.6 sampling); cap-hit rate is the stable quantity.
+truncation_probe_matrix:
+  - {name: deepseek,       model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 8192,  limit: 24, num_samples: 1, batch_size: 8}
+  - {name: deepseek_llama, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, limit: 24, num_samples: 1, batch_size: 8}
 
 
 prefix_filter_matrix:
@@ -109,6 +125,9 @@ prompt_decomposition:
   n_bootstrap: 1000
   seed: 42
   load_workers: 4
+  contrastive_regions: "full,high_entropy_q20,tail_q20"
+  n_alignment_shuffles: 1000
+  alignment_seed: 42
 
 prompt_selection:
   n_bootstrap: 1000
