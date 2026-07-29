@@ -5,6 +5,386 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-07-25: DVC graph restructure — retired experiment families
+
+### Status
+
+The active graph was cut from 24 stages to 12 and re-pointed at a
+**3-model x 2-dataset preliminary matrix**: `qwen` (Qwen2.5-7B-Instruct, 1,024
+tok, L7/14/21), `deepseek` (DeepSeek-R1-Distill-Qwen-7B, 8,192 tok, L7/14/21),
+`deepseek_llama` (DeepSeek-R1-Distill-Llama-8B, 12,288 tok, L8/16/24); each with
+GSM8K single-sample greedy (limit 500) and MATH-500 Best-of-8 (T=0.6, N=8, limit
+500). Single-sample MATH-500 is dropped — the Best-of-8 data supersedes it.
+
+**This is a scope cut, not a data deletion.** Every retired stage's outputs
+remain under `results/` and every number below is still reproducible from those
+JSONs. What changed is what the default graph, `results/SUMMARY.md`, and the
+paper claim as *current evidence*.
+
+Cache-safety constraint applied throughout: whole-matrix entries
+(`bestofn_matrix`, `wave1_matrix`, ...) were removed from every foreach `do:`
+block's `params:` list, so adding a model row cannot invalidate a finished cell.
+Item values still appear in `cmd`, so real changes still trigger reruns.
+
+### Why each family was retired
+
+Three distinct reasons. Only the first is a scientific negative.
+
+**(a) Negative or null result — the experiment answered its question, and the
+answer was no.**
+
+| Retired stage | Verdict | Evidence |
+|:---|:---|:---|
+| `evaluate_prefix_filter`, `collect_prefix_filter` | **Negative.** Abort-and-retry prefix filtering never pays for itself. | 135 cells/model (3 prefix lengths x 3 score kinds x 3 layers x 5 thresholds). **Zero cells with positive token savings** — best is −0.015 (i.e. 1.5% *more* tokens) for both Qwen and DeepSeek. Best pass@1 delta +0.016 (Qwen) / +0.024 (DeepSeek), and DeepSeek's best cells are all `entropy_only`, so geometry contributes nothing. False-abort rate ~0.5 ≈ base rate. |
+| `evaluate_prompt_selection`, `evaluate_bestofn_full/_pilot/_concordance` | **Negative, with a structural ceiling.** Geometry does not rerank same-prompt samples. | Qwen MATH-500 N=8: majority vote 0.596 pass@1 (random 0.557, oracle 0.676); all 15 geometry/logprob tie-break variants within ±0.006, **15/15 paired deltas p ≥ 0.248**; RMD rank-weighted voting 0.582–0.584 *underperforms* majority. The ceiling is structural: only 39/500 prompts have a tied top answer at N=8, and only ~10 of those ties contain both a correct and an incorrect option — **~2 points of headroom no tie-breaker can exceed.** Retiring this is closing a question, not abandoning it. |
+| `trajectory` (Track A, `fpca_mahal`) | **Negative.** Functional trajectory encoding never beats scalar Mahalanobis summaries. | 4 model/dataset conditions x 3 layers. Best case DeepSeek GSM8K L21 = 0.808, still below scalar Mahal at the same layer (0.831) and best combined (0.835). On Qwen GSM8K it is near chance (0.519–0.538 across all layers) and below the entropy baseline. Sequence representation adds variance faster than signal. |
+| `analyze_pca_ablation_runs/_merge` | **Null — and the null is the point.** `pca_dim` is not a tuned knob. | 4 conditions x 3 layers x {32, 128, 512, max}. Combined AUC spread across dims is ~±0.03 and non-monotone in every cell; dim 128 is best or within 0.01 of best in 9/12 cells. Closes the "PCA dim fixed at 128, not swept" limitation rather than leaving it open. |
+| `analyze_cross` | **Split verdict, retired as out-of-scope.** Manifold shape partially transfers; decision boundaries do not. | Geometry-only cross-model Mahal retention spans ~82% (DeepSeek GSM8K L7) to ~101% (DeepSeek MATH-500 L14), with late layers retaining more reliably (94–99% at L14–L21). Frozen classifier transfer fails: L7 cross-model clf Mahal AUC 0.351–0.705, and L14/L21 are at or below chance in most cells. Retired because it predates the truncation-bias fix and is a separate paper. |
+
+**(b) Superseded by a stricter protocol — the numbers were confounded, not
+wrong-hypothesis.**
+
+| Retired stage | Reason |
+|:---|:---|
+| `evaluate_selective_prediction` | Superseded by `evaluate_wave1_experiments` E1, which does the same risk–coverage comparison **with prompt-cluster bootstrap CIs** and the length baseline. The old stage reported point estimates only. |
+| `evaluate_one_class_sweep` | Ran on **all traces**, so its pooled AUCs carry the length/truncation confound that the 2026-07-18 fix exposed (length alone pools at 0.737 but collapses to 0.478 within-prompt on parseable traces). Its mechanistic conclusion survives and is recorded below; the stage does not. |
+| `analyze_subspace` | Contrast-direction analysis is subsumed by the `contrast_*` regions inside `evaluate_prompt_decomposition`, which are OOF cross-fitted and tested against a 1,000-draw shuffle null. |
+| `evaluate_application_alignment` | Correlations over 2 models x 3 correlated layers — not enough independent cells to support the claim. Re-derivable from the OOF CSVs if the 3-model matrix gives it more support. |
+
+**(c) Retired inputs — collected under budgets now known to be too short.**
+
+DeepSeek 2,048-token analyses and the `deepseek_temp` sweep. The truncation
+audit showed the 2,048 budget censored the incorrect class, so the affected
+`results/deepseek/{gsm8k,math500}` and `results/deepseek_temp` artifacts are
+provenance only. `data/deepseek/gsm8k_stale_2048` and
+`data/deepseek_llama/gsm8k_stale_2048` are the corresponding retired inputs.
+`collect_qwen_dense_math500` and its analyze/merge stages remain in the graph
+**frozen** — the dense layer sweep is a standing positive result and its cache
+must not be disturbed.
+
+### Mechanistic conclusion preserved from the retired one-class sweep
+
+Worth keeping in front of the reader even though the stage is gone, because it
+explains *why* RMD rather than raw Mahalanobis is the headline score:
+
+| Model | RMD dim 8 | RMD dim 32 | RMD dim 128 | Raw Ledoit-Wolf dim 128 |
+|:---|---:|---:|---:|---:|
+| Qwen | 0.717 | 0.762 | 0.772 | 0.379 |
+| DeepSeek | 0.867 | 0.870 | 0.869 | 0.225 |
+| Llama | 0.750 | 0.778 | 0.781 | 0.396 |
+| DeepSeek-Llama | 0.783 | 0.786 | 0.792 | 0.352 |
+
+**Background subtraction is the load-bearing mechanism**, not covariance
+estimation: diagonal, empirical-ridge, and Ledoit-Wolf target-only variants
+differ by < 0.001 throughout, while target-only raw distance is strongly
+*anti*-predictive (0.225–0.396) and RMD is strongly predictive. A universal
+rank-1 mechanism is rejected — DeepSeek plateaus near dim 8, Qwen and Llama
+keep improving through 64–128. (Pooled all-trace AUCs; length-confounded in
+absolute level, but the raw-vs-RMD reversal is far too large to be a length
+artifact.)
+
+### Wave-1 mechanism follow-ups: all four negative
+
+Recorded here because they are the newest negatives and are easy to misread as
+supporting results. Qwen MATH-500 Best-of-8, prompt-cluster bootstrap, 1,000
+draws (`results/qwen_bestofn_full/math500/math500_wave1_results.json`):
+
+- **E5 (event-locked RMD) — negative, on the control.** RMD is elevated in the
+  window before a high-entropy event at L21 (pre = +0.0147 [+0.0044, +0.0263]),
+  but the matched **random-event control is statistically indistinguishable**
+  (+0.0135 [+0.0019, +0.0239]). The elevation is a property of the window, not
+  of the event. Post-event slopes null at all three layers. Do not cite the
+  pre-event CI without its control.
+- **E4 (entropy-trajectory autopsy) — negative.** Of four trajectory-shape
+  features, three are null vs mean entropy and `mean_peak_position` is
+  significantly worse (−0.162 [−0.243, −0.077], p < 0.001). Entropy carries a
+  level, not a shape.
+- **E6 (log-norm LVE) — negative in all 15 cells** (3 layers x 5 variants),
+  every one significantly below plain logprob. Token-order shuffle controls
+  match the unshuffled variants, so LVE is order-insensitive.
+- **E7 (sibling eligibility) — power audit, not a test.** Of 500 prompts only
+  59 have >= 2 correct *and* >= 2 incorrect siblings after censoring (315 have
+  >= 2 correct, 242 >= 2 incorrect). This is the structural reason the
+  within-prompt selection tests are underpowered, independent of scorer quality.
+
+E1 (prompt abstention) is the one Wave-1 positive: `rmd_tail_q20` AURC 0.828,
+acc@50% 0.852 vs length 0.748 / logprob 0.704 / entropy 0.692; paired deltas vs
+**length** +0.069 AURC [+0.043, +0.096] and +0.104 acc@50% [+0.064, +0.144],
+both p < 0.001. Beating the length baseline is what separates this from
+truncation detection.
+
+### Numerical-precision change to `evaluate_prompt_decomposition`
+
+New params `prompt_decomposition.hidden_dtype: float16` and
+`compute_dtype: float32`, plumbed through `analyze.set_compute_dtype()` and the
+trace loader. Motivation is capacity, not speed: the distill models' traces are
+~5x longer than Qwen's, and the reference fit's float64 concatenation is the
+binding RAM constraint (~199 GB for DeepSeek MATH-500 alone). float16 storage is
+lossless here because hidden states come from a **bf16** forward pass (8-bit
+mantissa into a 10-bit mantissa; max observed |value| 2,512 vs the 65,504
+overflow limit).
+
+Verified on real Qwen L21 Best-of-8 data (8 batches, 400 traces): raw and RMD
+per-trace scores both **Spearman 1.00000000 / Pearson 1.00000000**, max abs diff
+1e-6; pooled AUC float64 0.918138 vs float16/float32 0.918138 (**delta
+0.000000**). This invalidates the `evaluate_prompt_decomposition@0` (Qwen) cache
+entry by command hash even though the outputs are numerically identical.
+
+### Notebook audit accompanying the cut
+
+`notebooks/README.md` is the index. Every notebook's first cell now states its
+status, its inputs, and its bottom line, so a negative cannot be mistaken for a
+pending experiment. Finished diagnostics moved to `notebooks/archive/`; the
+top-level directory holds current evidence only.
+
+- **Current (`notebooks/`):** `11_prompt_geometry_core_experiments`
+  (within-prompt, primary), `12_wave1_abstention` (**new** — between-prompt; E1
+  is the headline positive and previously had no notebook),
+  `01_main_effect_overview` (pooled legacy view, now carrying an explicit
+  length-confound caveat), `02_layer_dynamics`.
+- **`notebooks/archive/` — negatives and nulls, kept deliberately:**
+  `08_trajectory_fpca_vs_scalar`, `09_pca_ablation_analysis` (its trailing
+  "interpretation prompts" cell replaced with the actual conclusion),
+  `10_prefix_filter_analysis` (stale "re-run `evaluate_prefix_filter`"
+  instructions removed — that stage no longer exists).
+- **`notebooks/archive/` — stale inputs:** `03_math500_stratification` reads
+  single-sample MATH-500, which no longer has a collect stage.
+  Difficulty/subject metadata is absent from the Best-of-8 OOF CSV, so the
+  stratification has not been redone under the corrected protocol. If stratified
+  claims are needed, join MATH-500 metadata onto the OOF CSV by `prompt_id` and
+  redo it within-prompt.
+- Archived notebooks still execute in place: `_viz_utils` and `results/` are
+  found by walking up to the repo root, so `archive/` needed no path edits
+  (verified by running all four).
+- Notebook numbering keeps its gaps (00, 04-07 deleted) and archiving does not
+  renumber, so existing references stay valid.
+
+### Active graph after the cut
+
+`collect_qwen_arch`, `collect_arch`, `analyze_base`, `analyze_controls`,
+`merge_analyze` (GSM8K only), the frozen `collect_qwen_dense_math500` trio,
+`truncation_probe`, `collect_bestofn_full`, `evaluate_prompt_decomposition`,
+`evaluate_wave1_experiments`, `summarize`.
+
+### Next dependent stage
+
+Cross-model confirmation of localization (`rmd_high_entropy_q20 − rmd`) and
+entropy-specificity (`− rmd_random_q20`) at each model's pre-specified deepest
+layer. **Gate:** if localization fails on DeepSeek at L21, the localization claim
+demotes to Qwen-specific and the `deepseek_llama` MATH-500 collect does not run.
+
+## 2026-07-29: E1 abstention REPLICATES on DeepSeek (between-prompt regime)
+
+### Outcome
+
+`evaluate_wave1_experiments@1`, DeepSeek-R1-Distill-Qwen-7B, MATH-500 Best-of-8,
+500 prompts, deepest layer 21, 1,000-draw prompt-cluster bootstrap. Companion to
+the failed within-prompt gate below: **the between-prompt abstention claim
+survives cross-model where the within-prompt localization claim did not.**
+
+**Not pre-registered.** Unlike the localization gate, no E1 criterion was fixed
+in advance. Twelve contrasts, unadjusted. Reported as a replication check run
+after the fact, not as a committed test. (The headline contrast would survive
+Holm across all 12 — p < 0.001 x 12 is still < 0.05 — but that is a
+reassurance, not a substitute for pre-registration.)
+
+### Risk–coverage, both models
+
+| Method | DeepSeek AURC | acc@50% | Qwen AURC |
+|:---|---:|---:|---:|
+| rmd_tail_q20 | **0.856** | 0.856 | 0.828 |
+| rmd_high_entropy_q20 | 0.832 | 0.840 | 0.788 |
+| length | 0.826 | 0.828 | 0.759 |
+| logprob | 0.788 | 0.788 | 0.666 |
+| entropy | 0.788 | 0.792 | 0.660 |
+
+Identical ordering on both models: same winning region (`tail_q20`), same
+runner-up, same losers, and length again the strongest free baseline.
+Full-coverage accuracy differs substantially — DeepSeek 0.750 vs Qwen 0.620 —
+so DeepSeek offers any scorer less headroom.
+
+### The confound-clearing contrast
+
+| Contrast | Metric | DeepSeek | Qwen |
+|:---|:---|:---|:---|
+| `rmd_tail_q20 − length` | AURC | **+0.030 [+0.014, +0.048], p<0.001** | +0.069 [+0.043, +0.096], p<0.001 |
+| `rmd_tail_q20 − length` | acc@50% | +0.028 [−0.004, +0.072], p=0.094 | +0.104 [+0.064, +0.144], p<0.001 |
+| `rmd_tail_q20 − entropy` | AURC | +0.068 [+0.037, +0.104], p<0.001 | +0.168, p<0.001 |
+| `rmd_tail_q20 − logprob` | AURC | +0.068 [+0.036, +0.102], p<0.001 | +0.162, p<0.001 |
+| `rmd_he_q20 − length` | AURC | +0.005 [−0.011, +0.025], p=0.506 | +0.030, p=0.040 |
+
+Beating **length** is what separates this from truncation detection, and it
+replicates. Entropy and logprob are weak baselines on this task in both models,
+so those contrasts are large but not very informative.
+
+### Three limits on the replication
+
+1. **Effect is ~2.3x smaller** — +0.030 vs Qwen's +0.069 against length.
+   Replicates in sign and significance, not in magnitude.
+2. **Only AURC clears length; acc@50% does not** (+0.028, p=0.094). On Qwen both
+   did. The replication is strongest on the integrated measure, not at the
+   specific operating point.
+3. **Only the tail region survives.** `rmd_he_q20 − length` is null on DeepSeek
+   (+0.005, p=0.506) where it was marginal on Qwen (+0.030, p=0.040). Region
+   choice does not transfer as cleanly as the overall effect.
+
+### Combined interpretation across the two 2026-07-29 entries
+
+| Regime | Question | Qwen | DeepSeek |
+|:---|:---|:---|:---|
+| Within-prompt | which of N attempts is correct? | small effect, ties output baselines | **absent — all AUCs at/below chance** |
+| Between-prompt | should the model answer this problem? | beats length, p<0.001 | **beats length, p<0.001** |
+
+The defensible cross-model claim is therefore narrower and better supported than
+the one this project started with: **hidden-state geometry indicates which
+problems are hard, not which attempt is right.** The failed localization gate is
+load-bearing evidence for that framing rather than a setback — it rules out the
+per-attempt reading that the Qwen-only data would otherwise permit.
+
+## 2026-07-29: GATE FAILED — localization is Qwen-specific
+
+### Outcome
+
+The pre-registered gate below (written 2026-07-28, before any DeepSeek
+decomposition output existed) **fails on both confirmatory tests**. Per the
+decision rule fixed in advance: the localization claim demotes to
+**Qwen-specific**, and the `deepseek_llama` MATH-500 best-of-8 collect
+**does not run**.
+
+`evaluate_prompt_decomposition@1`, DeepSeek-R1-Distill-Qwen-7B, MATH-500,
+500 prompts x N=8, 8,192-token budget, layers 7/14/21, pca_dim 128, 5
+prompt-grouped folds, 1,000-draw prompt-cluster bootstrap. Data audit clean:
+500/500 complete prompts, `partial_data=false`, 12,000 traces, no duplicates.
+
+### Confirmatory tests (L21, parseable, `prompt_centered_auc`)
+
+| # | Contrast | Delta | 95% CI | raw p | Holm p | Verdict |
+|:--|:---|---:|:---|---:|---:|:---|
+| 1 | `rmd_high_entropy_q20 − rmd` | +0.004 | [−0.016, +0.027] | 0.674 | 1.000 | **FAIL** |
+| 2 | `rmd_high_entropy_q20 − rmd_random_q20` | +0.001 | [−0.023, +0.026] | 0.924 | 1.000 | **FAIL** |
+
+### This is an informative null, not merely low power
+
+Qwen's L21 effect was **+0.058**. The DeepSeek 95% interval tops out at
+**+0.027**, so a Qwen-sized effect is *excluded*, not just unresolved. The
+conclusion is "the Qwen effect is not present here", not "we could not tell".
+
+Power is nonetheless materially lower and must be stated: **49 mixed prompts /
+409 within-prompt pairs**, against Qwen's 117 / 1,104. Censoring is also
+heavier — 8.8% unparsed, 9.4% cap-hit, and **unparsed traces are 29.3% of the
+incorrect class** (Qwen: 18.5%), so the parseable-only survivors are a more
+selected subset.
+
+### The larger finding: no within-prompt signal at all on DeepSeek
+
+Within-prompt AUCs (macro / centered, parseable, 49 mixed prompts):
+
+| Method | L7 | L14 | L21 |
+|:---|:---|:---|:---|
+| rmd | 0.458 / 0.465 | 0.470 / 0.479 | 0.473 / 0.447 |
+| rmd_high_entropy_q20 | 0.484 / 0.478 | 0.520 / 0.498 | 0.507 / 0.451 |
+| rmd_random_q20 | 0.447 / 0.467 | 0.453 / 0.471 | 0.456 / 0.450 |
+| rmd_tail_q20 | 0.463 / 0.500 | 0.524 / 0.512 | 0.461 / 0.467 |
+| entropy | 0.468 / 0.459 | — | — |
+| logprob | 0.478 / 0.462 | — | — |
+
+(entropy and logprob are layer-invariant.)
+
+**Every cell is at or below chance.** Geometry did not lose to entropy — the
+free output baselines fail too. There is no within-prompt correctness signal in
+this model/dataset to detect, so the negative is about the absence of the
+phenomenon rather than the inadequacy of the readout. This is a materially
+different claim from "geometry is worse than entropy" and should be reported as
+such.
+
+### Exploratory (not part of the gate; no layer may be substituted post hoc)
+
+`rmd_he_q20 − rmd` centered: L7 +0.012 (p=0.456), L14 +0.019 (p=0.304),
+L21 +0.004 (p=0.674). No layer rescues the claim.
+
+Pooled all-trace AUCs at L21 remain high — rmd 0.757 (ICC 0.898), rmd_tail_q20
+0.762, against length 0.701 and entropy 0.609 — but these are the
+length/truncation-confounded view that the 2026-07-18 audit disqualified as a
+headline. They are consistent with a surviving *between-prompt* signal, which
+`evaluate_wave1_experiments@1` (E1 abstention) tests separately. **The gate
+governs the within-prompt localization claim only; it does not decide the
+abstention claim.**
+
+### Consequences
+
+- `deepseek_llama` MATH-500 best-of-8 collect: **cancelled**. `bestofn_matrix`
+  and `wave1_matrix` retain the row so the cell can be run later if the claim is
+  reformulated, but it is not scheduled.
+- The headline localization result stands **for Qwen only** and must be worded
+  that way in `FINDINGS.md` and the paper.
+- Two-regime framing survives and is arguably strengthened: within-prompt
+  correctness detection now looks model-specific and fragile, while
+  between-prompt abstention is the claim with a chance of generalizing.
+
+### Infrastructure note
+
+Both long-trace stages needed memory work before they would run at all.
+`prompt_decomposition.py` and `wave1_experiments.py` now share three levers
+(`--hidden_dtype float16`, `--compute_dtype float32`,
+`--max_reference_tokens 2000000`); see the 2026-07-25 entry for the dtype
+rationale and `analyze.set_max_reference_tokens` for the cap. Peak RAM per stage
+drops from ~243–330 GB to ~140 GB. The cap does not bind for Qwen (~550k
+correct-training tokens vs the 2M cap), verified bit-identical
+(`max abs diff 0.000e+00`); under a deliberately harsh 40k cap the scores still
+track at Spearman 0.9993, so the DeepSeek 5.7M -> 2M reduction is not a
+plausible cause of the null above.
+
+## 2026-07-28: Pre-registered gate criterion (written before DeepSeek results existed)
+
+Recorded while `evaluate_prompt_decomposition@1` was still running, with no
+DeepSeek decomposition output on disk. Timestamped here precisely so the gate
+decision cannot be a post-hoc choice of threshold.
+
+**Confirmatory set — 2 tests, no others:**
+
+| # | Contrast | Layer | Metric |
+|:--|:---|:---|:---|
+| 1 | `rmd_high_entropy_q20 − rmd` | deepest (deepseek L21, deepseek_llama L24) | `prompt_centered_auc` |
+| 2 | `rmd_high_entropy_q20 − rmd_random_q20` | deepest | `prompt_centered_auc` |
+
+Both on the parseable-only within-prompt population, using the paired
+prompt-cluster bootstrap already computed by the stage.
+
+**Adjustment:** Holm across the 2 tests, family-wise alpha 0.05. Applied to the
+saved JSON at gate time — no pipeline edit needed, so this costs no compute and
+does not invalidate any stage.
+
+**Decision rule, fixed in advance:**
+
+- **Both pass** (Holm-adjusted p < 0.05, point estimate positive) -> localization
+  replicates cross-model. Proceed to `deepseek_llama` MATH-500 collect.
+- **Test 1 passes, test 2 fails** -> localization replicates but
+  entropy-specificity does not. Report as "localization is real, mechanism
+  unconfirmed"; still proceed, since test 1 is the primary claim.
+- **Test 1 fails** -> claim demotes to Qwen-specific. **Stop.** Do not run the
+  `deepseek_llama` collect. Report the negative.
+
+`prompt_centered_auc` is named as primary because it is the metric the Qwen
+headline (+0.052/+0.055/+0.058) was quoted on. `within_prompt_macro` is reported
+alongside as secondary and does not enter the gate.
+
+Everything else in the 16-pair x 3-layer x 2-metric grid is **exploratory** and
+will be reported with raw p-values and an explicit exploratory label. The single
+Qwen incremental-probe cell at p=0.024 is in that exploratory set and does not
+survive correction; it is not a claim.
+
+## 2026-07-19: Active-pipeline cleanup
+
+The active DVC graph now contains the Qwen baseline, Qwen dense/PCA checks,
+truncation probes, Qwen Best-of-N decomposition/selection, Wave-1 CPU follow-ups,
+and the Qwen trajectory negative control. Historical DeepSeek 2,048-token analyses,
+temperature, transfer, pilot, prefix, legacy selective-prediction, application-
+alignment, and all-trace one-class stages remain on disk but are retired from the
+default graph and current summary. Their results are provenance, not current claims.
+
+Clean replication budgets remain recorded in `params.yaml` (`8192` for
+DeepSeek-Qwen, `12288` for DeepSeek-Llama) without active collection stages.
+
 ## 2026-06-14: Confidence Decomposition and Mechanism Experiments
 
 ### Status
@@ -379,6 +759,117 @@ No files were staged or committed as part of this documentation update.
 4. Only after the cheap gates pass, collect clean Best-of-N data for additional
    model families using architecture-specific token budgets. Do not rerun the
    old DeepSeek 2048-token decomposition as evidence.
+
+## 2026-07-18: Qwen Best-of-8 Localized Geometry, Contrastive Readouts, and Selection
+
+### Stage and parameterization
+
+`evaluate_prompt_decomposition@0` and `evaluate_prompt_selection@0` (qwen full
+item of `bestofn_matrix`), rerun 2026-07-18 on CPU (`CUDA_VISIBLE_DEVICES=""`).
+Qwen2.5-7B-Instruct, MATH-500, 500 prompts x N=8, max_new_tokens=1024, layers
+7/14/21, pca_dim=128, 5 prompt-grouped folds, 1,000 prompt-cluster bootstrap
+replicates over fixed OOF predictions, contrastive regions
+full/high_entropy_q20/tail_q20/random_q20, 1,000 alignment shuffles. Data audit
+clean: 500/500 complete prompts, `partial_data=false`. These numbers supersede
+the 2026-06-14 Qwen decomposition entry (post truncation-bias fix, commit
+`d54906a`); e.g. the L21 RMD-minus-length centered contrast is now null
+(+0.029, p=0.194) where the old entry reported +0.092 significant.
+
+### Artifacts
+
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json`
+  (45 probe diagnostics, alignment diagnostics, parseable-only blocks)
+- `results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv`
+  (12,000 rows = 3 layers x 4,000 traces, 28 cols incl. probe/contrast scores)
+- `results/qwen_bestofn_full/math500/math500_prompt_selection_results.json`
+- both `_report.md` companions
+
+### Primary estimates and uncertainty
+
+Truncation context: 8.2% unparsed, 8.45% cap-hit, unparsed = 18.5% of the
+incorrect class. Length pools at AUC 0.737 on all traces but collapses to
+0.478 within-macro on parseable traces, so all-trace pooled AUCs (rmd_tail_q20
+up to 0.839 at L21) remain length/truncation-confounded. RMD ICC 0.94–0.97.
+
+Parseable-only within-prompt (117 mixed prompts, ~1,104 pairs; output
+baselines layer-invariant: entropy 0.660 macro / 0.611 centered, logprob
+0.649 / 0.609, cross-fitted output probe 0.634 / 0.592):
+
+| Method (within macro / centered) | L7 | L14 | L21 |
+|:--|:--|:--|:--|
+| rmd | 0.503 / 0.513 | 0.515 / 0.503 | 0.574 / 0.547 |
+| rmd_high_entropy_q20 | 0.588 / 0.564 | 0.588 / 0.557 | 0.654 / 0.605 |
+| contrast_high_entropy_q20 | 0.617 / 0.574 | 0.640 / 0.590 | 0.660 / 0.617 |
+| probe_outputs + rmd_he_q20 | 0.662 / 0.600 | 0.629 / 0.590 | 0.683 / 0.609 |
+
+Prespecified paired contrasts (parseable, centered AUC unless noted):
+
+- **Localization supported at all layers:** rmd_he_q20 − rmd = +0.052/+0.055/
+  +0.058 (L7/14/21), p ≤ 0.006; within macro +0.073…+0.085, p ≤ 0.002.
+  Tail-20% weaker, mostly ns.
+- **Entropy-specificity supported for RMD:** rmd_he_q20 − rmd_random_q20 =
+  +0.049/+0.058/+0.057, p ≤ 0.014; the matched random-20% control tracks
+  full-trace rmd. Contrast version mixed at L21 (centered p=0.128, macro
+  p=0.032).
+- **Contrastive readout partial:** OOF cross-prompt directions beat the
+  shuffle null (L21 alignment 0.180–0.222 vs null ≈0.101, p ≤ 0.005 across
+  folds; mean pairwise cosine only 0.02–0.04). Contrast beats plain rmd
+  (L14 +0.088 p=0.002; L21 +0.070 p=0.018) but never beats matched rmd_he_q20
+  (p ≥ 0.118).
+- **No geometry readout beats free output baselines:** rmd_he_q20 − logprob at
+  L21 = −0.004 centered, p=0.926; negative at L7/L14 (rmd_tail_q20 − logprob
+  at L14 significantly negative, −0.072, p=0.048).
+- **Incremental probes weak:** probe+rmd_he_q20 − probe = +0.049 macro
+  [0.006, 0.091], p=0.024 at L21 only (centered ns; 1/6 cells, unadjusted).
+  L21 fold-averaged coefficients: rmd_he_q20 +0.39±0.11, entropy collapses
+  +0.28→+0.06, length goes negative.
+- **Selection null:** majority vote 0.596 pass@1 (random 0.557, oracle
+  0.676); all tie-break variants within ±0.006, 15/15 paired deltas p ≥
+  0.248. Structural ceiling: only 39/500 prompts tie at N=8 and only ~10
+  ties have correctness headroom (~2 pts max). rmd_rank_weighted_vote
+  0.582–0.584 < majority; all top1 selectors ≤ 0.582.
+
+Exploratory follow-ups on the OOF CSV (unregistered, label-free
+residualization, no CIs on selective numbers except where stated):
+
+- **Residualization:** within-prompt-centered rmd_he_q20 projected onto
+  entropy+logprob+length keeps its discrimination at L21: residual
+  within-macro 0.645 [0.587, 0.697] vs 0.654 raw (R² vs outputs 0.227).
+  Geometry is linearly complementary to output features; the near-null
+  incremental probes reflect saturation on 117 mixed prompts.
+- **Selective prediction (L21, parseable, base acc 0.606):** acc@50%
+  coverage — rmd 0.784, rmd_he_q20 0.766 vs entropy 0.676, logprob 0.675.
+- **Prompt-level abstention with majority-vote answering (full-coverage acc
+  0.616):** acc@50% — rmd_tail_q20 0.836, rmd 0.796 vs length 0.740,
+  logprob 0.680, entropy 0.672. Geometry beats the length-confound baseline
+  by ~+0.10 at 50% coverage.
+
+### Interpretation
+
+Two-regime story confirmed on clean Qwen data. Within-prompt: a small,
+depth-increasing, entropy-localized correctness signal exists (best 0.654
+macro at L21), is entropy-specific (random-token control fails), is linearly
+complementary to output features, but only ties the free baselines and does
+not translate into Best-of-8 selection. Between-prompt: geometry is a strong
+difficulty/abstention signal that clearly beats entropy, logprob, and length
+in risk–coverage terms. Ruled out: geometry-guided tie-breaking at N=8
+(no-op by construction); all-trace pooled AUC as a headline (length
+confound); contrastive supervision adding anything beyond region choice.
+
+### Limitations and next dependent stage
+
+Bootstrap CIs do not propagate reference refitting; 21 contrasts x 3 layers x
+2 metrics unadjusted (the single L21 incremental p=0.024 would not survive
+correction); parseable-only conditions on an outcome-correlated event
+(correct traces parse at 1.000 vs 0.815); within-prompt inference rests on
+117 mixed prompts. Next stages: (1) cross-model confirmation of localization
++ entropy-specificity at the pre-specified deepest layer on
+deepseek/llama/deepseek_llama full runs (deepseek_llama decomposition outputs
+currently deleted per `dvc status` — regenerate first); (2) run the
+risk–coverage comparison with prompt-cluster bootstrap CIs through the
+selective-prediction stages; (3) entropy-residualized geometry as a
+registered contrast; (4) token-level audit of what the high-entropy 20%
+localizes.
 
 ## Logging Convention
 

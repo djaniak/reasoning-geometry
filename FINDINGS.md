@@ -49,6 +49,42 @@
 > **Cross-model caveat:** the "DeepSeek shows a much larger geometry effect than Qwen"
 > story tracks the **differential truncation rate (43% vs 8%)**, not cleanly distillation.
 
+## Current evidence (updated 2026-07-29)
+
+> **Scope correction (2026-07-29): the localization result is Qwen-specific.**
+> A pre-registered cross-model gate on DeepSeek-R1-Distill-Qwen-7B (MATH-500
+> Best-of-8, 8,192-token budget) **failed on both confirmatory tests**:
+> `rmd_high_entropy_q20 − rmd` = +0.004 [−0.016, +0.027] and
+> `− rmd_random_q20` = +0.001 [−0.023, +0.026] at L21 (Holm p = 1.000 for both).
+> Qwen's +0.058 effect lies outside the DeepSeek interval, so this is an
+> informative null rather than an underpowered one — though power is lower
+> (49 mixed prompts vs 117). Notably **every within-prompt AUC on DeepSeek is at
+> or below chance, including entropy and logprob**: the phenomenon is absent in
+> that model, not merely undetected by geometry. Wherever this document says
+> localization "replicates across layers", read that as *across layers within
+> Qwen*. The `deepseek_llama` collect was cancelled by the gate.
+>
+> **The between-prompt claim did replicate.** On the same DeepSeek data, E1
+> prompt abstention beats the length confound baseline —
+> `rmd_tail_q20 − length` = +0.030 AURC [+0.014, +0.048], p < 0.001 — with the
+> same scorer ordering as Qwen, though the effect is ~2.3x smaller and clears
+> length on AURC only, not at 50% coverage. So the two regimes now separate
+> cleanly across models: **geometry indicates which problems are hard, not which
+> attempt is right.** Full entries: `EXPERIMENT_LOG.md` (2026-07-29, both).
+
+The load-bearing result is the clean Qwen Best-of-8 MATH-500 rerun. Highest-entropy
+20% RMD beats full-trace RMD at all three layers and beats a matched random-token
+control. It is competitive with output baselines, has only suggestive incremental
+probe value, and does not improve Best-of-N tie-breaking. The defensible claim is
+prompt-level difficulty/abstention; within-prompt correctness geometry is small
+**and does not generalize to the reasoning-distilled model tested.**
+
+All DeepSeek 2,048-token analyses, temperature runs, transfer grids, old selective
+prediction, and one-class sweeps are historical diagnostics. They remain on disk for
+provenance but are excluded from the active DVC graph and current summary. The
+parseable-only C1/C2 audit rejects the old low-dimensional-distillation claim and
+weakens transfer to an exploratory result.
+
 ---
 
 ## Introduction
@@ -138,7 +174,7 @@ layer 7 encodes whether the model has correctly identified the problem type. GSM
 problems are structurally similar — the signal emerges later where execution quality
 matters.
 
-## Update: Full sweep changed the headline interpretation
+## Retired pre-fix sweep (historical, not current evidence)
 
 A later full summary now includes `llama`, `deepseek_llama`, `deepseek_temp`,
 robust/relative Mahalanobis controls, and label-informed subspace analyses. That
@@ -374,7 +410,10 @@ require either larger datasets or dimensionality reduction of the Mahalanobis fe
 
 ---
 
-## Cross-Model Transfer
+## Cross-Model Transfer (historical exploratory result)
+
+These numbers were produced before the clean-budget revalidation and are retained
+only to document why the transfer branch was retired from the active pipeline.
 
 Both models share the Qwen2.5-7B architecture but differ in training (base instruction-tuned
 vs reasoning-distilled). Two transfer tests probe whether the geometry signal is model-specific
@@ -567,7 +606,9 @@ late-layer detection reflects execution errors the model has committed to.
 
 ---
 
-## Temperature Sampling (GSM8K)
+## Temperature Sampling (historical diagnostic)
+
+This run used the old DeepSeek budget and is not a current correctness result.
 
 DeepSeek-R1-Distill-Qwen-7B on GSM8K: greedy (T=0) vs temperature sampling (T=0.6).
 This tests whether entropy collapse — the primary motivation for geometry — persists
@@ -756,16 +797,71 @@ but this requires confirmation on the full 500-problem set with OOF RMD scoring.
 
 ---
 
-## Discussion
+## Localized Geometry, Contrastive Readouts, and Selection (Qwen MATH-500, 2026-07-18)
 
-The main finding is that hidden-state geometry provides a correctness signal that is
-complementary to token-level entropy, especially for reasoning-distilled models where
-entropy collapses. The effect is visible at the aggregate level across all conditions, partially transfers
-across models, follows a bimodal layer profile, and is robust to decoding strategy.
-Subject- and difficulty-level results are noisier and model-dependent. The first
-trajectory-encoding follow-up is negative: resampled fPCA on the Mahalanobis sequence
-does not beat the simpler scalar Mahalanobis summaries, and on Qwen GSM8K it is near
-chance.
+Full rerun of the Qwen Best-of-8 prompt decomposition and OOF prompt selection
+after the truncation-bias fix (`evaluate_prompt_decomposition@0`,
+`evaluate_prompt_selection@0`; 500 prompts x N=8, layers 7/14/21, 5 prompt
+folds, 1,000-draw prompt-cluster bootstrap). Full ledger entry with all paired
+contrasts: `EXPERIMENT_LOG.md` (2026-07-18).
+
+**Headline: the two-regime dissociation is confirmed on clean Qwen data, and
+localization to high-entropy tokens is the one within-prompt effect that
+robustly replicates across all three layers.**
+
+**Within-prompt (parseable traces, 117 mixed prompts).** Restricting RMD to
+the highest-entropy 20% of tokens improves centered AUC by +0.052/+0.055/
++0.058 at L7/14/21 (all p ≤ 0.006) over full-trace RMD, and the gain is
+entropy-specific — a matched random-20% token control tracks full-trace RMD
+almost exactly. The effect grows with depth: at L21, rmd_high_entropy_q20
+reaches 0.654 within-macro / 0.605 centered. But this only *ties* the free
+output baselines (entropy 0.660 / 0.611; logprob 0.649 / 0.609):
+rmd_he_q20 − logprob at L21 is −0.004 centered (p=0.926), and geometry is
+*below* logprob at L7/L14. Supervised prompt-contrastive directions are real
+(OOF alignment beats the shuffle null, strongest at L21: 0.18–0.22 vs null
+≈0.10) but add nothing over the matched localized RMD (p ≥ 0.118). Adding
+geometry to a cross-fitted output-feature probe helps only at L21 within-macro
+(+0.049, p=0.024, unadjusted, 1 of 6 cells).
+
+**Yet the signal is not entropy in disguise.** Label-free residualization of
+within-prompt-centered rmd_he_q20 on entropy+logprob+length keeps nearly all
+its discrimination at L21 (residual within-macro 0.645 [0.587, 0.697] vs
+0.654 raw). Geometry and output uncertainty are linearly complementary; the
+flat incremental-probe result reflects saturation on 117 mixed prompts, not
+redundancy.
+
+**Best-of-8 selection stays negative, now with the mechanism.** Majority vote
+0.596 pass@1 (random 0.557, oracle 0.676); every geometry/logprob tie-break
+variant lands within ±0.006 (15/15 paired deltas p ≥ 0.248), and weighted RMD
+voting *underperforms* majority (0.582–0.584). The negative is structural:
+only 39/500 prompts have a tied top answer at N=8, and only ~10 ties contain
+both a correct and an incorrect option — a ~2-point ceiling no tie-breaker
+can exceed.
+
+**Where geometry wins: abstention, not reranking.** Exploratory risk–coverage
+on the same OOF scores (L21): trace-level parseable acc@50% coverage — rmd
+0.784 vs entropy 0.676. Prompt-level abstention with majority-vote answering
+(full-coverage 0.616): rmd_tail_q20 reaches **0.836 at 50% coverage** vs
+length 0.740, logprob 0.680, entropy 0.672 — i.e. geometry beats the
+length-confound baseline by ~+0.10, so this is not purely truncation
+detection. (No bootstrap CIs on these selective numbers yet; confirmatory run
+via the selective-prediction stages is the next dependent experiment.)
+
+**Superseded numbers.** This rerun replaces the earlier Qwen decomposition
+entries: the L21 RMD-minus-length centered contrast is now null (+0.029,
+p=0.194; pooled +0.049 [0.018, 0.083] remains, but the pooled view is
+length/truncation-confounded — length alone pools at 0.737 and collapses to
+0.478 within-prompt on parseable traces).
+
+---
+
+## Discussion (current interpretation)
+
+The current result is narrower: entropy-localized RMD is a reproducible prompt-level
+difficulty/abstention signal on clean Qwen Best-of-8 traces. It does not establish a
+general per-attempt correctness detector, a transfer law, or a distillation effect.
+Trajectory encoding, prefix filtering, and Best-of-N tie-breaking are negative
+follow-ups; retain them as diagnostics rather than headline applications.
 
 **Limitations**:
 
