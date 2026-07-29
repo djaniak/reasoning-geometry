@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import rankdata
 
-from prompt_decomposition import SCORE_METHODS, available_score_methods
+from prompt_decomposition import PROBE_METHODS, SCORE_METHODS, available_score_methods
 
 INVALID_ANSWER = "<INVALID>"
 REQUIRED_SCORE_METHODS = (
@@ -79,6 +79,36 @@ def majority_answer(rows: list[dict]) -> str | None:
         counts,
         key=lambda answer: (
             counts[answer],
+            *_answer_tiebreak_key(answer, by_answer[answer]),
+        ),
+    )
+
+
+def majority_cluster_mean_tiebreak_answer(
+    rows: list[dict], score_key: str
+) -> str | None:
+    """Resolve only count ties using a named answer-cluster mean score."""
+    if not rows:
+        return None
+    counts = Counter(_answer_value(row) for row in rows)
+    by_answer: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by_answer[_answer_value(row)].append(row)
+    max_count = max(counts.values())
+    candidates = [answer for answer, count in counts.items() if count == max_count]
+
+    def mean_score(answer: str) -> float:
+        values = []
+        for row in by_answer[answer]:
+            value = row.get(score_key)
+            if value is not None:
+                values.append(float(value))
+        return float(np.mean(values)) if values else float("-inf")
+
+    return max(
+        candidates,
+        key=lambda answer: (
+            mean_score(answer),
             *_answer_tiebreak_key(answer, by_answer[answer]),
         ),
     )
@@ -211,6 +241,44 @@ def _pack_selector(
     }
 
 
+def _paired_selector_delta(
+    left: dict[int, float],
+    right: dict[int, float],
+    n_bootstrap: int,
+    seed: int,
+) -> dict:
+    prompt_ids = sorted(set(left) & set(right))
+    deltas = np.asarray([left[prompt_id] - right[prompt_id] for prompt_id in prompt_ids])
+    if n_bootstrap > 0 and len(deltas):
+        rng = np.random.default_rng(seed)
+        draws = np.empty(n_bootstrap, dtype=float)
+        for index in range(n_bootstrap):
+            sample = rng.integers(0, len(deltas), size=len(deltas))
+            draws[index] = float(deltas[sample].mean())
+        ci_low, ci_high = np.percentile(draws, [2.5, 97.5])
+        p_value = min(
+            1.0,
+            2.0
+            * min(
+                float(np.mean(draws <= 0.0)),
+                float(np.mean(draws >= 0.0)),
+            ),
+        )
+    else:
+        ci_low = ci_high = p_value = None
+    return {
+        "point_estimate": float(deltas.mean()) if len(deltas) else None,
+        "ci_low": float(ci_low) if ci_low is not None else None,
+        "ci_high": float(ci_high) if ci_high is not None else None,
+        "p_two_sided": float(p_value) if p_value is not None else None,
+        "n_valid": int(n_bootstrap) if len(deltas) and n_bootstrap > 0 else 0,
+        "wins": int(np.sum(deltas > 0.0)),
+        "losses": int(np.sum(deltas < 0.0)),
+        "ties": int(np.sum(deltas == 0.0)),
+        "n_prompts": int(len(deltas)),
+    }
+
+
 def evaluate_prompt_selection(
     rows: list[dict],
     model: str,
@@ -235,13 +303,37 @@ def evaluate_prompt_selection(
     for layer in layers:
         layer_rows = [row for row in rows if int(row["layer"]) == layer]
         groups = _group_rows(layer_rows, "prompt_id")
-        methods = available_score_methods(layer_rows)
+        methods = [
+            method
+            for method in available_score_methods(layer_rows)
+            if method not in PROBE_METHODS
+        ]
+        cluster_tiebreakers = {
+            "majority_mean_logprob_tiebreak": "mean_logprob",
+        }
+        for selector, score_key in (
+            (
+                "majority_rmd_high_entropy_q20_tiebreak",
+                "rmd_high_entropy_q20_score",
+            ),
+            (
+                "majority_contrast_high_entropy_q20_tiebreak",
+                "contrast_high_entropy_q20_score",
+            ),
+        ):
+            if all(
+                row.get(score_key) is not None
+                and np.isfinite(float(row[score_key]))
+                for row in layer_rows
+            ):
+                cluster_tiebreakers[selector] = score_key
         outcomes: dict[str, dict[int, float]] = {
             "random": {},
             "oracle_pass_at_n": {},
             "majority_vote": {},
             "rmd_rank_weighted_vote": {},
             "majority_rmd_tiebreak": {},
+            **{selector: {} for selector in cluster_tiebreakers},
         }
         for method in methods:
             outcomes[f"top1_{method}"] = {}
@@ -262,24 +354,52 @@ def evaluate_prompt_selection(
             outcomes["majority_rmd_tiebreak"][prompt_id] = _answer_outcome(
                 group, majority_rmd_tiebreak_answer(group)
             )
+            for selector, score_key in cluster_tiebreakers.items():
+                outcomes[selector][prompt_id] = _answer_outcome(
+                    group,
+                    majority_cluster_mean_tiebreak_answer(group, score_key),
+                )
             for method in methods:
                 selected = select_top_trace(group, f"{method}_score")
                 outcomes[f"top1_{method}"][prompt_id] = float(
                     selected["is_correct"]
                 )
 
+        packed_selectors = {
+            name: _pack_selector(
+                values,
+                n_bootstrap=n_bootstrap,
+                seed=seed + layer,
+            )
+            for name, values in outcomes.items()
+        }
+        selector_pairs = [
+            (selector, "majority_vote")
+            for selector in cluster_tiebreakers
+        ]
+        selector_pairs.extend(
+            (selector, "majority_mean_logprob_tiebreak")
+            for selector in (
+                "majority_rmd_high_entropy_q20_tiebreak",
+                "majority_contrast_high_entropy_q20_tiebreak",
+            )
+            if selector in outcomes
+        )
+        paired_selector_deltas = {
+            f"{left}_minus_{right}": _paired_selector_delta(
+                outcomes[left],
+                outcomes[right],
+                n_bootstrap=n_bootstrap,
+                seed=seed + layer + 20000,
+            )
+            for left, right in selector_pairs
+        }
         result["layers"][str(layer)] = {
             "n_prompts": len(groups),
             "n": len(next(iter(groups.values()))) if groups else 0,
             "answer_parsing": _answer_parsing_diagnostics(groups),
-            "selectors": {
-                name: _pack_selector(
-                    values,
-                    n_bootstrap=n_bootstrap,
-                    seed=seed + layer,
-                )
-                for name, values in outcomes.items()
-            },
+            "selectors": packed_selectors,
+            "paired_selector_deltas": paired_selector_deltas,
         }
     return result
 
@@ -375,6 +495,42 @@ def write_markdown(result: dict, path: str | Path) -> None:
             lines.append(
                 f"| {layer} | {selector} | {payload['pass_at_1']:.3f} "
                 f"| {ci} | {payload['n_prompts']} |"
+            )
+    lines.extend(
+        [
+            "",
+            "## Paired selector deltas",
+            "",
+            (
+                "Each delta is left selector minus right selector under a paired "
+                "prompt bootstrap. Geometry-based selectors only resolve answer-count "
+                "ties."
+            ),
+            "",
+            "| Layer | Contrast | Pass@1 delta | 95% CI | p | Wins/Losses/Ties |",
+            "|---:|:---|---:|:---|---:|:---|",
+        ]
+    )
+    for layer, layer_result in result["layers"].items():
+        for name, payload in layer_result.get("paired_selector_deltas", {}).items():
+            point = (
+                "NA"
+                if payload["point_estimate"] is None
+                else f"{payload['point_estimate']:.3f}"
+            )
+            ci = (
+                "NA"
+                if payload["ci_low"] is None
+                else f"[{payload['ci_low']:.3f}, {payload['ci_high']:.3f}]"
+            )
+            p_value = (
+                "NA"
+                if payload["p_two_sided"] is None
+                else f"{payload['p_two_sided']:.3f}"
+            )
+            lines.append(
+                f"| {layer} | {name} | {point} | {ci} | {p_value} | "
+                f"{payload['wins']}/{payload['losses']}/{payload['ties']} |"
             )
     Path(path).write_text("\n".join(lines) + "\n")
 

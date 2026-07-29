@@ -1184,6 +1184,12 @@ def main():
                         help="Root results directory")
     parser.add_argument("--output_dir", type=str, default="results",
                         help="Where to write summary files")
+    parser.add_argument(
+        "--profile",
+        choices=("all", "current"),
+        default="all",
+        help="Result profile to render; current excludes retired/contaminated runs.",
+    )
     args = parser.parse_args()
 
     results = load_results(args.results_dir)
@@ -1198,6 +1204,44 @@ def main():
         args.results_dir
     )
     one_class_sweep_results = load_one_class_sweep_results(args.results_dir)
+
+    if args.profile == "current":
+        # The results directory intentionally retains historical artifacts.  Do
+        # not let those artifacts silently re-enter the current summary merely
+        # because the loader can recognize their schema.
+        results = {
+            model: {
+                dataset: value
+                for dataset, value in data.items()
+                if "_cross" not in dataset
+            }
+            for model, data in results.items()
+            if model in {"qwen", "qwen_dense"}
+        }
+        pca_ablation_results = {
+            model: data
+            for model, data in pca_ablation_results.items()
+            if model == "qwen"
+        }
+        selective_results = {}
+        bestofn_results = {
+            model: data
+            for model, data in bestofn_results.items()
+            if model == "qwen"
+        }
+        concordance_results = {}
+        prompt_decomposition_results = {
+            model: data
+            for model, data in prompt_decomposition_results.items()
+            if model == "qwen"
+        }
+        prompt_selection_results = {
+            model: data
+            for model, data in prompt_selection_results.items()
+            if model == "qwen"
+        }
+        application_alignment_result = None
+        one_class_sweep_results = {}
     os.makedirs(args.output_dir, exist_ok=True)
 
     md_path = os.path.join(args.output_dir, "SUMMARY.md")

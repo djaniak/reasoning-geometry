@@ -180,6 +180,7 @@ def _load_trace_batch(
     layers: list[int],
     include_auxiliary: bool,
     auxiliary_fields: set[str] | None = None,
+    hidden_dtype: np.dtype | None = None,
 ) -> list[dict]:
     known_auxiliary = {"entropies", "token_logprobs", "tokens"}
     if auxiliary_fields is not None:
@@ -249,7 +250,10 @@ def _load_trace_batch(
                 if key not in available:
                     key = f"hidden_L{layer}_{idx}"
                 if key in available:
-                    trace["hiddens"][layer] = data[key]
+                    hidden = data[key]
+                    if hidden_dtype is not None and hidden.dtype != hidden_dtype:
+                        hidden = hidden.astype(hidden_dtype, copy=False)
+                    trace["hiddens"][layer] = hidden
             traces.append(trace)
     return traces
 
@@ -262,8 +266,16 @@ def load_all_traces(
     show_progress: bool = False,
     include_auxiliary: bool = True,
     auxiliary_fields: set[str] | None = None,
+    hidden_dtype: np.dtype | None = None,
 ) -> list[dict]:
-    """Load trace batches, optionally decompressing independent NPZ files in parallel."""
+    """Load trace batches, optionally decompressing independent NPZ files in parallel.
+
+    ``hidden_dtype`` casts resident hidden states at load time. Hidden states are
+    stored as float32 but originate from a bf16 forward pass (8-bit mantissa), so
+    float16 (10-bit mantissa) round-trips them without loss while halving resident
+    memory -- which is what makes long-trace models loadable at all. Callers must
+    still upcast to float32 for PCA/Mahalanobis arithmetic.
+    """
     paths = [
         os.path.join(data_dir, fname)
         for fname in sorted(os.listdir(data_dir))
@@ -289,7 +301,8 @@ def load_all_traces(
             for index, (path, size) in enumerate(zip(paths, sizes)):
                 try:
                     loaded[index] = _load_trace_batch(
-                        path, layers, include_auxiliary, auxiliary_fields
+                        path, layers, include_auxiliary, auxiliary_fields,
+                        hidden_dtype,
                     )
                 except Exception as error:
                     print(
@@ -310,6 +323,7 @@ def load_all_traces(
                         layers,
                         include_auxiliary,
                         auxiliary_fields,
+                        hidden_dtype,
                     ): (index, path, size)
                     for index, (path, size) in enumerate(zip(paths, sizes))
                 }
@@ -355,8 +369,109 @@ def _l2_normalize_rows(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return x / safe_norms
 
 
+# Working precision for hidden-state arithmetic (PCA fits, Mahalanobis).
+# float64 is the historical default; float32 halves the peak of the reference-fit
+# concatenation, which is the largest single allocation in the pipeline and the
+# binding constraint for long-trace models. Set via set_compute_dtype().
+_COMPUTE_DTYPE = np.float64
+
+
+def set_compute_dtype(dtype) -> None:
+    """Set the working precision for hidden-state arithmetic process-wide."""
+    global _COMPUTE_DTYPE
+    _COMPUTE_DTYPE = np.dtype(dtype).type
+
+
+def get_compute_dtype():
+    return _COMPUTE_DTYPE
+
+
+# Cap on the number of tokens concatenated to fit a reference manifold.
+# The concatenation is the largest allocation in the pipeline: sklearn's PCA
+# centres the matrix before the randomized SVD, so the peak is ~2x the
+# concatenated size on top of the resident hidden states. Long-trace models blow
+# past available RAM without a cap (DeepSeek MATH-500: 5.6M correct-training
+# tokens -> 80 GB concat -> ~243 GB peak).
+#
+# None means no cap (the historical behaviour). A cap only binds for models
+# whose traces are long enough to exceed it, so short-trace runs stay
+# bit-identical to their uncapped results.
+_MAX_REFERENCE_TOKENS = None
+_REFERENCE_SUBSAMPLE_SEED = 42
+
+
+def set_max_reference_tokens(max_tokens: int | None) -> None:
+    """Cap reference-fit tokens process-wide. None disables the cap."""
+    global _MAX_REFERENCE_TOKENS
+    if max_tokens is not None:
+        max_tokens = int(max_tokens)
+        if max_tokens <= 0:
+            raise ValueError("max_reference_tokens must be positive or None")
+    _MAX_REFERENCE_TOKENS = max_tokens
+
+
+def get_max_reference_tokens() -> int | None:
+    return _MAX_REFERENCE_TOKENS
+
+
+def _reference_subsample_plan(
+    row_counts: list[int],
+    max_tokens: int | None,
+    seed: int,
+) -> list[np.ndarray] | None:
+    """Choose which rows to keep per trace so the pooled total hits max_tokens.
+
+    Every non-empty trace is guaranteed at least one row, then the remaining
+    budget is split proportionally to the leftover trace lengths
+    (largest-remainder rounding). Guaranteeing the floor matters: plain
+    proportional allocation silently drops short traces when one trace dominates,
+    which would fit the reference on long traces only.
+
+    Rows within a trace are drawn uniformly without replacement. Returns None
+    when no subsampling is needed.
+    """
+    total = int(sum(row_counts))
+    if max_tokens is None or total <= max_tokens:
+        return None
+
+    counts = np.asarray(row_counts, dtype=np.int64)
+    nonempty = counts > 0
+    n_nonempty = int(nonempty.sum())
+    take = np.zeros_like(counts)
+
+    if max_tokens < n_nonempty:
+        # Degenerate: fewer tokens than traces, so the floor is unaffordable.
+        # Spend the budget on the longest traces, one row each.
+        order = np.argsort(-counts)
+        take[order[:max_tokens]] = 1
+    else:
+        take[nonempty] = 1
+        remaining = int(max_tokens - n_nonempty)
+        headroom = counts - take
+        pool = int(headroom.sum())
+        if remaining > 0 and pool > 0:
+            exact = headroom * (remaining / pool)
+            extra = np.floor(exact).astype(np.int64)
+            shortfall = int(remaining - extra.sum())
+            # Hand leftover rows to the traces with the largest rounding loss,
+            # skipping any trace already taking all of its remaining rows.
+            for index in np.argsort(-(exact - extra)):
+                if shortfall == 0:
+                    break
+                if extra[index] < headroom[index]:
+                    extra[index] += 1
+                    shortfall -= 1
+            take += np.minimum(extra, headroom)
+
+    rng = np.random.default_rng(seed)
+    return [
+        None if int(t) >= int(c) else np.sort(rng.choice(int(c), size=int(t), replace=False))
+        for c, t in zip(counts, take)
+    ]
+
+
 def _prepare_hidden_tokens(hiddens: np.ndarray, normalize_input: bool = False) -> np.ndarray:
-    arr = np.asarray(hiddens, dtype=np.float64)
+    arr = np.asarray(hiddens, dtype=_COMPUTE_DTYPE)
     if normalize_input:
         arr = _l2_normalize_rows(arr)
     return arr
@@ -367,9 +482,24 @@ def _concatenate_hidden_tokens(
     layer: int,
     normalize_input: bool = False,
 ) -> np.ndarray:
-    """Concatenate directly into float64, avoiding an intermediate float32 copy."""
+    """Concatenate directly into the compute dtype, avoiding an intermediate copy.
+
+    Subsamples first when a reference-token cap is set, so the large allocation
+    is never made at full size. Row selection happens in the source dtype
+    (typically float16), so the intermediate copies stay small.
+    """
     arrays = [trace["hiddens"][layer] for trace in traces]
-    combined = np.concatenate(arrays, axis=0, dtype=np.float64)
+    plan = _reference_subsample_plan(
+        [array.shape[0] for array in arrays],
+        _MAX_REFERENCE_TOKENS,
+        seed=_REFERENCE_SUBSAMPLE_SEED + int(layer),
+    )
+    if plan is not None:
+        arrays = [
+            array if indices is None else array[indices]
+            for array, indices in zip(arrays, plan)
+        ]
+    combined = np.concatenate(arrays, axis=0, dtype=_COMPUTE_DTYPE)
     if normalize_input:
         combined = _l2_normalize_rows(combined)
     return combined
@@ -432,8 +562,14 @@ def fit_mahalanobis_reference(
     cov_inv = _fit_lw_precision(projected - mu)
 
     family = "normalized " if normalize_input else ""
+    available = sum(trace["hiddens"][layer].shape[0] for trace in correct_traces)
+    capped = (
+        f" [capped from {available}]"
+        if correct_hiddens.shape[0] < available
+        else ""
+    )
     print(f"  Layer {layer}: {family}PCA var={pca.explained_variance_ratio_.sum():.3f}, "
-          f"fit on {correct_hiddens.shape[0]} tokens (LedoitWolf)")
+          f"fit on {correct_hiddens.shape[0]} tokens{capped} (LedoitWolf)")
     return pca, mu, cov_inv
 
 

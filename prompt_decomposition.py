@@ -16,12 +16,16 @@ from typing import Callable
 
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
+from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 from analyze import (
     compute_mahal_distances,
+    set_compute_dtype,
+    set_max_reference_tokens,
     compute_relative_mahal_distances,
     detect_layers,
     extend_reference_with_background_safe,
@@ -49,23 +53,120 @@ SCORE_METHODS = (
     "centroid",
     "raw",
     "rmd",
+    "rmd_high_entropy_q20",
+    "rmd_tail_q20",
+    "rmd_random_q20",
+    "entropy_he",
+    "logprob_he",
     "prompt_local_rmd",
     "contrast_full",
     "contrast_high_entropy_q20",
     "contrast_tail_q20",
+    "contrast_random_q20",
+    "probe_outputs",
+    "probe_outputs_plus_rmd_high_entropy_q20",
+    "probe_outputs_plus_contrast_high_entropy_q20",
+    "probe_b0",
+    "probe_b1",
+    "probe_g_he",
+    "probe_g_random",
+)
+
+LOCALIZED_RMD_METHODS = (
+    "rmd_high_entropy_q20",
+    "rmd_tail_q20",
+    "rmd_random_q20",
 )
 
 CONTRASTIVE_METHODS = (
     "contrast_full",
     "contrast_high_entropy_q20",
     "contrast_tail_q20",
+    "contrast_random_q20",
 )
 
 CONTRASTIVE_REGION_NAMES = {
     "contrast_full": "full",
     "contrast_high_entropy_q20": "high_entropy_q20",
     "contrast_tail_q20": "tail_q20",
+    "contrast_random_q20": "random_q20",
 }
+
+PROBE_FEATURES = {
+    "probe_outputs": ("logprob", "entropy", "length"),
+    "probe_outputs_plus_rmd_high_entropy_q20": (
+        "logprob",
+        "entropy",
+        "length",
+        "rmd_high_entropy_q20",
+    ),
+    "probe_outputs_plus_contrast_high_entropy_q20": (
+        "logprob",
+        "entropy",
+        "length",
+        "contrast_high_entropy_q20",
+    ),
+}
+E2_PROBE_FEATURES = {
+    "probe_b0": ("length", "entropy", "logprob"),
+    "probe_b1": ("length", "entropy", "logprob", "entropy_he", "logprob_he"),
+    "probe_g_he": (
+        "length",
+        "entropy",
+        "logprob",
+        "entropy_he",
+        "logprob_he",
+        "rmd_high_entropy_q20",
+    ),
+    "probe_g_random": (
+        "length",
+        "entropy",
+        "logprob",
+        "entropy_he",
+        "logprob_he",
+        "rmd_random_q20",
+    ),
+}
+PROBE_FEATURES.update(E2_PROBE_FEATURES)
+PROBE_METHODS = tuple(PROBE_FEATURES)
+E2_PROBE_METHODS = tuple(E2_PROBE_FEATURES)
+
+PRESPECIFIED_SCORE_PAIRS = (
+    ("rmd_high_entropy_q20", "rmd"),
+    ("rmd_tail_q20", "rmd"),
+    ("contrast_high_entropy_q20", "contrast_full"),
+    ("contrast_tail_q20", "contrast_full"),
+    ("contrast_full", "rmd"),
+    ("contrast_high_entropy_q20", "rmd_high_entropy_q20"),
+    ("contrast_tail_q20", "rmd_tail_q20"),
+    ("rmd_high_entropy_q20", "rmd_random_q20"),
+    ("contrast_high_entropy_q20", "contrast_random_q20"),
+    ("rmd_high_entropy_q20", "logprob"),
+    ("rmd_tail_q20", "logprob"),
+    ("contrast_high_entropy_q20", "logprob"),
+    ("contrast_tail_q20", "logprob"),
+    ("probe_outputs_plus_rmd_high_entropy_q20", "probe_outputs"),
+    ("probe_outputs_plus_contrast_high_entropy_q20", "probe_outputs"),
+    (
+        "probe_outputs_plus_contrast_high_entropy_q20",
+        "probe_outputs_plus_rmd_high_entropy_q20",
+    ),
+)
+
+LEGACY_CONTRASTIVE_PAIRS = tuple(
+    dict.fromkeys(
+        [
+            (method, baseline)
+            for method in (*CONTRASTIVE_METHODS, *LOCALIZED_RMD_METHODS)
+            for baseline in ("rmd", "logprob")
+            if method != baseline
+        ]
+        + [
+            ("contrast_high_entropy_q20", "rmd_high_entropy_q20"),
+            ("contrast_tail_q20", "rmd_tail_q20"),
+        ]
+    )
+)
 
 SCORE_DESCRIPTIONS = {
     "entropy": "-mean(token entropy)",
@@ -75,6 +176,17 @@ SCORE_DESCRIPTIONS = {
     "centroid": "-mean Euclidean distance to the correct-trace PCA centroid",
     "raw": "-mean(raw Mahalanobis token distance)",
     "rmd": "-mean(relative Mahalanobis token distance)",
+    "rmd_high_entropy_q20": (
+        "-mean(relative Mahalanobis token distance over the highest-entropy 20% of tokens)"
+    ),
+    "rmd_tail_q20": (
+        "-mean(relative Mahalanobis token distance over the final 20% of tokens)"
+    ),
+    "rmd_random_q20": (
+        "-mean(relative Mahalanobis token distance over a deterministic random 20% of tokens)"
+    ),
+    "entropy_he": "mean(token entropy over the highest-entropy 20% of tokens)",
+    "logprob_he": "mean(token log-probability over the highest-entropy 20% of tokens)",
     "prompt_local_rmd": (
         "mean(leave-one-trace-out prompt-local background distance "
         "- raw Mahalanobis distance)"
@@ -84,6 +196,23 @@ SCORE_DESCRIPTIONS = {
         "projection onto the prompt-contrastive highest-entropy 20% direction"
     ),
     "contrast_tail_q20": "projection onto the prompt-contrastive final-20% direction",
+    "contrast_random_q20": (
+        "projection onto the prompt-contrastive deterministic random-20% direction"
+    ),
+    "probe_outputs": (
+        "cross-fitted logistic probability from prompt-centered log-probability, "
+        "entropy, and length"
+    ),
+    "probe_outputs_plus_rmd_high_entropy_q20": (
+        "cross-fitted output probe plus localized high-entropy RMD"
+    ),
+    "probe_outputs_plus_contrast_high_entropy_q20": (
+        "cross-fitted output probe plus localized high-entropy contrast"
+    ),
+    "probe_b0": "cross-fitted B0 output probe: length, global entropy, and global log-probability",
+    "probe_b1": "cross-fitted B1 output probe plus same-token entropy and log-probability",
+    "probe_g_he": "cross-fitted B1 probe plus high-entropy localized RMD",
+    "probe_g_random": "cross-fitted B1 probe plus random-20% localized RMD",
 }
 
 
@@ -110,9 +239,13 @@ def _safe_auc(labels: list[int], scores: list[float]) -> float | None:
     return float(roc_auc_score(labels, scores))
 
 
-def available_score_methods(rows: list[dict]) -> list[str]:
+def available_score_methods(
+    rows: list[dict], *, include_supervised: bool = False
+) -> list[str]:
     methods = []
     for method in SCORE_METHODS:
+        if method in PROBE_METHODS and not include_supervised:
+            continue
         key = f"{method}_score"
         values = [row.get(key) for row in rows]
         if values and all(
@@ -133,7 +266,13 @@ def is_unparsed(row: dict) -> bool:
     return value is None or str(value).strip() == ""
 
 
-def region_indices(entropies: np.ndarray, region: str) -> np.ndarray:
+def region_indices(
+    entropies: np.ndarray,
+    region: str,
+    *,
+    trace_id: int | None = None,
+    region_seed: int = 42,
+) -> np.ndarray:
     """Return deterministic token indices for a fixed contrastive region."""
     values = np.asarray(entropies, dtype=float)
     if values.ndim != 1 or values.size == 0:
@@ -146,11 +285,24 @@ def region_indices(entropies: np.ndarray, region: str) -> np.ndarray:
     if region == "high_entropy_q20":
         order = np.argsort(values, kind="stable")
         return np.sort(order[-count:]).astype(int)
+    if region == "random_q20":
+        if trace_id is None:
+            raise ValueError("random_q20 requires trace_id")
+        seed = np.random.SeedSequence(
+            [int(region_seed), int(trace_id), int(values.size)]
+        )
+        rng = np.random.default_rng(seed)
+        return np.sort(rng.choice(values.size, size=count, replace=False)).astype(int)
     raise ValueError(f"unknown region: {region}")
 
 
 def trace_region_mean(
-    projected: np.ndarray, entropies: np.ndarray, region: str
+    projected: np.ndarray,
+    entropies: np.ndarray,
+    region: str,
+    *,
+    trace_id: int | None = None,
+    region_seed: int = 42,
 ) -> np.ndarray:
     """Average projected hidden states over one fixed token region."""
     projected = np.asarray(projected, dtype=float)
@@ -159,8 +311,35 @@ def trace_region_mean(
         raise ValueError("projected hidden states must be a non-empty 2D array")
     if entropies.ndim != 1 or entropies.shape[0] != projected.shape[0]:
         raise ValueError("entropy sequence must match projected hidden-state length")
-    indices = region_indices(entropies, region)
+    indices = region_indices(
+        entropies,
+        region,
+        trace_id=trace_id,
+        region_seed=region_seed,
+    )
     return projected[indices].mean(axis=0)
+
+
+def score_localized_rmd(
+    distances: np.ndarray,
+    entropies: np.ndarray,
+    region: str,
+    *,
+    trace_id: int | None = None,
+    region_seed: int = 42,
+) -> float:
+    """Pool existing tokenwise RMD distances over a fixed token region."""
+    distances = np.asarray(distances, dtype=float)
+    entropies = np.asarray(entropies, dtype=float)
+    if distances.ndim != 1 or distances.shape != entropies.shape:
+        raise ValueError("RMD distances must match the 1D entropy sequence")
+    indices = region_indices(
+        entropies,
+        region,
+        trace_id=trace_id,
+        region_seed=region_seed,
+    )
+    return -float(distances[indices].mean())
 
 
 def _unit_prompt_difference(
@@ -169,6 +348,7 @@ def _unit_prompt_difference(
     region: str,
     shuffled_correct_indices: np.ndarray | None = None,
     region_means_by_trace: dict[int, np.ndarray] | None = None,
+    region_seed: int = 42,
 ) -> np.ndarray | None:
     parseable = [trace for trace in traces if not is_unparsed(trace)]
     if shuffled_correct_indices is None:
@@ -186,6 +366,8 @@ def _unit_prompt_difference(
                 projected_by_trace[int(trace["trace_id"])],
                 trace.get("entropies"),
                 region,
+                trace_id=int(trace["trace_id"]),
+                region_seed=region_seed,
             )
             for trace in parseable
         }
@@ -220,6 +402,7 @@ def fit_prompt_contrastive_direction(
     region: str,
     seed: int = 42,
     n_alignment_shuffles: int = 0,
+    region_seed: int = 42,
 ) -> dict:
     """Fit an equal-prompt-weighted correctness direction on training prompts."""
     prompt_vectors = []
@@ -230,6 +413,8 @@ def fit_prompt_contrastive_direction(
             projected_by_trace[int(trace["trace_id"])],
             trace.get("entropies"),
             region,
+            trace_id=int(trace["trace_id"]),
+            region_seed=region_seed,
         )
         for prompt_id in prompt_ids
         for trace in groups[int(prompt_id)]
@@ -252,6 +437,7 @@ def fit_prompt_contrastive_direction(
             projected_by_trace,
             region,
             region_means_by_trace=region_means_by_trace,
+            region_seed=region_seed,
         )
         if vector is None:
             skipped[int(prompt_id)] = "zero_norm_difference"
@@ -285,6 +471,7 @@ def fit_prompt_contrastive_direction(
                 region,
                 shuffled_correct_indices=np.asarray(shuffled_indices, dtype=int),
                 region_means_by_trace=region_means_by_trace,
+                region_seed=region_seed,
             )
             if vector is not None:
                 shuffled_vectors.append(vector)
@@ -336,6 +523,9 @@ def score_contrastive_trace(
     entropies: np.ndarray,
     direction: np.ndarray | None,
     region: str,
+    *,
+    trace_id: int | None = None,
+    region_seed: int = 42,
 ) -> float:
     """Score a trace by projection onto a fitted correctness direction."""
     if direction is None:
@@ -344,7 +534,14 @@ def score_contrastive_trace(
     norm = float(np.linalg.norm(direction))
     if direction.ndim != 1 or norm == 0:
         raise ValueError("prompt-contrastive direction must be nonzero and 1D")
-    return float(np.dot(trace_region_mean(projected, entropies, region), direction / norm))
+    region_mean = trace_region_mean(
+        projected,
+        entropies,
+        region,
+        trace_id=trace_id,
+        region_seed=region_seed,
+    )
+    return float(np.dot(region_mean, direction / norm))
 
 
 def truncation_report(rows: list[dict], max_new_tokens: int | None = None) -> dict:
@@ -396,7 +593,7 @@ def parseable_within_prompt_metrics(rows: list[dict]) -> dict:
     """
     parseable = [row for row in rows if not is_unparsed(row)]
     methods = {}
-    for method in available_score_methods(parseable):
+    for method in available_score_methods(parseable, include_supervised=True):
         score_key = f"{method}_score"
         concordance = within_prompt_concordance(parseable, score_key=score_key)
         centered = prompt_centered_auc(parseable, score_key=score_key)
@@ -408,6 +605,134 @@ def parseable_within_prompt_metrics(rows: list[dict]) -> dict:
             "n_within_prompt_pairs": concordance["n_pairs"],
         }
     return {"n_parseable_traces": len(parseable), "methods": methods}
+
+
+def prompt_class_balanced_weights(rows: list[dict]) -> np.ndarray:
+    """Give each prompt total weight one, split equally across its two classes."""
+    weights = np.zeros(len(rows), dtype=float)
+    indexed_groups: dict[int, list[int]] = defaultdict(list)
+    for index, row in enumerate(rows):
+        indexed_groups[int(row["prompt_id"])].append(index)
+    for prompt_indices in indexed_groups.values():
+        by_class = {
+            label: [index for index in prompt_indices if int(rows[index]["is_correct"]) == label]
+            for label in (0, 1)
+        }
+        if not by_class[0] or not by_class[1]:
+            raise ValueError("probe training prompts must contain both classes")
+        for label in (0, 1):
+            class_weight = 0.5 / len(by_class[label])
+            weights[by_class[label]] = class_weight
+    return weights
+
+
+def _mixed_prompt_rows(rows: list[dict]) -> list[dict]:
+    parseable = [row for row in rows if not is_unparsed(row)]
+    return [
+        row
+        for group in _group_rows(parseable).values()
+        if len({int(item["is_correct"]) for item in group}) == 2
+        for row in group
+    ]
+
+
+def _prompt_centered_feature_matrix(
+    rows: list[dict], features: tuple[str, ...]
+) -> np.ndarray:
+    matrix = np.empty((len(rows), len(features)), dtype=float)
+    indexed_groups: dict[int, list[int]] = defaultdict(list)
+    for index, row in enumerate(rows):
+        indexed_groups[int(row["prompt_id"])].append(index)
+    for prompt_indices in indexed_groups.values():
+        values = np.asarray(
+            [
+                [float(rows[index][f"{feature}_score"]) for feature in features]
+                for index in prompt_indices
+            ],
+            dtype=float,
+        )
+        matrix[prompt_indices] = values - values.mean(axis=0, keepdims=True)
+    return matrix
+
+
+def add_crossfit_probe_scores(rows: list[dict]) -> list[dict]:
+    """Add prompt-fold cross-fitted supervised readouts in place."""
+    for row in rows:
+        for method in PROBE_METHODS:
+            row[f"{method}_score"] = None
+
+    diagnostics = []
+    layers = sorted({int(row["layer"]) for row in rows})
+    for layer in layers:
+        layer_rows = [row for row in rows if int(row["layer"]) == layer]
+        folds = sorted({int(row["fold"]) for row in layer_rows})
+        for fold in folds:
+            train_rows = _mixed_prompt_rows(
+                [row for row in layer_rows if int(row["fold"]) != fold]
+            )
+            test_rows = [
+                row
+                for row in layer_rows
+                if int(row["fold"]) == fold and not is_unparsed(row)
+            ]
+            if not train_rows:
+                raise ValueError(
+                    f"no parseable mixed training prompts for layer {layer}, fold {fold}"
+                )
+            weights = prompt_class_balanced_weights(train_rows)
+            labels = np.asarray(
+                [int(row["is_correct"]) for row in train_rows], dtype=int
+            )
+            for method, features in PROBE_FEATURES.items():
+                required_keys = [f"{feature}_score" for feature in features]
+                if any(
+                    row.get(key) is None or not math.isfinite(float(row[key]))
+                    for row in train_rows
+                    for key in required_keys
+                ) or any(
+                    row.get(key) is None or not math.isfinite(float(row[key]))
+                    for row in test_rows
+                    for key in required_keys
+                ):
+                    continue
+                train_matrix = _prompt_centered_feature_matrix(train_rows, features)
+                test_matrix = _prompt_centered_feature_matrix(test_rows, features)
+                scaler = StandardScaler().fit(train_matrix)
+                classifier = LogisticRegression(
+                    C=1.0,
+                    solver="lbfgs",
+                    max_iter=1000,
+                ).fit(
+                    scaler.transform(train_matrix),
+                    labels,
+                    sample_weight=weights,
+                )
+                scores = classifier.predict_proba(
+                    scaler.transform(test_matrix)
+                )[:, 1]
+                for row, score in zip(test_rows, scores):
+                    row[f"{method}_score"] = float(score)
+                diagnostics.append(
+                    {
+                        "layer": int(layer),
+                        "fold": int(fold),
+                        "method": method,
+                        "features": list(features),
+                        "n_train_prompts": len(
+                            {int(row["prompt_id"]) for row in train_rows}
+                        ),
+                        "n_train_traces": len(train_rows),
+                        "n_test_traces": len(test_rows),
+                        "coefficients": {
+                            feature: float(coefficient)
+                            for feature, coefficient in zip(
+                                features, classifier.coef_[0]
+                            )
+                        },
+                        "intercept": float(classifier.intercept_[0]),
+                    }
+                )
+    return diagnostics
 
 
 def within_prompt_concordance(
@@ -749,6 +1074,7 @@ def generate_oof_scores(
     contrastive_regions: tuple[str, ...] = (),
     n_alignment_shuffles: int = 0,
     alignment_seed: int = 42,
+    region_seed: int = 42,
     alignment_diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     contrastive_regions = tuple(dict.fromkeys(contrastive_regions))
@@ -803,7 +1129,7 @@ def generate_oof_scores(
                                 f"Trace {trace['trace_id']} is missing entropies"
                             )
                         training_projected[int(trace["trace_id"])] = ref[0].transform(
-                            np.asarray(trace["hiddens"][layer], dtype=float)
+                            np.asarray(trace["hiddens"][layer], dtype=np.float32)
                         )
                     for region in contrastive_regions:
                         fit = fit_prompt_contrastive_direction(
@@ -813,6 +1139,7 @@ def generate_oof_scores(
                             region=region,
                             seed=alignment_seed + fold_index * 1000 + int(layer),
                             n_alignment_shuffles=n_alignment_shuffles,
+                            region_seed=region_seed,
                         )
                         if fit["direction"] is None:
                             raise RuntimeError(
@@ -847,7 +1174,7 @@ def generate_oof_scores(
                                 f"Trace {trace['trace_id']} is missing layer {layer}"
                             )
                         raw = np.asarray(
-                            raw_distance(trace["hiddens"][layer], *ref), dtype=float
+                            raw_distance(trace["hiddens"][layer], *ref), dtype=np.float32
                         )
                         rmd = np.asarray(
                             relative_distance(trace["hiddens"][layer], *rmd_ref),
@@ -859,7 +1186,7 @@ def generate_oof_scores(
                                 f"Trace {trace['trace_id']} is missing entropies"
                             )
                         entropies = np.asarray(entropies, dtype=float)
-                        hiddens = np.asarray(trace["hiddens"][layer], dtype=float)
+                        hiddens = np.asarray(trace["hiddens"][layer], dtype=np.float32)
                         projected = ref[0].transform(hiddens)
                         centroid = np.linalg.norm(projected - ref[1], axis=1)
                         prompt_payloads.append(
@@ -919,6 +1246,34 @@ def generate_oof_scores(
                                 int(trace["trace_id"])
                             ],
                         }
+                        high_entropy_indices = region_indices(
+                            entropies,
+                            "high_entropy_q20",
+                            trace_id=int(trace["trace_id"]),
+                            region_seed=region_seed,
+                        )
+                        row["entropy_he_score"] = float(
+                            entropies[high_entropy_indices].mean()
+                        )
+                        token_logprobs = trace.get("token_logprobs")
+                        row["logprob_he_score"] = (
+                            float(np.asarray(token_logprobs)[high_entropy_indices].mean())
+                            if token_logprobs is not None
+                            and len(token_logprobs) == len(entropies)
+                            else None
+                        )
+                        for region in (
+                            "high_entropy_q20",
+                            "tail_q20",
+                            "random_q20",
+                        ):
+                            row[f"rmd_{region}_score"] = score_localized_rmd(
+                                rmd,
+                                entropies,
+                                region,
+                                trace_id=int(trace["trace_id"]),
+                                region_seed=region_seed,
+                            )
                         for region in contrastive_regions:
                             method = next(
                                 method
@@ -930,6 +1285,8 @@ def generate_oof_scores(
                                 entropies,
                                 contrastive_fits[region]["direction"],
                                 region,
+                                trace_id=int(trace["trace_id"]),
+                                region_seed=region_seed,
                             )
                         rows.append(row)
                 progress.update()
@@ -961,7 +1318,9 @@ def generate_oof_scores_layerwise(
     contrastive_regions: tuple[str, ...] = (),
     n_alignment_shuffles: int = 0,
     alignment_seed: int = 42,
+    region_seed: int = 42,
     return_diagnostics: bool = False,
+    hidden_dtype: np.dtype | None = None,
 ) -> tuple[list[dict], dict] | tuple[list[dict], dict, list[dict]]:
     """Load and score one layer at a time to bound peak hidden-state memory."""
     all_rows = []
@@ -970,7 +1329,7 @@ def generate_oof_scores_layerwise(
 
     for layer_index, layer in enumerate(layers, start=1):
         _status(
-            f"[2/7] Loading layer {layer} ({layer_index}/{len(layers)}) "
+            f"[2/8] Loading layer {layer} ({layer_index}/{len(layers)}) "
             f"with {load_workers} parallel workers"
         )
         traces = load_traces(
@@ -979,7 +1338,8 @@ def generate_oof_scores_layerwise(
             max_workers=load_workers,
             show_progress=show_progress,
             include_auxiliary=True,
-            auxiliary_fields={"entropies"},
+            auxiliary_fields={"entropies", "token_logprobs"},
+            hidden_dtype=hidden_dtype,
         )
         hidden_gib = sum(
             np.asarray(trace["hiddens"][layer]).nbytes
@@ -987,7 +1347,7 @@ def generate_oof_scores_layerwise(
             if layer in trace["hiddens"]
         ) / (1024**3)
         _status(
-            f"[3/7] Validating {len(traces)} traces for layer {layer} "
+            f"[3/8] Validating {len(traces)} traces for layer {layer} "
             f"({hidden_gib:.1f} GiB hidden states in memory)"
         )
         groups, layer_report = validate_groups(
@@ -1004,7 +1364,7 @@ def generate_oof_scores_layerwise(
             )
 
         _status(
-            f"[4/7] Generating out-of-fold scores for layer {layer} "
+            f"[4/8] Generating out-of-fold scores for layer {layer} "
             f"({layer_index}/{len(layers)})"
         )
         score_kwargs = {
@@ -1020,6 +1380,7 @@ def generate_oof_scores_layerwise(
                     "contrastive_regions": contrastive_regions,
                     "n_alignment_shuffles": n_alignment_shuffles,
                     "alignment_seed": alignment_seed,
+                    "region_seed": region_seed,
                     "alignment_diagnostics": contrastive_diagnostics,
                 }
             )
@@ -1330,17 +1691,16 @@ def bootstrap_parseable_paired_deltas(
     baselines: tuple[str, ...],
     n_bootstrap: int,
     seed: int,
+    extra_pairs: tuple[tuple[str, str], ...] = (),
+    pairs: tuple[tuple[str, str], ...] = (),
 ) -> dict:
     """Prompt-cluster bootstrap for paired deltas on variable-size groups."""
     grouped = _group_rows(rows)
     prompt_ids = sorted(grouped)
     metrics = ("prompt_centered_auc", "within_prompt_macro")
-    pairs = [
-        (method, baseline)
-        for method in methods
-        for baseline in baselines
-        if method != baseline
-        and all(
+
+    def _pair_available(method: str, baseline: str) -> bool:
+        return method != baseline and all(
             all(
                 row.get(f"{candidate}_score") is not None
                 and math.isfinite(float(row[f"{candidate}_score"]))
@@ -1348,10 +1708,21 @@ def bootstrap_parseable_paired_deltas(
             )
             for candidate in (method, baseline)
         )
+
+    requested_pairs = [
+        (method, baseline)
+        for method in methods
+        for baseline in baselines
+        if _pair_available(method, baseline)
     ]
+    requested_pairs.extend(
+        pair
+        for pair in (*extra_pairs, *pairs)
+        if pair not in requested_pairs and _pair_available(*pair)
+    )
     draws = {
         pair: {metric: [] for metric in metrics}
-        for pair in pairs
+        for pair in requested_pairs
     }
     rng = np.random.default_rng(seed)
 
@@ -1377,9 +1748,11 @@ def bootstrap_parseable_paired_deltas(
             replicate = resample_prompt_rows(rows, [int(value) for value in sampled_ids])
             values = {
                 method: paired_metrics(replicate, method)
-                for method in sorted(set(methods).union(baselines))
+                for method in sorted(
+                    {name for pair in requested_pairs for name in pair}
+                )
             }
-            for method, baseline in pairs:
+            for method, baseline in requested_pairs:
                 for metric in metrics:
                     left = values[method][metric]
                     right = values[baseline][metric]
@@ -1441,6 +1814,7 @@ def analyze_oof_scores(
             "expected_prompts": int(config["expected_prompts"]),
             "n_splits": int(config["n_splits"]),
             "seed": int(config["seed"]),
+            "region_seed": int(config.get("region_seed", 42)),
             "n_bootstrap": int(n_bootstrap),
             "score_orientation": "higher predicts correctness",
             "raw_score": SCORE_DESCRIPTIONS["raw"],
@@ -1464,7 +1838,18 @@ def analyze_oof_scores(
             "regions": list(config.get("contrastive_regions", [])),
             "n_alignment_shuffles": int(config.get("n_alignment_shuffles", 0)),
             "alignment_seed": int(config.get("alignment_seed", config["seed"])),
+            "region_seed": int(config.get("region_seed", 42)),
             "alignment_diagnostics": config.get("contrastive_diagnostics", []),
+        },
+        "incremental_readouts": {
+            "supervised": True,
+            "cross_fitted_by_prompt_fold": True,
+            "training_population": "parseable mixed prompts only",
+            "models": {
+                method: {"features": list(features)}
+                for method, features in PROBE_FEATURES.items()
+            },
+            "diagnostics": config.get("probe_diagnostics", []),
         },
     }
 
@@ -1517,21 +1902,39 @@ def analyze_oof_scores(
             "parseable_only": parseable_within_prompt_metrics(layer_rows),
         }
         parseable_rows = [row for row in layer_rows if not is_unparsed(row)]
-        contrastive_methods = [
-            method
-            for method in CONTRASTIVE_METHODS
-            if method in result["layers"][str(layer)]["parseable_only"]["methods"]
-        ]
-        if contrastive_methods:
-            result["layers"][str(layer)]["parseable_only"][
-                "paired_contrastive_deltas"
-            ] = bootstrap_parseable_paired_deltas(
-                parseable_rows,
-                contrastive_methods,
-                baselines=("rmd", "logprob"),
-                n_bootstrap=n_bootstrap,
-                seed=seed + int(layer) + 10000,
-            )
+        parseable_block = result["layers"][str(layer)]["parseable_only"]
+        requested_pairs = tuple(
+            dict.fromkeys((*PRESPECIFIED_SCORE_PAIRS, *LEGACY_CONTRASTIVE_PAIRS))
+        )
+        paired_score_deltas = bootstrap_parseable_paired_deltas(
+            parseable_rows,
+            methods=[],
+            baselines=(),
+            pairs=requested_pairs,
+            n_bootstrap=n_bootstrap,
+            seed=seed + int(layer) + 10000,
+        )
+        parseable_block["paired_score_deltas"] = paired_score_deltas
+        parseable_block["e2_paired_score_deltas"] = bootstrap_parseable_paired_deltas(
+            parseable_rows,
+            methods=[],
+            baselines=(),
+            pairs=(
+                ("probe_g_he", "probe_b1"),
+                ("probe_g_he", "probe_g_random"),
+            ),
+            n_bootstrap=n_bootstrap,
+            seed=seed + int(layer) + 20000,
+        )
+        legacy_names = {
+            f"{method}_minus_{baseline}"
+            for method, baseline in LEGACY_CONTRASTIVE_PAIRS
+        }
+        parseable_block["paired_contrastive_deltas"] = {
+            name: payload
+            for name, payload in paired_score_deltas.items()
+            if name in legacy_names
+        }
 
     return result
 
@@ -1557,8 +1960,12 @@ def write_trace_csv(rows: list[dict], path: str | Path) -> None:
         "centroid_score",
         "raw_score",
         "rmd_score",
+        *(f"{method}_score" for method in LOCALIZED_RMD_METHODS),
+        "entropy_he_score",
+        "logprob_he_score",
         "prompt_local_rmd_score",
         *(f"{method}_score" for method in CONTRASTIVE_METHODS),
+        *(f"{method}_score" for method in PROBE_METHODS),
     ]
     with path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -1604,6 +2011,27 @@ def write_markdown(result: dict, path: str | Path) -> None:
                 f"{_format_metric(metrics['score_icc'])} | "
                 f"{_format_metric(metrics['prompt_score_pass_rate_spearman'])} |"
             )
+    lines.extend(
+        [
+            "",
+            "## Supervised cross-fitted incremental readouts",
+            "",
+            (
+                "These logistic readouts are supervised and cross-fitted by the existing "
+                "prompt fold. Training uses only parseable mixed prompts; features are "
+                "prompt-centered, standardized on training rows, and weighted equally "
+                "by prompt and class. They appear only in parseable-only metrics."
+            ),
+            "",
+            "| Method | Features |",
+            "|:---|:---|",
+        ]
+    )
+    for method, payload in result.get("incremental_readouts", {}).get(
+        "models", {}
+    ).items():
+        lines.append(f"| {method} | {', '.join(payload['features'])} |")
+
     def _paired(entry: dict, metric: str) -> str:
         cell = entry.get(metric) if entry else None
         if not cell or cell.get("point_estimate") is None:
@@ -1686,6 +2114,60 @@ def write_markdown(result: dict, path: str | Path) -> None:
                     f"{_format_metric(pm['prompt_centered_auc'])} | "
                     f"{pm['n_mixed_prompts']} |"
                 )
+        lines.extend(
+            [
+                "",
+                "## Prespecified parseable score contrasts",
+                "",
+                (
+                    "Point estimates, raw 95% prompt-bootstrap intervals, and raw "
+                    "two-sided p-values are reported without post-hoc layer selection "
+                    "or multiplicity-adjusted claims."
+                ),
+                "",
+                "| Layer | Contrast | Centered AUC delta | Within macro delta |",
+                "|---:|:---|:---|:---|",
+            ]
+        )
+        for layer, layer_result in result["layers"].items():
+            paired = layer_result.get("parseable_only", {}).get(
+                "paired_score_deltas", {}
+            )
+            for name, values in paired.items():
+                lines.append(
+                    f"| {layer} | {name} | "
+                    f"{_paired(values, 'prompt_centered_auc')} | "
+                    f"{_paired(values, 'within_prompt_macro')} |"
+                )
+        if any(
+            layer_result.get("parseable_only", {}).get("e2_paired_score_deltas")
+            for layer_result in result["layers"].values()
+        ):
+            lines.extend(
+                [
+                    "",
+                    "## E2 same-token output autopsy",
+                    "",
+                    (
+                        "Fixed cross-fitted probes: B0=global outputs, B1=global plus "
+                        "same high-entropy-token outputs, G_he=B1 plus high-entropy RMD, "
+                        "and G_random=B1 plus matched random-20% RMD. Only the two "
+                        "pre-specified geometry contrasts are shown here."
+                    ),
+                    "",
+                    "| Layer | Contrast | Centered AUC delta | Within macro delta |",
+                    "|---:|:---|:---|:---|",
+                ]
+            )
+            for layer, layer_result in result["layers"].items():
+                for name, values in layer_result.get("parseable_only", {}).get(
+                    "e2_paired_score_deltas", {}
+                ).items():
+                    lines.append(
+                        f"| {layer} | {name} | "
+                        f"{_paired(values, 'prompt_centered_auc')} | "
+                        f"{_paired(values, 'within_prompt_macro')} |"
+                    )
     contrastive = result.get("contrastive", {})
     if contrastive.get("regions"):
         lines.extend(
@@ -1775,13 +2257,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--contrastive_regions",
         default="",
-        help="Comma-separated fixed regions: full,high_entropy_q20,tail_q20",
+        help=(
+            "Comma-separated fixed regions: full,high_entropy_q20,tail_q20,"
+            "random_q20"
+        ),
     )
     parser.add_argument("--n_alignment_shuffles", type=int, default=0)
     parser.add_argument("--alignment_seed", type=int, default=42)
+    parser.add_argument("--region_seed", type=int, default=42)
     parser.add_argument("--allow_partial", action="store_true")
     parser.add_argument("--load_workers", type=int, default=4)
     parser.add_argument("--no_progress", action="store_true")
+    parser.add_argument(
+        "--hidden_dtype", type=str, default="float32",
+        choices=["float16", "float32"],
+        help="Resident dtype for hidden states. Stored data is float32 but comes from a "
+             "bf16 forward pass, so float16 round-trips losslessly and halves memory.",
+    )
+    parser.add_argument(
+        "--compute_dtype", type=str, default="float64",
+        choices=["float32", "float64"],
+        help="Working precision for PCA/Mahalanobis. float32 halves the peak of the "
+             "reference-fit concatenation, the pipeline's largest allocation.",
+    )
+    parser.add_argument(
+        "--max_reference_tokens", type=int, default=0,
+        help="Cap on tokens concatenated to fit each reference manifold (0 = no cap). "
+             "Allocation is proportional to trace length with a seeded within-trace "
+             "draw. Only binds for long-trace models; short-trace runs are unchanged.",
+    )
     return parser.parse_args()
 
 
@@ -1789,7 +2293,11 @@ def main() -> None:
     started = time.perf_counter()
     args = parse_args()
 
-    _status("[1/7] Detecting hidden-state layers")
+    hidden_dtype = np.dtype(args.hidden_dtype).type
+    set_compute_dtype(args.compute_dtype)
+    set_max_reference_tokens(args.max_reference_tokens or None)
+
+    _status("[1/8] Detecting hidden-state layers")
     layers = parse_int_list(args.layers) if args.layers else detect_layers(args.data_dir)
 
     if args.load_workers < 1:
@@ -1821,8 +2329,12 @@ def main() -> None:
         contrastive_regions=contrastive_regions,
         n_alignment_shuffles=args.n_alignment_shuffles,
         alignment_seed=args.alignment_seed,
+        region_seed=args.region_seed,
         return_diagnostics=True,
+        hidden_dtype=hidden_dtype,
     )
+    _status("[5/8] Fitting cross-fitted supervised readouts")
+    probe_diagnostics = add_crossfit_probe_scores(rows)
     config = {
         "dataset": args.dataset_label,
         "model": model_label,
@@ -1835,12 +2347,14 @@ def main() -> None:
         "contrastive_regions": list(contrastive_regions),
         "n_alignment_shuffles": int(args.n_alignment_shuffles),
         "alignment_seed": int(args.alignment_seed),
+        "region_seed": int(args.region_seed),
         "data_report": data_report,
         "contrastive_diagnostics": contrastive_diagnostics,
+        "probe_diagnostics": probe_diagnostics,
     }
 
     _status(
-        f"[5/7] Computing decomposition metrics and "
+        f"[6/8] Computing decomposition metrics and "
         f"{args.n_bootstrap} prompt-bootstrap resamples per layer"
     )
     result = analyze_oof_scores(
@@ -1854,11 +2368,11 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     prefix = f"{args.dataset_label}_prompt_decomposition"
-    _status(f"[6/7] Writing CSV, JSON, and Markdown outputs to {output_dir}")
+    _status(f"[7/8] Writing CSV, JSON, and Markdown outputs to {output_dir}")
     write_trace_csv(rows, output_dir / f"{prefix}_oof.csv")
     write_json(result, output_dir / f"{prefix}_results.json")
     write_markdown(result, output_dir / f"{prefix}_report.md")
-    _status(f"[7/7] Complete in {time.perf_counter() - started:.1f}s")
+    _status(f"[8/8] Complete in {time.perf_counter() - started:.1f}s")
 
 
 if __name__ == "__main__":

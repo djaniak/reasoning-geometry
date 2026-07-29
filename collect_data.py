@@ -47,6 +47,13 @@ def parse_args():
                         help="Sampling temperature (0.0 = greedy)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for sampling (only used when temperature > 0)")
+    parser.add_argument("--two_phase", action="store_true",
+                        help="Token-only decode across --group_problems problems, then a chunked "
+                             "teacher-forced forward reconstructs hidden states/entropy/logprobs")
+    parser.add_argument("--group_problems", type=int, default=4,
+                        help="Two-phase only: problems decoded together (rows = this x num_samples)")
+    parser.add_argument("--capture_chunk_size", type=int, default=1024,
+                        help="Two-phase only: positions per capture-forward chunk")
     parser.add_argument("--num_samples", type=int, default=1,
                         help="Number of traces to generate per problem")
     return parser.parse_args()
@@ -214,6 +221,359 @@ def generate_trace(model, tokenizer, question: str, system_prompt: str = None,
     return generated_ids, generated_tokens, token_entropies, token_hidden_states, token_logprobs
 
 
+def generate_traces_batched(model, tokenizer, question: str, system_prompt: str = None,
+                            layers_to_capture: list = None, max_new_tokens: int = None,
+                            temperature: float = 0.0, seeds: list = None,
+                            num_samples: int = 1, device=None):
+    """Generate ``num_samples`` traces for one question in a single batched decode.
+
+    All samples share the same prompt (identical length), so no padding is
+    needed: the prompt is simply repeated across the batch and the samples
+    diverge as sampling proceeds. Everything is accumulated on-device and moved
+    to the host once at the end, avoiding the per-token CPU<->GPU syncs that
+    starve the GPU in the single-sequence path.
+
+    Returns a list of ``num_samples`` dicts, each with keys:
+      ``generated_ids`` (list[int]), ``generated_tokens`` (list[str]),
+      ``token_entropies`` (np.float32 [seq]), ``token_logprobs`` (np.float32 [seq]),
+      ``token_hidden_states`` (dict layer -> np.float32 [seq, hidden]).
+
+    Alignment matches ``generate_trace``: hidden_states[k] is the representation
+    of the input at step k (the last prompt token for k=0, generated token k-1
+    otherwise), and entropies/logprobs[k] describe generated token k.
+    """
+    if system_prompt is None:
+        system_prompt = DATASETS["gsm8k"]["system_prompt"]
+    if layers_to_capture is None:
+        layers_to_capture = LAYERS_TO_CAPTURE
+    if max_new_tokens is None:
+        max_new_tokens = MAX_NEW_TOKENS
+    if device is None:
+        device = model.device
+    B = num_samples
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": question},
+    ]
+    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    prompt_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)  # [1, L]
+    current_input = prompt_ids.expand(B, -1).contiguous()  # [B, L]
+
+    generators = None
+    if temperature > 0:
+        if seeds is None:
+            seeds = [None] * B
+        generators = []
+        for s in seeds:
+            g = torch.Generator(device=device)
+            if s is not None:
+                g.manual_seed(int(s))
+            generators.append(g)
+
+    eos_id = tokenizer.eos_token_id
+    finished = torch.zeros(B, dtype=torch.bool, device=device)
+    seq_len = torch.full((B,), max_new_tokens, dtype=torch.long, device=device)
+
+    hs_steps = {layer: [] for layer in layers_to_capture}
+    ent_steps, lp_steps, tok_steps = [], [], []
+    steps_run = 0
+
+    with torch.no_grad():
+        past_key_values = None
+        for step in range(max_new_tokens):
+            outputs = model(
+                current_input,
+                past_key_values=past_key_values,
+                output_hidden_states=True,
+                use_cache=True,
+            )
+            past_key_values = outputs.past_key_values
+
+            logits = outputs.logits[:, -1, :].float()  # [B, vocab]
+            log_probs = torch.log_softmax(logits, dim=-1)
+            probs = torch.softmax(logits, dim=-1)
+            ent_steps.append(-(probs * log_probs).sum(dim=-1))  # [B]
+
+            for layer_idx in layers_to_capture:
+                # clone the [B, hidden] slice so the full per-step hidden tensor
+                # (incl. the whole prompt at step 0) can be freed.
+                hs_steps[layer_idx].append(
+                    outputs.hidden_states[layer_idx][:, -1, :].detach().clone()
+                )
+
+            if temperature > 0:
+                scaled = torch.softmax(logits / temperature, dim=-1)
+                next_token = torch.empty(B, dtype=torch.long, device=device)
+                for r in range(B):
+                    next_token[r] = torch.multinomial(
+                        scaled[r], num_samples=1, generator=generators[r]
+                    )[0]
+            else:
+                next_token = logits.argmax(dim=-1)  # [B]
+
+            lp_steps.append(log_probs.gather(1, next_token[:, None]).squeeze(1))  # [B]
+            tok_steps.append(next_token)
+
+            newly = (~finished) & (next_token == eos_id)
+            seq_len = torch.where(newly, torch.full_like(seq_len, step + 1), seq_len)
+            finished = finished | (next_token == eos_id)
+            steps_run = step + 1
+
+            # One small sync every 16 steps to allow early stop once all done.
+            if (step + 1) % 16 == 0 and bool(finished.all()):
+                break
+
+            current_input = next_token[:, None]
+            del outputs, logits, probs, log_probs
+
+    # Single host transfer for the whole problem.
+    toks = torch.stack(tok_steps, dim=1).cpu().numpy()          # [B, steps]
+    ents = torch.stack(ent_steps, dim=1).cpu().numpy()          # [B, steps]
+    lps = torch.stack(lp_steps, dim=1).cpu().numpy()            # [B, steps]
+    hs = {layer: torch.stack(hs_steps[layer], dim=1).float().cpu().numpy()
+          for layer in layers_to_capture}                       # [B, steps, hidden]
+    lengths = torch.clamp(seq_len, max=steps_run).cpu().tolist()
+
+    traces = []
+    for r in range(B):
+        n = int(lengths[r])
+        ids = toks[r, :n].tolist()
+        traces.append({
+            "generated_ids": ids,
+            "generated_tokens": tokenizer.convert_ids_to_tokens(ids),
+            "token_entropies": ents[r, :n].astype(np.float32),
+            "token_logprobs": lps[r, :n].astype(np.float32),
+            "token_hidden_states": {layer: hs[layer][r, :n] for layer in layers_to_capture},
+        })
+    return traces
+
+
+def generate_tokens_grouped(model, eos_token_id: int, prompt_ids_list: list,
+                            max_new_tokens: int, temperature: float = 0.0,
+                            seeds_list: list = None, num_samples: int = 1,
+                            device=None):
+    """Phase 1 of two-phase collection: token-only decode across problems.
+
+    Batches ``len(prompt_ids_list) * num_samples`` rows in one decode loop
+    (problem-major row order) with no hidden-state or entropy capture, so far
+    more rows fit in memory than the capturing decode allows. Prompts of
+    different lengths are left-padded; explicit position_ids and a full-history
+    attention mask keep padded rows correct.
+
+    ``seeds_list[p][s]`` seeds the generator for sample ``s`` of problem ``p``
+    (same per-row convention as ``generate_traces_batched``).
+
+    Returns ``[n_problems][num_samples]`` lists of generated token ids
+    (EOS-inclusive, trimmed per row).
+    """
+    if device is None:
+        device = model.device
+    P = len(prompt_ids_list)
+    R = P * num_samples
+
+    prompt_lens = [len(p) for p in prompt_ids_list]
+    max_L = max(prompt_lens)
+    input_ids = torch.zeros(R, max_L, dtype=torch.long, device=device)
+    attention_mask = torch.zeros(R, max_L, dtype=torch.long, device=device)
+    row_prompt_len = torch.zeros(R, dtype=torch.long, device=device)
+    for p in range(P):
+        ids = torch.as_tensor(prompt_ids_list[p], dtype=torch.long, device=device)
+        for s in range(num_samples):
+            r = p * num_samples + s
+            input_ids[r, max_L - prompt_lens[p]:] = ids
+            attention_mask[r, max_L - prompt_lens[p]:] = 1
+            row_prompt_len[r] = prompt_lens[p]
+
+    generators = None
+    if temperature > 0:
+        generators = []
+        for p in range(P):
+            row_seeds = seeds_list[p] if seeds_list is not None else [None] * num_samples
+            for s in range(num_samples):
+                g = torch.Generator(device=device)
+                if row_seeds[s] is not None:
+                    g.manual_seed(int(row_seeds[s]))
+                generators.append(g)
+
+    finished = torch.zeros(R, dtype=torch.bool, device=device)
+    seq_len = torch.full((R,), max_new_tokens, dtype=torch.long, device=device)
+    tok_steps = []
+    steps_run = 0
+
+    # Left padding: position ids must count only real tokens.
+    prefill_pos = (attention_mask.cumsum(dim=-1) - 1).clamp(min=0)
+    next_pos = row_prompt_len.clone()  # position of the first generated token
+
+    with torch.no_grad():
+        past_key_values = None
+        current_input = input_ids
+        current_pos = prefill_pos
+        full_mask = attention_mask
+        for step in range(max_new_tokens):
+            outputs = model(
+                current_input,
+                past_key_values=past_key_values,
+                attention_mask=full_mask,
+                position_ids=current_pos,
+                use_cache=True,
+            )
+            past_key_values = outputs.past_key_values
+            logits = outputs.logits[:, -1, :].float()  # [R, vocab]
+
+            if temperature > 0:
+                scaled = torch.softmax(logits / temperature, dim=-1)
+                next_token = torch.empty(R, dtype=torch.long, device=device)
+                for r in range(R):
+                    next_token[r] = torch.multinomial(
+                        scaled[r], num_samples=1, generator=generators[r]
+                    )[0]
+            else:
+                next_token = logits.argmax(dim=-1)
+
+            tok_steps.append(next_token)
+            newly = (~finished) & (next_token == eos_token_id)
+            seq_len = torch.where(newly, torch.full_like(seq_len, step + 1), seq_len)
+            finished = finished | (next_token == eos_token_id)
+            steps_run = step + 1
+
+            if (step + 1) % 16 == 0 and bool(finished.all()):
+                break
+
+            current_input = next_token[:, None]
+            current_pos = (next_pos + step)[:, None]
+            full_mask = torch.cat(
+                [full_mask, torch.ones(R, 1, dtype=torch.long, device=device)], dim=1
+            )
+            del outputs, logits
+
+    toks = torch.stack(tok_steps, dim=1).cpu().numpy()  # [R, steps]
+    lengths = torch.clamp(seq_len, max=steps_run).cpu().tolist()
+
+    out = []
+    for p in range(P):
+        samples = []
+        for s in range(num_samples):
+            r = p * num_samples + s
+            samples.append(toks[r, :int(lengths[r])].tolist())
+        out.append(samples)
+    return out
+
+
+def capture_features_batched(model, tokenizer, question: str, system_prompt: str = None,
+                             generated_ids_list: list = None, layers_to_capture: list = None,
+                             device=None, chunk_size: int = 1024):
+    """Teacher-forced feature reconstruction for pre-generated token ids.
+
+    Phase 2 of two-phase collection: given per-sample token ids produced by a
+    fast generation pass over the same prompt, recompute -- for every generated
+    token -- exactly the features ``generate_traces_batched`` captures during
+    decode: hidden states at ``layers_to_capture``, full-vocab entropy, and the
+    chosen-token logprob. Causal masking guarantees that teacher-forced
+    position ``prompt_len - 1 + k`` reproduces the decode-time step-``k``
+    computation.
+
+    The forward runs in chunks of ``chunk_size`` positions with a KV cache so
+    peak memory stays bounded: ``output_hidden_states`` materializes every
+    layer for the current chunk only, and chunk logits are reduced to
+    entropy/logprob immediately. Rows are right-padded, so default positional
+    handling is correct and padded positions are simply sliced away.
+
+    Returns trace dicts in the same schema as ``generate_traces_batched``.
+    """
+    if system_prompt is None:
+        system_prompt = DATASETS["gsm8k"]["system_prompt"]
+    if layers_to_capture is None:
+        layers_to_capture = LAYERS_TO_CAPTURE
+    if device is None:
+        device = model.device
+    B = len(generated_ids_list)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": question},
+    ]
+    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    prompt_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)[0]  # [L]
+    L = int(prompt_ids.shape[0])
+    lengths = [len(g) for g in generated_ids_list]
+    max_n = max(lengths)
+    total = L + max_n
+
+    pad_id = getattr(tokenizer, "pad_token_id", None)
+    if pad_id is None:
+        pad_id = tokenizer.eos_token_id
+    input_ids = torch.full((B, total), pad_id, dtype=torch.long, device=device)
+    input_ids[:, :L] = prompt_ids
+    attention_mask = torch.zeros(B, total, dtype=torch.long, device=device)
+    for r, gen in enumerate(generated_ids_list):
+        if lengths[r]:
+            input_ids[r, L:L + lengths[r]] = torch.as_tensor(gen, dtype=torch.long, device=device)
+        attention_mask[r, :L + lengths[r]] = 1
+
+    ents = torch.zeros(B, max_n, dtype=torch.float32, device=device)
+    lps = torch.zeros(B, max_n, dtype=torch.float32, device=device)
+    hs = {layer: None for layer in layers_to_capture}  # allocated on first chunk
+
+    with torch.no_grad():
+        past_key_values = None
+        for start in range(0, total, chunk_size):
+            end = min(start + chunk_size, total)
+            outputs = model(
+                input_ids[:, start:end],
+                past_key_values=past_key_values,
+                attention_mask=attention_mask[:, :end],
+                output_hidden_states=True,
+                use_cache=True,
+            )
+            past_key_values = outputs.past_key_values
+
+            # Position p predicts generated token k = p - (L - 1); the capture
+            # region is k in [0, max_n), i.e. p in [L-1, total-2].
+            lo = max(start, L - 1)
+            hi = min(end, total - 1)
+            if lo >= hi:
+                del outputs
+                continue
+            cols = slice(lo - start, hi - start)   # within-chunk positions
+            ks = slice(lo - (L - 1), hi - (L - 1))  # step indices
+
+            logits = outputs.logits[:, cols, :].float()  # [B, C, vocab]
+            log_probs = torch.log_softmax(logits, dim=-1)
+            probs = torch.softmax(logits, dim=-1)
+            ents[:, ks] = -(probs * log_probs).sum(dim=-1)
+            next_ids = input_ids[:, lo + 1:hi + 1]  # token k lives at position p+1
+            lps[:, ks] = log_probs.gather(2, next_ids[:, :, None]).squeeze(2)
+
+            for layer_idx in layers_to_capture:
+                if hs[layer_idx] is None:
+                    hidden_dim = outputs.hidden_states[layer_idx].shape[-1]
+                    hs[layer_idx] = torch.zeros(
+                        B, max_n, hidden_dim,
+                        dtype=outputs.hidden_states[layer_idx].dtype, device=device,
+                    )
+                hs[layer_idx][:, ks] = outputs.hidden_states[layer_idx][:, cols, :]
+
+            del outputs, logits, probs, log_probs
+
+    ents_np = ents.cpu().numpy()
+    lps_np = lps.cpu().numpy()
+    hs_np = {layer: hs[layer].float().cpu().numpy() for layer in layers_to_capture}
+
+    traces = []
+    for r in range(B):
+        n = lengths[r]
+        ids = list(generated_ids_list[r])
+        traces.append({
+            "generated_ids": ids,
+            "generated_tokens": tokenizer.convert_ids_to_tokens(ids),
+            "token_entropies": ents_np[r, :n].astype(np.float32),
+            "token_logprobs": lps_np[r, :n].astype(np.float32),
+            "token_hidden_states": {layer: hs_np[layer][r, :n] for layer in layers_to_capture},
+        })
+    return traces
+
+
 def save_batch(batch_results: list, batch_num: int, output_dir: str, layers: list = None):
     if layers is None:
         layers = LAYERS_TO_CAPTURE
@@ -286,28 +646,85 @@ def main():
     total_correct = 0
     total_traces = 0
     next_trace_id = 0
-    batch_num = 0
+    # Continue numbering after any batches already on disk so a resumed run
+    # never overwrites existing data.
+    existing_batches = sorted(
+        int(m.group(1)) for f in os.listdir(args.output_dir)
+        if (m := re.fullmatch(r"batch_(\d{4})\.npz", f))
+    )
+    batch_num = existing_batches[-1] + 1 if existing_batches else 0
+    if args.resume_from:
+        # Trace ids are globally sequential (num_samples per problem); keep the
+        # resumed run consistent with the batches collected before the restart.
+        next_trace_id = args.resume_from * max(args.num_samples, 1)
+        print(f"Resuming from problem {args.resume_from}: "
+              f"next batch {batch_num}, next trace_id {next_trace_id}")
 
-    for idx, example in enumerate(tqdm(dataset)):
-        if idx < args.resume_from:
-            continue
+    def problem_seeds(idx):
+        return [
+            args.seed + idx * max(args.num_samples, 1) + sample_id
+            for sample_id in range(args.num_samples)
+        ]
 
+    def iter_problem_traces():
+        """Yield (idx, example, traces) in global problem order."""
+        pending = [(idx, ex) for idx, ex in enumerate(dataset) if idx >= args.resume_from]
+        if not args.two_phase:
+            for idx, example in tqdm(pending, initial=args.resume_from,
+                                     total=len(dataset)):
+                # All num_samples share this prompt; one batched capturing decode.
+                seeds = problem_seeds(idx)
+                yield idx, example, generate_traces_batched(
+                    model, tokenizer, get_question(example), system_prompt,
+                    layers_to_capture=layers, max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    seeds=seeds if args.temperature > 0 else None,
+                    num_samples=args.num_samples, device=model.device,
+                )
+            return
+
+        # Two-phase: token-only decode across a group of problems (more rows in
+        # flight than the capturing decode can hold), then a chunked
+        # teacher-forced forward per problem reconstructs hidden states,
+        # entropies, and logprobs for exactly the generated tokens.
+        G = max(args.group_problems, 1)
+        with tqdm(initial=args.resume_from, total=len(dataset)) as pbar:
+            for gi in range(0, len(pending), G):
+                group = pending[gi:gi + G]
+                prompt_ids_list = []
+                for idx, example in group:
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": get_question(example)},
+                    ]
+                    prompt = tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True)
+                    prompt_ids_list.append(tokenizer.encode(prompt))
+                gen_ids = generate_tokens_grouped(
+                    model, tokenizer.eos_token_id, prompt_ids_list,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    seeds_list=[problem_seeds(idx) for idx, _ in group],
+                    num_samples=args.num_samples, device=model.device,
+                )
+                for (idx, example), ids_per_sample in zip(group, gen_ids):
+                    traces = capture_features_batched(
+                        model, tokenizer, get_question(example), system_prompt,
+                        generated_ids_list=ids_per_sample,
+                        layers_to_capture=layers, device=model.device,
+                        chunk_size=args.capture_chunk_size,
+                    )
+                    yield idx, example, traces
+                    pbar.update(1)
+
+    for idx, example, traces in iter_problem_traces():
         question = get_question(example)
         gold = get_gold(example)
+        sample_seeds = problem_seeds(idx)
 
-        for sample_id in range(args.num_samples):
-            sample_seed = args.seed + idx * max(args.num_samples, 1) + sample_id
-            generator = None
-            if args.temperature > 0:
-                generator = torch.Generator(device=model.device)
-                generator.manual_seed(sample_seed)
-
-            generated_ids, generated_tokens, token_entropies, token_hidden_states, token_logprobs = generate_trace(
-                model, tokenizer, question, system_prompt,
-                layers_to_capture=layers, max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature, generator=generator,
-            )
-
+        for sample_id, trace in enumerate(traces):
+            generated_ids = trace["generated_ids"]
+            token_logprobs = trace["token_logprobs"]
             generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
             predicted_answer = get_predicted(generated_text)
             is_correct = answers_match(predicted_answer, gold) if (predicted_answer and gold) else False
@@ -323,15 +740,15 @@ def main():
                 "predicted_answer": predicted_answer,
                 "generated_text": generated_text,
                 "is_correct": is_correct,
-                "entropies": np.array(token_entropies, dtype=np.float32),
-                "token_logprobs": np.array(token_logprobs, dtype=np.float32),
-                "tokens": generated_tokens,
-                "mean_logprob": float(np.mean(token_logprobs)) if token_logprobs else None,
+                "entropies": np.asarray(trace["token_entropies"], dtype=np.float32),
+                "token_logprobs": np.asarray(token_logprobs, dtype=np.float32),
+                "tokens": trace["generated_tokens"],
+                "mean_logprob": float(np.mean(token_logprobs)) if len(token_logprobs) else None,
                 "n_tokens": len(generated_ids),
-                "generation_seed": sample_seed,
+                "generation_seed": sample_seeds[sample_id],
             }
             for layer_idx in layers:
-                result[f"hidden_layer_{layer_idx}"] = np.stack(token_hidden_states[layer_idx], axis=0)
+                result[f"hidden_layer_{layer_idx}"] = trace["token_hidden_states"][layer_idx]
 
             batch_results.append(result)
             next_trace_id += 1

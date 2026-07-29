@@ -1,14 +1,13 @@
+# Active, CPU-first pipeline parameters. Historical experiments remain under
+# results/ and are described in EXPERIMENT_LOG.md, but are not default stages.
+
 models:
-  # Special-purpose single-stage models only.
-  # Main models (qwen, deepseek, llama, deepseek_llama) are defined inline
-  # in the collect_*_matrix entries below to avoid unsupported nested interpolation.
+  qwen:
+    name: Qwen/Qwen2.5-7B-Instruct
+    max_new_tokens: 1024
   qwen_dense:
     name: Qwen/Qwen2.5-7B-Instruct
     max_new_tokens: 1024
-  deepseek_temp:
-    name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-    max_new_tokens: 2048
-    temperature: 0.6
 
 datasets:
   gsm8k:
@@ -20,103 +19,45 @@ datasets:
     hf_name: null
     split: test
 
-analyze_matrix:
-  - {model: qwen,           dataset: gsm8k,   n_bootstrap: 0}
-  - {model: deepseek,       dataset: gsm8k,   n_bootstrap: 0}
-  - {model: deepseek_llama, dataset: gsm8k,   n_bootstrap: 0}
-  - {model: llama,          dataset: gsm8k,   n_bootstrap: 0}
-  - {model: qwen,           dataset: math500, n_bootstrap: 100}
-  - {model: deepseek,       dataset: math500, n_bootstrap: 100}
-  - {model: deepseek_llama, dataset: math500, n_bootstrap: 100}
-  - {model: llama,          dataset: math500, n_bootstrap: 100}
-
-analyze_pca_ablation_matrix:
-  - {model: qwen,     dataset: gsm8k}
-  - {model: deepseek, dataset: gsm8k}
-  - {model: qwen,     dataset: math500}
-  - {model: deepseek, dataset: math500}
-
-analyze_pca_ablation_runs:
-  - {model: qwen,     dataset: gsm8k,   pca_dim: "32"}
-  - {model: qwen,     dataset: gsm8k,   pca_dim: "128"}
-  - {model: qwen,     dataset: gsm8k,   pca_dim: "512"}
-  - {model: qwen,     dataset: gsm8k,   pca_dim: "max"}
-  - {model: deepseek, dataset: gsm8k,   pca_dim: "32"}
-  - {model: deepseek, dataset: gsm8k,   pca_dim: "128"}
-  - {model: deepseek, dataset: gsm8k,   pca_dim: "512"}
-  - {model: deepseek, dataset: gsm8k,   pca_dim: "max"}
-  - {model: qwen,     dataset: math500, pca_dim: "32"}
-  - {model: qwen,     dataset: math500, pca_dim: "128"}
-  - {model: qwen,     dataset: math500, pca_dim: "512"}
-  - {model: qwen,     dataset: math500, pca_dim: "max"}
-  - {model: deepseek, dataset: math500, pca_dim: "32"}
-  - {model: deepseek, dataset: math500, pca_dim: "128"}
-  - {model: deepseek, dataset: math500, pca_dim: "512"}
-  - {model: deepseek, dataset: math500, pca_dim: "max"}
-
-collect_qwen_arch_matrix:
-  - {model: qwen,     dataset: gsm8k,   model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024}
-  - {model: qwen,     dataset: math500, model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024}
-  - {model: deepseek, dataset: gsm8k,   model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 2048}
-  - {model: deepseek, dataset: math500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 2048}
-
-collect_llama_arch_matrix:
-  - {model: llama,          dataset: gsm8k,   model_name: meta-llama/Llama-3.1-8B-Instruct,          max_new_tokens: 1024}
-  - {model: llama,          dataset: math500, model_name: meta-llama/Llama-3.1-8B-Instruct,          max_new_tokens: 1024}
-  - {model: deepseek_llama, dataset: gsm8k,   model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
-  - {model: deepseek_llama, dataset: math500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B,  max_new_tokens: 2048}
-
-# max_new_tokens set from the truncation-probe budget study (2026-06-19):
-#   qwen/llama (instruct) ~1024; deepseek-distill completes by ~5k so 8192 is ample (residual
-#   ~12% are non-terminating runaways a larger budget won't save); deepseek-llama-distill has a
-#   heavy completion tail to ~11k, so 12288 -> 0% truncation in the probe.
-# layers are PER-ARCHITECTURE and consumed via ${item.layers}: Qwen2.5 arch = 7,14,21;
-# Llama arch = 8,16,24. (Do NOT rely on the global best_of_n.layers for Llama-family rows.)
-bestofn_matrix_pilot:
-  - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, layers: "7,14,21"}
-  - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
-
-bestofn_matrix:
-  - {model: qwen,          scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                 max_new_tokens: 1024,  layers: "7,14,21"}
-  - {model: deepseek,      scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 8192,  layers: "7,14,21"}
-  - {model: llama,         scale: full, limit: 500, model_name: meta-llama/Llama-3.1-8B-Instruct,         max_new_tokens: 1024,  layers: "8,16,24"}
-  - {model: deepseek_llama, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24"}
-
-
-# Diagnostic only: measure the generation-cap-hit rate at a candidate max_new_tokens
-# to size the budget before re-collection. GPU; run deliberately via `dvc repro truncation_probe`.
-# Not bit-reproducible (T=0.6 sampling); cap-hit rate is the stable quantity.
-truncation_probe_matrix:
-  - {name: deepseek,       model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B,  max_new_tokens: 8192,  limit: 24, num_samples: 1, batch_size: 8}
-  - {name: deepseek_llama, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, limit: 24, num_samples: 1, batch_size: 8}
-
-
-prefix_filter_matrix:
-  # Prefix lengths approximate 5%, 10%, 25% of each model's mean pilot trace length,
-  # rounded to clean token counts so the deployed policy remains an online fixed-k rule.
-  # - {model: qwen,     scale: pilot, limit: 100, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, prefix_lengths: "25,50,125"}
-  - {model: qwen,     scale: full,  limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct,                max_new_tokens: 1024, prefix_lengths: "25,50,125"}
-  # - {model: deepseek, scale: pilot, limit: 100, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048, prefix_lengths: "80,160,400"}
-  - {model: deepseek, scale: full,  limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 2048, prefix_lengths: "80,160,400"}
-
 collect:
   batch_save_size: 50
 
 analyze:
   pca_dim: 128
-  pca_dims: "32,128,512,max"
   cv_random_state: 42
-  contrast_dim: 10
-  subspace_ranks: "1,2,3,5,8,12"
 
-prefix:
-  prefix_lengths: "5,10,20,40"
+# Qwen gsm8k baseline. Data already collected (full test split); the cmd for
+# this row must stay byte-identical to keep the DVC cache hit — do not add
+# flags here. New models live in collect_arch_matrix instead.
+collect_qwen_arch_matrix:
+  - {model: qwen, dataset: gsm8k, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024}
+
+# New-model single-sample greedy gsm8k collects (per-arch layers, probe-sized
+# budgets from replication planning: deepseek 8192, deepseek_llama 12288).
+collect_arch_matrix:
+  - {model: deepseek, dataset: gsm8k, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21", limit: 500, group_problems: 8}
+  - {model: deepseek_llama, dataset: gsm8k, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24", limit: 500, group_problems: 8}
+
+# gsm8k only; no single-sample math500 (best-of-8 math500 data supersedes it).
+analyze_matrix:
+  - {model: qwen, dataset: gsm8k, n_bootstrap: 0}
+  - {model: deepseek, dataset: gsm8k, n_bootstrap: 0}
+  - {model: deepseek_llama, dataset: gsm8k, n_bootstrap: 0}
 
 best_of_n:
   temperature: 0.6
   num_samples: 8
-  n_values: "1,8"
-  layers: "7,14,21"
+
+# math500 best-of-8 cells. Qwen row first (index 0) — data exists; keep its
+# values byte-identical.
+bestofn_matrix:
+  - {model: qwen, scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "7,14,21"}
+  - {model: deepseek, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
+  - {model: deepseek_llama, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24"}
+
+truncation_probe_matrix:
+  - {name: deepseek, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, limit: 24, num_samples: 1, batch_size: 8}
+  - {name: deepseek_llama, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, limit: 24, num_samples: 1, batch_size: 8}
 
 prompt_decomposition:
   n: 8
@@ -125,47 +66,43 @@ prompt_decomposition:
   n_bootstrap: 1000
   seed: 42
   load_workers: 4
-  contrastive_regions: "full,high_entropy_q20,tail_q20"
+  contrastive_regions: "full,high_entropy_q20,tail_q20,random_q20"
   n_alignment_shuffles: 1000
   alignment_seed: 42
+  region_seed: 42
+  # Hidden states come from a bf16 forward pass, so float16 storage round-trips
+  # losslessly (verified: Spearman 1.000000, pooled AUC delta 0.000000 vs float64
+  # on qwen L21). Halves resident memory; float32 compute halves the reference-fit
+  # concatenation. Required to fit the long-trace distill models in RAM.
+  hidden_dtype: float16
+  compute_dtype: float32
+  # Cap on tokens concatenated to fit each reference manifold. The concat is the
+  # pipeline's largest allocation and sklearn's PCA copies it to centre before
+  # the randomized SVD, so peak is ~2x concat on top of the resident states.
+  # Uncapped DeepSeek MATH-500 needs ~243 GB and gets OOM-killed.
+  # 2M keeps peak near 140 GB. Qwen has ~0.6M correct-training tokens, so the cap
+  # never binds there and its results stay bit-identical; DeepSeek still fits its
+  # reference on ~3x the token budget Qwen used.
+  max_reference_tokens: 2000000
 
-prompt_selection:
+wave1_experiments:
   n_bootstrap: 1000
   seed: 42
+  pca_dim: 128
+  load_workers: 4
+  min_mixed_prompts: 30
+  # Same memory profile as prompt_decomposition: wave1 refits the same reference
+  # manifolds on the same traces. Values must match prompt_decomposition so both
+  # stages score against identically-fit references.
+  hidden_dtype: float16
+  compute_dtype: float32
+  max_reference_tokens: 2000000
 
-one_class_sweep:
-  dimensions: "1,2,4,8,16,32,64,128"
-  n_splits: 5
-  seed: 42
-  ridge_scale: 0.001
+# Qwen row first (index 0) — completed run; keep byte-identical.
+wave1_matrix:
+  - {model: qwen, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 1024}
+  - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 8192}
+  - {model: deepseek_llama, scale: full, dataset: math500, layers: "8,16,24", max_new_tokens: 12288}
 
-trajectory:
-  target_len: 64      # grid points after resampling the Mahalanobis sequence
-  fpca_components: 128  # PCA components fitted on the flattened resampled trajectories
-  methods: fpca_mahal   # Track A only: resample → flatten → PCA → LR
-
-cross_model_pairs:
-  - {eval: llama,    ref: qwen,     dataset: gsm8k,   out_suffix: gsm8k_cross_qwen}
-  - {eval: qwen,     ref: llama,    dataset: gsm8k,   out_suffix: gsm8k_cross_llama}
-  - {eval: qwen,     ref: deepseek, dataset: gsm8k,   out_suffix: gsm8k_cross}
-  - {eval: deepseek, ref: qwen,     dataset: gsm8k,   out_suffix: gsm8k_cross}
-  - {eval: qwen,     ref: deepseek, dataset: math500, out_suffix: math500_cross}
-  - {eval: deepseek, ref: qwen,     dataset: math500, out_suffix: math500_cross}
-
-prefix_filter:
-  temperature: 0.6
-  num_samples: 8
-  layers: "2,4,8,16"
-  score_kinds: "entropy_only,mahalanobis_only,combined"
-  threshold_quantiles: "0.2,0.35,0.5,0.65,0.8"
-  max_restarts: 3
-
-selective_prediction_matrix:
-  - {model: qwen,           dataset: math500, layers: "7,14,21"}
-  - {model: deepseek,       dataset: math500, layers: "7,14,21"}
-  - {model: llama,          dataset: math500, layers: "8,16,24"}
-  - {model: deepseek_llama, dataset: math500, layers: "8,16,24"}
-
-selective_prediction:
-  min_coverage: 0.3
-  operating_points: "0.6,0.7,0.8,0.9"
+summary:
+  profile: current
