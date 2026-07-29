@@ -31,37 +31,6 @@ stages:
       md5: ebea02e08947d539d5ce177cfc95d0a1.dir
       size: 6418703746
       nfiles: 27
-  collect_qwen_arch@1:
-    cmd: uv run python collect_data.py --dataset math500 --model_name 
-      Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 7,14,21 
-      --output_dir data/qwen/math500
-    deps:
-    - path: collect_data.py
-      hash: md5
-      md5: edb33c1b7889ac7d8e743ff18bbce0cb
-      size: 19789
-    params:
-      params.yaml:
-        collect.batch_save_size: 50
-        collect_qwen_arch_matrix:
-        - model: qwen
-          dataset: gsm8k
-          model_name: Qwen/Qwen2.5-7B-Instruct
-          max_new_tokens: 1024
-        - model: qwen
-          dataset: math500
-          model_name: Qwen/Qwen2.5-7B-Instruct
-          max_new_tokens: 1024
-        datasets.math500:
-          hf_path: HuggingFaceH4/MATH-500
-          hf_name:
-          split: test
-    outs:
-    - path: data/qwen/math500
-      hash: md5
-      md5: b9e512770648abf18bbfe352703d03d1.dir
-      size: 5547602990
-      nfiles: 10
   analyze_base@0:
     cmd: uv run python analyze.py --analysis_family base --data_dir 
       data/qwen/gsm8k --output_dir results/qwen/gsm8k --dataset_label gsm8k 
@@ -200,34 +169,6 @@ stages:
       hash: md5
       md5: 304054380913f40e33fcafbc0e6a8407
       size: 57449
-  merge_analyze@qwen-math500:
-    cmd: uv run python merge_results.py --output_path 
-      results/qwen/math500/math500_results.json --inputs 
-      results/qwen/math500/math500_base_results.json 
-      results/qwen/math500/math500_controls_results.json 
-      results/qwen/math500/math500_subspace_results.json
-    deps:
-    - path: merge_results.py
-      hash: md5
-      md5: eb67ff10bc7b4331636e27c7ff619163
-      size: 2205
-    - path: results/qwen/math500/math500_base_results.json
-      hash: md5
-      md5: 5b4490a7783f4d8b7e6268626db7bdb3
-      size: 31109
-    - path: results/qwen/math500/math500_controls_results.json
-      hash: md5
-      md5: 8769a33226a72abd4bd0d7854c8349ce
-      size: 12381
-    - path: results/qwen/math500/math500_subspace_results.json
-      hash: md5
-      md5: d51c3906705977ffc6e5372eb11a4e3b
-      size: 39589
-    outs:
-    - path: results/qwen/math500/math500_results.json
-      hash: md5
-      md5: 47eb70cead856537ee160f300e5987ef
-      size: 81572
   collect_qwen_dense_math500:
     cmd: uv run python collect_data.py --dataset math500 --model_name 
       Qwen/Qwen2.5-7B-Instruct --max_new_tokens 1024 --layers 
