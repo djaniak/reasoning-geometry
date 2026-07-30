@@ -29,6 +29,7 @@ from analyze import (
 )
 from best_of_n import group_traces_by_problem
 from prompt_decomposition import (
+    HIDDEN_PROBE_METHODS,
     bootstrap_parseable_paired_deltas,
     make_prompt_folds,
     prompt_class_balanced_weights,
@@ -322,6 +323,7 @@ def prompt_abstention_bootstrap(
     coverages: tuple[float, ...] = (0.5, 0.8),
     n_bootstrap: int = 1000,
     seed: int = 42,
+    baseline_methods: tuple[str, ...] = ("length", "logprob", "entropy"),
 ) -> dict:
     """Report prompt-level risk/coverage values and paired bootstrap deltas."""
     prompt_ids = sorted(outcomes)
@@ -347,7 +349,7 @@ def prompt_abstention_bootstrap(
         }
         for method in methods
     }
-    baselines = tuple(method for method in methods if method in {"length", "logprob", "entropy"})
+    baselines = tuple(method for method in methods if method in set(baseline_methods))
     draws = {
         (method, baseline, "aurc"): []
         for method in methods
@@ -647,13 +649,39 @@ def run_wave1(
     layer = max(layers)
     layer_rows = [row for row in rows if int(row["layer"]) == layer]
     fold_by_trace = {int(row["trace_id"]): int(row["fold"]) for row in layer_rows}
-    prompt_scores = aggregate_prompt_scores(
-        layer_rows,
-        methods=("rmd_tail_q20", "rmd_high_entropy_q20", "length", "logprob", "entropy"),
+    # The supervised hidden-state probe joins E1 only when prompt_decomposition
+    # was run with --hidden_probe_regions; older OOF CSVs lack the columns.
+    present = set(layer_rows[0]) if layer_rows else set()
+    e1_methods = (
+        "rmd_tail_q20",
+        "rmd_high_entropy_q20",
+        "length",
+        "logprob",
+        "entropy",
+        *(
+            method
+            for method in HIDDEN_PROBE_METHODS
+            if f"{method}_score" in present
+        ),
     )
+    prompt_scores = aggregate_prompt_scores(layer_rows, methods=e1_methods)
     outcomes = _majority_outcomes(layer_rows)
+    hidden_probes_present = any(
+        method in e1_methods for method in HIDDEN_PROBE_METHODS
+    )
     e1 = prompt_abstention_bootstrap(
-        prompt_scores, outcomes, n_bootstrap=n_bootstrap, seed=seed
+        prompt_scores,
+        outcomes,
+        n_bootstrap=n_bootstrap,
+        seed=seed,
+        # Adding rmd_tail_q20 as a baseline yields probe-minus-RMD deltas: does
+        # supervision on the same activations beat the unsupervised scorer?
+        # Only when probes ran, so probe-free runs stay byte-identical.
+        baseline_methods=(
+            ("length", "logprob", "entropy", "rmd_tail_q20")
+            if hidden_probes_present
+            else ("length", "logprob", "entropy")
+        ),
     )
     eligibility = answer_cluster_eligibility(layer_rows, max_new_tokens=max_new_tokens)
 

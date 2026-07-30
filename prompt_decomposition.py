@@ -16,6 +16,7 @@ from typing import Callable
 
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
@@ -70,6 +71,9 @@ SCORE_METHODS = (
     "probe_b1",
     "probe_g_he",
     "probe_g_random",
+    "probe_hidden_full",
+    "probe_hidden_high_entropy_q20",
+    "probe_hidden_tail_q20",
 )
 
 LOCALIZED_RMD_METHODS = (
@@ -91,6 +95,28 @@ CONTRASTIVE_REGION_NAMES = {
     "contrast_tail_q20": "tail_q20",
     "contrast_random_q20": "random_q20",
 }
+
+# Supervised linear probe fit directly on PCA-projected hidden states -- the
+# SEP-style baseline a venue will demand alongside any unsupervised geometry
+# claim. This is deliberately NOT the same object as `contrast_*`:
+#
+#   contrast_*      one direction, built from within-prompt correct-minus-incorrect
+#                   differences. Prompt-centered by construction, so it targets the
+#                   WITHIN-prompt regime and discards between-prompt variance.
+#   probe_hidden_*  a full discriminant fit on pooled labels over the whole
+#                   projected region-mean vector. Targets the BETWEEN-prompt
+#                   (solvability) regime -- the claim that survived the
+#                   2026-07-29 cross-model gate.
+#
+# The question it answers: does a supervised probe on the same activations beat
+# RMD at between-prompt abstention, and does it collapse to trace length?
+HIDDEN_PROBE_REGIONS = ("full", "high_entropy_q20", "tail_q20")
+HIDDEN_PROBE_METHODS = tuple(
+    f"probe_hidden_{region}" for region in HIDDEN_PROBE_REGIONS
+)
+HIDDEN_PROBE_REGION_BY_METHOD = dict(
+    zip(HIDDEN_PROBE_METHODS, HIDDEN_PROBE_REGIONS)
+)
 
 PROBE_FEATURES = {
     "probe_outputs": ("logprob", "entropy", "length"),
@@ -131,6 +157,10 @@ PROBE_FEATURES.update(E2_PROBE_FEATURES)
 PROBE_METHODS = tuple(PROBE_FEATURES)
 E2_PROBE_METHODS = tuple(E2_PROBE_FEATURES)
 
+# Every label-consuming readout. `available_score_methods` hides these unless
+# asked, so unsupervised comparisons are not silently contaminated.
+SUPERVISED_METHODS = (*PROBE_METHODS, *HIDDEN_PROBE_METHODS)
+
 PRESPECIFIED_SCORE_PAIRS = (
     ("rmd_high_entropy_q20", "rmd"),
     ("rmd_tail_q20", "rmd"),
@@ -151,6 +181,21 @@ PRESPECIFIED_SCORE_PAIRS = (
         "probe_outputs_plus_contrast_high_entropy_q20",
         "probe_outputs_plus_rmd_high_entropy_q20",
     ),
+)
+
+# POST-HOC, added 2026-07-29 -- deliberately NOT merged into
+# PRESPECIFIED_SCORE_PAIRS, which is the pre-registered set. Report these as
+# exploratory. Each pair answers one of the two questions the supervised
+# hidden-state baseline exists to settle: does it beat the unsupervised
+# geometry it is meant to bound, and does it reduce to trace length?
+HIDDEN_PROBE_PAIRS = (
+    ("probe_hidden_full", "rmd"),
+    ("probe_hidden_high_entropy_q20", "rmd_high_entropy_q20"),
+    ("probe_hidden_tail_q20", "rmd_tail_q20"),
+    ("probe_hidden_full", "length"),
+    ("probe_hidden_high_entropy_q20", "length"),
+    ("probe_hidden_tail_q20", "length"),
+    ("probe_hidden_high_entropy_q20", "probe_hidden_full"),
 )
 
 LEGACY_CONTRASTIVE_PAIRS = tuple(
@@ -244,7 +289,7 @@ def available_score_methods(
 ) -> list[str]:
     methods = []
     for method in SCORE_METHODS:
-        if method in PROBE_METHODS and not include_supervised:
+        if method in SUPERVISED_METHODS and not include_supervised:
             continue
         key = f"{method}_score"
         values = [row.get(key) for row in rows]
@@ -542,6 +587,141 @@ def score_contrastive_trace(
         region_seed=region_seed,
     )
     return float(np.dot(region_mean, direction / norm))
+
+
+def fit_hidden_state_probe(
+    groups: dict[int, list[dict]],
+    prompt_ids: list[int],
+    projected_by_trace: dict[int, np.ndarray],
+    region: str,
+    *,
+    region_seed: int = 42,
+) -> dict:
+    """Fit a supervised linear discriminant on PCA-projected region means.
+
+    Trained on pooled labels over all *parseable* training traces. Unparsed
+    traces are excluded because they are auto-labeled incorrect upstream (see
+    `is_unparsed`), so including them would let the probe win by detecting
+    truncation -- the exact artifact this project's rigor critique is about.
+    """
+    features = []
+    labels = []
+    for prompt_id in prompt_ids:
+        for trace in groups[int(prompt_id)]:
+            if is_unparsed(trace):
+                continue
+            trace_id = int(trace["trace_id"])
+            entropies = trace.get("entropies")
+            if entropies is None:
+                raise ValueError(f"Trace {trace_id} is missing entropies")
+            features.append(
+                trace_region_mean(
+                    projected_by_trace[trace_id],
+                    entropies,
+                    region,
+                    trace_id=trace_id,
+                    region_seed=region_seed,
+                )
+            )
+            labels.append(int(bool(trace["is_correct"])))
+
+    classes = set(labels)
+    if len(classes) < 2 or len(labels) <= len(classes):
+        if not classes:
+            skipped = "no_parseable_traces"
+        elif len(classes) < 2:
+            skipped = "single_class"
+        else:
+            skipped = "insufficient_samples"
+        return {
+            "scaler": None,
+            "classifier": None,
+            "n_train": len(labels),
+            "n_correct": sum(labels),
+            "skipped": skipped,
+        }
+
+    matrix = np.asarray(features, dtype=float)
+    scaler = StandardScaler().fit(matrix)
+    # lsqr + automatic shrinkage: pca_dim is comparable to the trace count, so
+    # the unregularized within-class covariance is badly conditioned.
+    classifier = LinearDiscriminantAnalysis(
+        solver="lsqr", shrinkage="auto"
+    ).fit(scaler.transform(matrix), np.asarray(labels, dtype=int))
+    return {
+        "scaler": scaler,
+        "classifier": classifier,
+        "n_train": len(labels),
+        "n_correct": int(sum(labels)),
+        "skipped": None,
+    }
+
+
+def score_hidden_state_probe(
+    projected: np.ndarray,
+    entropies: np.ndarray,
+    fit: dict,
+    region: str,
+    *,
+    trace_id: int | None = None,
+    region_seed: int = 42,
+) -> float:
+    """Score a trace with a fitted hidden-state probe (higher = more correct)."""
+    classifier = fit.get("classifier")
+    scaler = fit.get("scaler")
+    if classifier is None or scaler is None:
+        raise ValueError("no usable hidden-state probe was fitted")
+    region_mean = trace_region_mean(
+        projected,
+        entropies,
+        region,
+        trace_id=trace_id,
+        region_seed=region_seed,
+    )
+    features = scaler.transform(np.asarray(region_mean, dtype=float)[None, :])
+    # classes_ is [0, 1], so decision_function is oriented toward is_correct=1,
+    # matching every other scorer's "higher is better" convention.
+    return float(classifier.decision_function(features)[0])
+
+
+def length_collapse_diagnostics(
+    rows: list[dict], methods: tuple[str, ...]
+) -> dict:
+    """Rank correlation between each score and trace length, parseable only.
+
+    A supervised probe that merely rediscovers "long traces are wrong" will show
+    |rho| near 1 against `length_score`. This is the cheap read on whether the
+    probe carries information beyond the length confound.
+    """
+    parseable = [row for row in rows if not is_unparsed(row)]
+    lengths = [row.get("length_score") for row in parseable]
+    summary = {}
+    for method in methods:
+        scores = [row.get(f"{method}_score") for row in parseable]
+        paired = [
+            (float(score), float(length))
+            for score, length in zip(scores, lengths)
+            if score is not None
+            and length is not None
+            and math.isfinite(float(score))
+            and math.isfinite(float(length))
+        ]
+        if len(paired) < 3:
+            summary[method] = {"spearman": None, "pearson": None, "n": len(paired)}
+            continue
+        score_values = [value for value, _ in paired]
+        length_values = [value for _, value in paired]
+        if len(set(score_values)) < 2 or len(set(length_values)) < 2:
+            # Correlation is undefined against a constant; say so rather than
+            # emit a NaN and a scipy warning.
+            summary[method] = {"spearman": None, "pearson": None, "n": len(paired)}
+            continue
+        summary[method] = {
+            "spearman": _finite_correlation(spearmanr(score_values, length_values)),
+            "pearson": _finite_correlation(pearsonr(score_values, length_values)),
+            "n": len(paired),
+        }
+    return summary
 
 
 def truncation_report(rows: list[dict], max_new_tokens: int | None = None) -> dict:
@@ -1076,8 +1256,16 @@ def generate_oof_scores(
     alignment_seed: int = 42,
     region_seed: int = 42,
     alignment_diagnostics: list[dict] | None = None,
+    hidden_probe_regions: tuple[str, ...] = (),
+    hidden_probe_diagnostics: list[dict] | None = None,
 ) -> list[dict]:
     contrastive_regions = tuple(dict.fromkeys(contrastive_regions))
+    hidden_probe_regions = tuple(dict.fromkeys(hidden_probe_regions))
+    unknown_probe_regions = set(hidden_probe_regions) - set(HIDDEN_PROBE_REGIONS)
+    if unknown_probe_regions:
+        raise ValueError(
+            f"unknown hidden-probe regions: {sorted(unknown_probe_regions)}"
+        )
     unknown_regions = set(contrastive_regions) - set(CONTRASTIVE_REGION_NAMES.values())
     if unknown_regions:
         raise ValueError(f"unknown contrastive regions: {sorted(unknown_regions)}")
@@ -1116,7 +1304,8 @@ def generate_oof_scores(
                     )
 
                 contrastive_fits = {}
-                if contrastive_regions:
+                hidden_probe_fits = {}
+                if contrastive_regions or hidden_probe_regions:
                     training_projected = {}
                     for trace in train_traces:
                         if layer not in trace["hiddens"]:
@@ -1131,6 +1320,37 @@ def generate_oof_scores(
                         training_projected[int(trace["trace_id"])] = ref[0].transform(
                             np.asarray(trace["hiddens"][layer], dtype=np.float32)
                         )
+
+                    for region in hidden_probe_regions:
+                        progress.set_description_str(
+                            f"OOF {context}: fitting hidden probe ({region})",
+                            refresh=True,
+                        )
+                        fit = fit_hidden_state_probe(
+                            groups,
+                            train_ids,
+                            training_projected,
+                            region=region,
+                            region_seed=region_seed,
+                        )
+                        if fit["classifier"] is None:
+                            raise RuntimeError(
+                                f"No usable hidden-state probe for fold "
+                                f"{fold_index}, layer {layer}, region {region} "
+                                f"({fit['skipped']})"
+                            )
+                        hidden_probe_fits[region] = fit
+                        if hidden_probe_diagnostics is not None:
+                            hidden_probe_diagnostics.append(
+                                {
+                                    "fold": int(fold_index),
+                                    "layer": int(layer),
+                                    "region": region,
+                                    "n_train": int(fit["n_train"]),
+                                    "n_correct": int(fit["n_correct"]),
+                                }
+                            )
+
                     for region in contrastive_regions:
                         fit = fit_prompt_contrastive_direction(
                             groups,
@@ -1288,6 +1508,17 @@ def generate_oof_scores(
                                 trace_id=int(trace["trace_id"]),
                                 region_seed=region_seed,
                             )
+                        for region in hidden_probe_regions:
+                            row[f"probe_hidden_{region}_score"] = (
+                                score_hidden_state_probe(
+                                    payload["projected"],
+                                    entropies,
+                                    hidden_probe_fits[region],
+                                    region,
+                                    trace_id=int(trace["trace_id"]),
+                                    region_seed=region_seed,
+                                )
+                            )
                         rows.append(row)
                 progress.update()
 
@@ -1321,6 +1552,8 @@ def generate_oof_scores_layerwise(
     region_seed: int = 42,
     return_diagnostics: bool = False,
     hidden_dtype: np.dtype | None = None,
+    hidden_probe_regions: tuple[str, ...] = (),
+    hidden_probe_diagnostics: list[dict] | None = None,
 ) -> tuple[list[dict], dict] | tuple[list[dict], dict, list[dict]]:
     """Load and score one layer at a time to bound peak hidden-state memory."""
     all_rows = []
@@ -1382,6 +1615,14 @@ def generate_oof_scores_layerwise(
                     "alignment_seed": alignment_seed,
                     "region_seed": region_seed,
                     "alignment_diagnostics": contrastive_diagnostics,
+                }
+            )
+        if hidden_probe_regions:
+            score_kwargs.update(
+                {
+                    "hidden_probe_regions": hidden_probe_regions,
+                    "hidden_probe_diagnostics": hidden_probe_diagnostics,
+                    "region_seed": region_seed,
                 }
             )
         all_rows.extend(score_groups(groups, **score_kwargs))
@@ -1851,6 +2092,25 @@ def analyze_oof_scores(
             },
             "diagnostics": config.get("probe_diagnostics", []),
         },
+        "hidden_state_probe": {
+            "regions": list(config.get("hidden_probe_regions", [])),
+            "supervised": True,
+            "cross_fitted_by_prompt_fold": True,
+            "estimator": "LinearDiscriminantAnalysis(solver=lsqr, shrinkage=auto)",
+            "features": (
+                "mean of PCA-projected hidden states over the region, "
+                "standardized; same PCA basis as the RMD reference"
+            ),
+            "training_population": "all parseable training traces, pooled labels",
+            "prespecified": False,
+            "note": (
+                "Added 2026-07-29 to bound how much of the geometry signal a "
+                "supervised readout on the same activations recovers. Its paired "
+                "deltas are exploratory and are reported separately from the "
+                "prespecified contrast set."
+            ),
+            "diagnostics": config.get("hidden_probe_diagnostics", []),
+        },
     }
 
     for layer in config["layers"]:
@@ -1926,6 +2186,32 @@ def analyze_oof_scores(
             n_bootstrap=n_bootstrap,
             seed=seed + int(layer) + 20000,
         )
+        available = set(available_score_methods(layer_rows, include_supervised=True))
+        active_hidden_pairs = tuple(
+            (method, baseline)
+            for method, baseline in HIDDEN_PROBE_PAIRS
+            if method in available and baseline in available
+        )
+        if active_hidden_pairs:
+            parseable_block["hidden_probe_paired_deltas"] = (
+                bootstrap_parseable_paired_deltas(
+                    parseable_rows,
+                    methods=[],
+                    baselines=(),
+                    pairs=active_hidden_pairs,
+                    n_bootstrap=n_bootstrap,
+                    seed=seed + int(layer) + 30000,
+                )
+            )
+        parseable_block["length_collapse"] = length_collapse_diagnostics(
+            layer_rows,
+            tuple(
+                method
+                for method in (*HIDDEN_PROBE_METHODS, "rmd", "rmd_tail_q20",
+                               "rmd_high_entropy_q20", "entropy", "logprob")
+                if method in available
+            ),
+        )
         legacy_names = {
             f"{method}_minus_{baseline}"
             for method, baseline in LEGACY_CONTRASTIVE_PAIRS
@@ -1966,6 +2252,7 @@ def write_trace_csv(rows: list[dict], path: str | Path) -> None:
         "prompt_local_rmd_score",
         *(f"{method}_score" for method in CONTRASTIVE_METHODS),
         *(f"{method}_score" for method in PROBE_METHODS),
+        *(f"{method}_score" for method in HIDDEN_PROBE_METHODS),
     ]
     with path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -2140,6 +2427,59 @@ def write_markdown(result: dict, path: str | Path) -> None:
                     f"{_paired(values, 'within_prompt_macro')} |"
                 )
         if any(
+            layer_result.get("parseable_only", {}).get("hidden_probe_paired_deltas")
+            for layer_result in result["layers"].values()
+        ):
+            lines.extend(
+                [
+                    "",
+                    "## Supervised hidden-state probe (exploratory)",
+                    "",
+                    (
+                        "LDA fit on PCA-projected region means, cross-fitted by "
+                        "prompt fold on pooled labels over parseable traces. This "
+                        "bounds how much of the geometry signal supervision on the "
+                        "same activations recovers. **Post-hoc, added 2026-07-29 "
+                        "-- not part of the pre-registered contrast set.**"
+                    ),
+                    "",
+                    "| Layer | Contrast | Centered AUC delta | Within macro delta |",
+                    "|---:|:---|:---|:---|",
+                ]
+            )
+            for layer, layer_result in result["layers"].items():
+                paired = layer_result.get("parseable_only", {}).get(
+                    "hidden_probe_paired_deltas", {}
+                )
+                for name, values in paired.items():
+                    lines.append(
+                        f"| {layer} | {name} | "
+                        f"{_paired(values, 'prompt_centered_auc')} | "
+                        f"{_paired(values, 'within_prompt_macro')} |"
+                    )
+            lines.extend(
+                [
+                    "",
+                    "Rank correlation of each score against trace length "
+                    "(parseable only). A scorer that merely rediscovers "
+                    "\"long traces are wrong\" shows |rho| near 1.",
+                    "",
+                    "| Layer | Score | Spearman vs length | Pearson vs length | n |",
+                    "|---:|:---|---:|---:|---:|",
+                ]
+            )
+            for layer, layer_result in result["layers"].items():
+                collapse = layer_result.get("parseable_only", {}).get(
+                    "length_collapse", {}
+                )
+                for name, values in collapse.items():
+                    lines.append(
+                        f"| {layer} | {name} | "
+                        f"{_format_metric(values.get('spearman'))} | "
+                        f"{_format_metric(values.get('pearson'))} | "
+                        f"{values.get('n', 0)} |"
+                    )
+        if any(
             layer_result.get("parseable_only", {}).get("e2_paired_score_deltas")
             for layer_result in result["layers"].values()
         ):
@@ -2262,6 +2602,15 @@ def parse_args() -> argparse.Namespace:
             "random_q20"
         ),
     )
+    parser.add_argument(
+        "--hidden_probe_regions",
+        default="",
+        help=(
+            "Comma-separated regions for the supervised hidden-state probe "
+            "(LDA on PCA-projected region means): full,high_entropy_q20,"
+            "tail_q20. Empty disables it."
+        ),
+    )
     parser.add_argument("--n_alignment_shuffles", type=int, default=0)
     parser.add_argument("--alignment_seed", type=int, default=42)
     parser.add_argument("--region_seed", type=int, default=42)
@@ -2315,6 +2664,12 @@ def main() -> None:
         for part in args.contrastive_regions.split(",")
         if part.strip()
     )
+    hidden_probe_regions = tuple(
+        part.strip()
+        for part in args.hidden_probe_regions.split(",")
+        if part.strip()
+    )
+    hidden_probe_diagnostics: list[dict] = []
     rows, data_report, contrastive_diagnostics = generate_oof_scores_layerwise(
         data_dir=args.data_dir,
         layers=layers,
@@ -2332,6 +2687,8 @@ def main() -> None:
         region_seed=args.region_seed,
         return_diagnostics=True,
         hidden_dtype=hidden_dtype,
+        hidden_probe_regions=hidden_probe_regions,
+        hidden_probe_diagnostics=hidden_probe_diagnostics,
     )
     _status("[5/8] Fitting cross-fitted supervised readouts")
     probe_diagnostics = add_crossfit_probe_scores(rows)
@@ -2345,12 +2702,14 @@ def main() -> None:
         "n_splits": args.n_splits,
         "seed": args.seed,
         "contrastive_regions": list(contrastive_regions),
+        "hidden_probe_regions": list(hidden_probe_regions),
         "n_alignment_shuffles": int(args.n_alignment_shuffles),
         "alignment_seed": int(args.alignment_seed),
         "region_seed": int(args.region_seed),
         "data_report": data_report,
         "contrastive_diagnostics": contrastive_diagnostics,
         "probe_diagnostics": probe_diagnostics,
+        "hidden_probe_diagnostics": hidden_probe_diagnostics,
     }
 
     _status(

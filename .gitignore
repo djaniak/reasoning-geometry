@@ -54,3 +54,6 @@ htmlcov/
 # codex
 .codex
 docs/superpowers
+
+# Local safety copy of results/ before a rerun (not a deliverable)
+/.results_backup_*/

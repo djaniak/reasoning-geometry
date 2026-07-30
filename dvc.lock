@@ -362,6 +362,7 @@ stages:
       qwen --layers 7,14,21 --pca_dim 128 --n 8 --expected_prompts 500 
       --n_splits 5 --n_bootstrap 1000 --seed 42 --load_workers 4 
       --contrastive_regions full,high_entropy_q20,tail_q20,random_q20 
+      --hidden_probe_regions full,high_entropy_q20,tail_q20 
       --n_alignment_shuffles 1000 --alignment_seed 42 --region_seed 42 
       --hidden_dtype float16 --compute_dtype float32 --max_reference_tokens 
       2000000 --max_new_tokens 1024
@@ -381,8 +382,8 @@ stages:
       nfiles: 80
     - path: prompt_decomposition.py
       hash: md5
-      md5: 2de79b7b90226198f8372e465685be94
-      size: 91088
+      md5: e35197da998020565724b46f53fc457a
+      size: 105591
     params:
       params.yaml:
         analyze.pca_dim: 128
@@ -394,6 +395,7 @@ stages:
           seed: 42
           load_workers: 4
           contrastive_regions: full,high_entropy_q20,tail_q20,random_q20
+          hidden_probe_regions: full,high_entropy_q20,tail_q20
           n_alignment_shuffles: 1000
           alignment_seed: 42
           region_seed: 42
@@ -404,18 +406,18 @@ stages:
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: 0a846d9094073f96cc4efcff6edc1084
-      size: 6162135
+      md5: d0ed37ca0750827c37336a7367a66557
+      size: 6850876
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_report.md
       hash: md5
-      md5: 1ba23e039bc1191c8698479ab468286f
-      size: 28598
+      md5: 4169134f65836096444a05f228078265
+      size: 33268
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
       hash: md5
-      md5: 67b0831bfd03beb238918fe5e6126f76
-      size: 988749
+      md5: 25c08da793a52fa9db6a1bbeed38c8a2
+      size: 1007903
   evaluate_wave1_experiments@0:
     cmd: CUDA_VISIBLE_DEVICES="" uv run python wave1_experiments.py --data_dir 
       data/qwen_bestofn_full/math500 --oof_csv 

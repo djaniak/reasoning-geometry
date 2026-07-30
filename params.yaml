@@ -68,6 +68,12 @@ prompt_decomposition:
   seed: 42
   load_workers: 4
   contrastive_regions: "full,high_entropy_q20,tail_q20,random_q20"
+  # Supervised LDA on PCA-projected region means -- the SEP-style baseline that
+  # bounds how much of the geometry signal supervision on the same activations
+  # can recover. Added 2026-07-29; its paired deltas are exploratory, not
+  # pre-registered. random_q20 is omitted: it is a control for localization
+  # claims, and the probe makes none.
+  hidden_probe_regions: "full,high_entropy_q20,tail_q20"
   n_alignment_shuffles: 1000
   alignment_seed: 42
   region_seed: 42

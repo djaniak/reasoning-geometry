@@ -219,6 +219,7 @@ stages:
         --n_splits ${prompt_decomposition.n_splits} --n_bootstrap ${prompt_decomposition.n_bootstrap}
         --seed ${prompt_decomposition.seed} --load_workers ${prompt_decomposition.load_workers}
         --contrastive_regions ${prompt_decomposition.contrastive_regions}
+        --hidden_probe_regions ${prompt_decomposition.hidden_probe_regions}
         --n_alignment_shuffles ${prompt_decomposition.n_alignment_shuffles}
         --alignment_seed ${prompt_decomposition.alignment_seed}
         --region_seed ${prompt_decomposition.region_seed}
