@@ -16,6 +16,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import rankdata
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
@@ -393,6 +394,189 @@ def prompt_abstention_bootstrap(
     return {"n_prompts": len(prompt_ids), "coverages": list(coverages), "point": point, "deltas": deltas}
 
 
+def _normalized_ranks(values: np.ndarray) -> np.ndarray:
+    """Average ranks mapped to (0, 1]; ties share a rank, as in Spearman."""
+    return rankdata(values) / float(len(values))
+
+
+def rank_residualize(
+    prompt_scores: dict[int, dict[str, float]],
+    prompt_ids: list[int],
+    *,
+    methods: tuple[str, ...],
+    control: str = "length",
+) -> dict[int, dict[str, float]]:
+    """Strip the monotone `control` component out of each prompt-level score.
+
+    Rank space, not raw values. The collapse this is testing was measured with
+    Spearman (rho +0.82 for DeepSeek RMD vs length), so an OLS fit on raw scores
+    would leave any monotone-but-nonlinear length dependence in the residual and
+    understate the collapse. Regressing normalized ranks on normalized ranks
+    removes exactly the component Spearman sees, and the residual has ~zero rank
+    correlation with the control by construction.
+
+    The fit uses no labels, so running it on the evaluation prompts leaks nothing
+    about correctness -- the same argument that licenses the label-free
+    residualization in the L21 analysis. It costs one degree of freedom per
+    method, which the bootstrap pays for by refitting inside every draw.
+
+    Prompts whose score or control is non-finite keep the -inf sentinel, so they
+    sort last exactly as they do in the unresidualized E1.
+    """
+    control_raw = np.asarray(
+        [prompt_scores[prompt_id].get(control, -np.inf) for prompt_id in prompt_ids],
+        dtype=float,
+    )
+    residualized: dict[int, dict[str, float]] = {
+        prompt_id: {} for prompt_id in prompt_ids
+    }
+    for method in methods:
+        raw = np.asarray(
+            [prompt_scores[prompt_id].get(method, -np.inf) for prompt_id in prompt_ids],
+            dtype=float,
+        )
+        usable = np.isfinite(raw) & np.isfinite(control_raw)
+        if int(usable.sum()) < 3:
+            for prompt_id in prompt_ids:
+                residualized[prompt_id][method] = -np.inf
+            continue
+        y = _normalized_ranks(raw[usable])
+        x = _normalized_ranks(control_raw[usable])
+        x_centered = x - x.mean()
+        y_centered = y - y.mean()
+        denominator = float(x_centered @ x_centered)
+        slope = float(x_centered @ y_centered) / denominator if denominator > 0 else 0.0
+        residual = y_centered - slope * x_centered
+        positions = np.flatnonzero(usable)
+        for offset, index in enumerate(positions):
+            residualized[prompt_ids[index]][method] = float(residual[offset])
+        for index in np.flatnonzero(~usable):
+            residualized[prompt_ids[index]][method] = -np.inf
+    return residualized
+
+
+def length_residualized_abstention(
+    prompt_scores: dict[int, dict[str, float]],
+    outcomes: dict[int, float],
+    *,
+    methods: tuple[str, ...],
+    control: str = "length",
+    coverages: tuple[float, ...] = (0.5, 0.8),
+    n_bootstrap: int = 1000,
+    seed: int = 42,
+    comparisons: tuple[tuple[str, str], ...] = (),
+) -> dict:
+    """Re-run the E1 abstention metrics after partialling `control` out.
+
+    Answers the question E1 cannot: once no scorer is allowed to use trace
+    length, does any of them still rank prompts by solvability? The reference is
+    an uninformative scorer, whose expected accuracy at every coverage -- and
+    therefore whose expected AURC -- is the base accuracy, so each method is
+    tested against that rather than against another scorer.
+
+    `comparisons` additionally reports head-to-head residual deltas, e.g. probe
+    vs RMD once neither can lean on length.
+    """
+    prompt_ids = sorted(outcomes)
+    scored = tuple(method for method in methods if method != control)
+    base_accuracy = float(np.mean([outcomes[prompt_id] for prompt_id in prompt_ids]))
+    residual = rank_residualize(
+        prompt_scores, prompt_ids, methods=scored, control=control
+    )
+    point = {
+        method: {
+            "aurc": _prompt_aurc(
+                {prompt_id: residual[prompt_id][method] for prompt_id in prompt_ids},
+                outcomes,
+            ),
+            "accuracy_at_coverage": {
+                str(coverage): _prompt_coverage_accuracy(
+                    {prompt_id: residual[prompt_id][method] for prompt_id in prompt_ids},
+                    outcomes,
+                    coverage,
+                )
+                for coverage in coverages
+            },
+        }
+        for method in scored
+    }
+    metrics = ("aurc", *(str(coverage) for coverage in coverages))
+    vs_base_draws = {(method, metric): [] for method in scored for metric in metrics}
+    pair_draws = {
+        (method, baseline, metric): []
+        for method, baseline in comparisons
+        for metric in metrics
+    }
+    rng = np.random.default_rng(seed)
+    for _ in range(int(n_bootstrap)):
+        sampled = rng.choice(prompt_ids, size=len(prompt_ids), replace=True)
+        indices = list(range(len(sampled)))
+        sampled_outcomes = {
+            index: outcomes[int(prompt_id)] for index, prompt_id in enumerate(sampled)
+        }
+        sampled_scores = {
+            index: prompt_scores[int(prompt_id)] for index, prompt_id in enumerate(sampled)
+        }
+        # Refit inside the draw: the residualization is estimated, and a CI that
+        # conditioned on the full-sample slope would be too narrow.
+        sampled_residual = rank_residualize(
+            sampled_scores, indices, methods=scored, control=control
+        )
+        sampled_base = float(np.mean([sampled_outcomes[index] for index in indices]))
+        values = {}
+        for method in scored:
+            column = {index: sampled_residual[index][method] for index in indices}
+            values[(method, "aurc")] = _prompt_aurc(column, sampled_outcomes)
+            for coverage in coverages:
+                values[(method, str(coverage))] = _prompt_coverage_accuracy(
+                    column, sampled_outcomes, coverage
+                )
+        for key, value in values.items():
+            if key in vs_base_draws:
+                vs_base_draws[key].append(float(value - sampled_base))
+        for method, baseline, metric in pair_draws:
+            pair_draws[(method, baseline, metric)].append(
+                float(values[(method, metric)] - values[(baseline, metric)])
+            )
+    vs_uninformative = {}
+    for (method, metric), draws in vs_base_draws.items():
+        observed = (
+            point[method]["aurc"]
+            if metric == "aurc"
+            else point[method]["accuracy_at_coverage"][metric]
+        )
+        vs_uninformative.setdefault(method, {})[metric] = {
+            **_ci_pvalue(draws),
+            "point_estimate": float(observed - base_accuracy),
+        }
+    deltas = {}
+    for (method, baseline, metric), draws in pair_draws.items():
+        left = (
+            point[method]["aurc"]
+            if metric == "aurc"
+            else point[method]["accuracy_at_coverage"][metric]
+        )
+        right = (
+            point[baseline]["aurc"]
+            if metric == "aurc"
+            else point[baseline]["accuracy_at_coverage"][metric]
+        )
+        deltas.setdefault(f"{method}_minus_{baseline}", {})[metric] = {
+            **_ci_pvalue(draws),
+            "point_estimate": float(left - right),
+        }
+    return {
+        "control": control,
+        "n_prompts": len(prompt_ids),
+        "base_accuracy": base_accuracy,
+        "coverages": list(coverages),
+        "prespecified": False,
+        "point": point,
+        "vs_uninformative": vs_uninformative,
+        "deltas": deltas,
+    }
+
+
 def answer_cluster_eligibility(rows: list[dict], max_new_tokens: int | None = None) -> dict:
     """Count sibling answer clusters, retaining an explicit invalid cluster."""
     grouped: dict[int, list[dict]] = defaultdict(list)
@@ -683,6 +867,23 @@ def run_wave1(
             else ("length", "logprob", "entropy")
         ),
     )
+    # E1R: the same abstention metrics with the monotone length component removed
+    # from every scorer. E1 shows RMD beating length; it cannot show whether RMD
+    # carries anything length does not already supply. Exploratory, not
+    # pre-registered.
+    e1_residual = length_residualized_abstention(
+        prompt_scores,
+        outcomes,
+        methods=e1_methods,
+        control="length",
+        n_bootstrap=n_bootstrap,
+        seed=seed + 50000,
+        comparisons=tuple(
+            (method, "rmd_tail_q20")
+            for method in HIDDEN_PROBE_METHODS
+            if method in e1_methods
+        ),
+    )
     eligibility = answer_cluster_eligibility(layer_rows, max_new_tokens=max_new_tokens)
 
     base_traces = load_all_traces(
@@ -818,6 +1019,7 @@ def run_wave1(
             "censoring": "unparsed and cap-hit traces excluded from correctness comparisons",
         },
         "e1_prompt_abstention": e1,
+        "e1r_length_residualized_abstention": e1_residual,
         "e4_entropy_trajectory": e4,
         "e5_event_locked_rmd": e5,
         "e6_log_norm_lve": e6,
@@ -863,6 +1065,47 @@ def write_wave1_report(result: dict, path: str | Path) -> None:
                 f"[{values['ci_low']:+.3f}, {values['ci_high']:+.3f}] | "
                 f"{values['p_two_sided'] if values['p_two_sided'] is not None else 'NA'} | {values['n_valid']} |"
             )
+    e1r = result.get("e1r_length_residualized_abstention")
+    if e1r:
+        lines.extend([
+            "",
+            "## E1R — abstention with length partialled out (exploratory)",
+            "",
+            f"Control: `{e1r['control']}`, removed in rank space. Reference is an "
+            f"uninformative scorer, whose expected AURC and accuracy at every "
+            f"coverage equal the base accuracy {e1r['base_accuracy']:.3f}. "
+            "A method with no length-independent signal lands at zero here.",
+            "",
+            "| Method | resid AURC | Δ vs uninformative [95% CI] | p | resid Acc@50% | Δ@50% [95% CI] | p |",
+            "|---|---:|---|---:|---:|---|---:|",
+        ])
+        for method, values in e1r["point"].items():
+            aurc = e1r["vs_uninformative"][method]["aurc"]
+            half = e1r["vs_uninformative"][method].get("0.5", {})
+            lines.append(
+                f"| {method} | {values['aurc']:.3f} | "
+                f"{aurc['point_estimate']:+.3f} [{aurc['ci_low']:+.3f}, {aurc['ci_high']:+.3f}] | "
+                f"{aurc['p_two_sided']} | "
+                f"{values['accuracy_at_coverage'].get('0.5', float('nan')):.3f} | "
+                f"{half.get('point_estimate', float('nan')):+.3f} "
+                f"[{half.get('ci_low', float('nan')):+.3f}, {half.get('ci_high', float('nan')):+.3f}] | "
+                f"{half.get('p_two_sided')} |"
+            )
+        if e1r["deltas"]:
+            lines.extend([
+                "",
+                "### E1R head-to-head (neither scorer may use length)",
+                "",
+                "| Contrast | Metric | Delta [95% CI] | p |",
+                "|---|---|---|---:|",
+            ])
+            for contrast, metrics in e1r["deltas"].items():
+                for metric, values in metrics.items():
+                    lines.append(
+                        f"| {contrast} | {metric} | {values['point_estimate']:+.3f} "
+                        f"[{values['ci_low']:+.3f}, {values['ci_high']:+.3f}] | "
+                        f"{values['p_two_sided']} |"
+                    )
     lines.extend(["", "## E7 — sibling eligibility", "", "```json", json.dumps(e7, indent=2), "```", ""])
     e4 = result.get("e4_entropy_trajectory", {})
     lines.extend(

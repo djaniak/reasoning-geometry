@@ -451,8 +451,8 @@ stages:
       size: 6850876
     - path: wave1_experiments.py
       hash: md5
-      md5: b26a58add2ffd701959c8b5ecc3e81b8
-      size: 39969
+      md5: dd4b9412d18d1dfb57e2b7def97379c0
+      size: 50350
     params:
       params.yaml:
         wave1_experiments:
@@ -471,12 +471,12 @@ stages:
       size: 212872
     - path: results/qwen_bestofn_full/math500/math500_wave1_report.md
       hash: md5
-      md5: 9dc92f626e67b193af32a862a1da7ae3
-      size: 9433
+      md5: cafd1b0f4478887c984acae1d42b5f89
+      size: 11461
     - path: results/qwen_bestofn_full/math500/math500_wave1_results.json
       hash: md5
-      md5: f72c9efc95ddb3657d4c9915e8d7e0fb
-      size: 304689
+      md5: a02c62f1aeb8ad41d9ec13fdb6a5516b
+      size: 312915
   summarize:
     cmd: uv run python summarize.py --results_dir results --output_dir results 
       --profile current
@@ -780,8 +780,8 @@ stages:
       size: 6821165
     - path: wave1_experiments.py
       hash: md5
-      md5: b26a58add2ffd701959c8b5ecc3e81b8
-      size: 39969
+      md5: dd4b9412d18d1dfb57e2b7def97379c0
+      size: 50350
     params:
       params.yaml:
         wave1_experiments:
@@ -800,9 +800,9 @@ stages:
       size: 199939
     - path: results/deepseek_bestofn_full/math500/math500_wave1_report.md
       hash: md5
-      md5: e85dc6596df6728c7ffb312fb4c55ef7
-      size: 9460
+      md5: 225215ecaa676cf244d3d871f457cfc6
+      size: 11494
     - path: results/deepseek_bestofn_full/math500/math500_wave1_results.json
       hash: md5
-      md5: 94ab95b4c90e8df3984a460b5892e14b
-      size: 305194
+      md5: 6ea5ccfc5bac4d5e36bb357ee1131969
+      size: 313518
