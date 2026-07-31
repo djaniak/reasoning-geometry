@@ -13,6 +13,7 @@ stages:
         --max_new_tokens ${item.max_new_tokens}
         --layers 7,14,21
         --output_dir data/${item.model}/${item.dataset}
+      frozen: true
       deps:
         - collect_data.py
       params:
@@ -33,6 +34,7 @@ stages:
         --limit ${item.limit}
         --two_phase --group_problems ${item.group_problems}
         --output_dir data/${item.model}/${item.dataset}
+      frozen: true
       deps:
         - collect_data.py
       params:
@@ -56,6 +58,7 @@ stages:
         --cv_random_state ${analyze.cv_random_state}
         --n_bootstrap ${item.n_bootstrap}
         --difficulty --subject
+      frozen: true
       deps:
         - analyze.py
         - data/${item.model}/${item.dataset}
@@ -79,6 +82,7 @@ stages:
         --pca_dim ${analyze.pca_dim}
         --cv_random_state ${analyze.cv_random_state}
         --n_bootstrap ${item.n_bootstrap}
+      frozen: true
       deps:
         - analyze.py
         - data/${item.model}/${item.dataset}
@@ -99,6 +103,7 @@ stages:
       --inputs
       results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
       results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json
+    frozen: true
     deps:
       - merge_results.py
       - results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
@@ -108,6 +113,9 @@ stages:
           cache: false
 
   # ── Frozen historical: Qwen dense-layer robustness ─────────────────────────
+  # `frozen: true` is load-bearing here, not decorative: these stages were last
+  # locked against script versions that predate HEAD, so without it a bare
+  # `dvc repro` re-runs GPU collection and overwrites finished results.
   collect_qwen_dense_math500:
     cmd: >-
       uv run python collect_data.py --dataset math500
@@ -115,6 +123,7 @@ stages:
       --max_new_tokens ${models.qwen_dense.max_new_tokens}
       --layers 0,2,4,6,8,10,12,14,16,18,20,22,24,26
       --output_dir data/qwen_dense/math500
+    frozen: true
     deps:
       - collect_data.py
     params:
@@ -132,6 +141,7 @@ stages:
       --dataset_label math500 --output_name math500_base_results.json
       --pca_dim ${analyze.pca_dim} --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
+    frozen: true
     deps:
       - analyze.py
       - data/qwen_dense/math500
@@ -149,6 +159,7 @@ stages:
       --dataset_label math500 --output_name math500_controls_results.json
       --pca_dim ${analyze.pca_dim} --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
+    frozen: true
     deps:
       - analyze.py
       - data/qwen_dense/math500
@@ -164,6 +175,7 @@ stages:
       uv run python merge_results.py --output_path results/qwen_dense/math500/math500_results.json
       --inputs results/qwen_dense/math500/math500_base_results.json
       results/qwen_dense/math500/math500_controls_results.json
+    frozen: true
     deps:
       - merge_results.py
       - results/qwen_dense/math500/math500_base_results.json
@@ -181,6 +193,7 @@ stages:
         --max_new_tokens ${item.max_new_tokens} --limit ${item.limit}
         --num_samples ${item.num_samples} --batch_size ${item.batch_size}
         --output results/truncation_probe/${item.name}_${item.max_new_tokens}.json
+      frozen: true
       deps:
         - truncation_probe.py
       outs:
@@ -188,6 +201,9 @@ stages:
             cache: false
 
   # ── math500 Best-of-8: collect → decomposition → wave1 ────────────────────
+  # Only the two evaluate_* stages are live. The collect is frozen: its traces
+  # are the fixed input the decomposition iterates on, and re-sampling them
+  # would silently move the ground truth under every downstream result.
   collect_bestofn_full:
     foreach: ${bestofn_matrix}
     do:
@@ -197,6 +213,7 @@ stages:
         --layers ${item.layers} --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples} --limit ${item.limit}
         --output_dir data/${item.model}_bestofn_${item.scale}/math500
+      frozen: true
       deps:
         - collect_data.py
       params:
@@ -210,7 +227,7 @@ stages:
     foreach: ${bestofn_matrix}
     do:
       cmd: >-
-        uv run python -u prompt_decomposition.py
+        CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py
         --data_dir data/${item.model}_bestofn_${item.scale}/math500
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500 --model_label ${item.model}

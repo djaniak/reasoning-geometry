@@ -356,8 +356,8 @@ stages:
       size: 44677418578
       nfiles: 80
   evaluate_prompt_decomposition@0:
-    cmd: uv run python -u prompt_decomposition.py --data_dir 
-      data/qwen_bestofn_full/math500 --output_dir 
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py 
+      --data_dir data/qwen_bestofn_full/math500 --output_dir 
       results/qwen_bestofn_full/math500 --dataset_label math500 --model_label 
       qwen --layers 7,14,21 --pca_dim 128 --n 8 --expected_prompts 500 
       --n_splits 5 --n_bootstrap 1000 --seed 42 --load_workers 4 
@@ -382,8 +382,8 @@ stages:
       nfiles: 80
     - path: prompt_decomposition.py
       hash: md5
-      md5: e35197da998020565724b46f53fc457a
-      size: 105591
+      md5: 3714e04b0687c1bb874de5af0d363500
+      size: 106561
     params:
       params.yaml:
         analyze.pca_dim: 128
@@ -416,8 +416,8 @@ stages:
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json
       hash: md5
-      md5: 25c08da793a52fa9db6a1bbeed38c8a2
-      size: 1007903
+      md5: af5256dc56b7a36d2b94531830507e46
+      size: 1014887
   evaluate_wave1_experiments@0:
     cmd: CUDA_VISIBLE_DEVICES="" uv run python wave1_experiments.py --data_dir 
       data/qwen_bestofn_full/math500 --oof_csv 
@@ -442,17 +442,17 @@ stages:
       nfiles: 80
     - path: prompt_decomposition.py
       hash: md5
-      md5: 2de79b7b90226198f8372e465685be94
-      size: 91088
+      md5: 3714e04b0687c1bb874de5af0d363500
+      size: 106561
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: 0a846d9094073f96cc4efcff6edc1084
-      size: 6162135
+      md5: d0ed37ca0750827c37336a7367a66557
+      size: 6850876
     - path: wave1_experiments.py
       hash: md5
-      md5: 68dd0db234b690ceb569b7a91c092299
-      size: 38940
+      md5: b26a58add2ffd701959c8b5ecc3e81b8
+      size: 39969
     params:
       params.yaml:
         wave1_experiments:
@@ -467,16 +467,16 @@ stages:
     outs:
     - path: results/qwen_bestofn_full/math500/math500_wave1.png
       hash: md5
-      md5: d0321dd4d2953b2e876d7f60f869a56a
-      size: 182400
+      md5: 1f2bf3915eef35cdf23d09217dfb152c
+      size: 212872
     - path: results/qwen_bestofn_full/math500/math500_wave1_report.md
       hash: md5
-      md5: 66b8a7106f7d164ed78f89f88edccb54
-      size: 5136
+      md5: 9dc92f626e67b193af32a862a1da7ae3
+      size: 9433
     - path: results/qwen_bestofn_full/math500/math500_wave1_results.json
       hash: md5
-      md5: c6865af7ce49698703bcceae10c11ab7
-      size: 218310
+      md5: f72c9efc95ddb3657d4c9915e8d7e0fb
+      size: 304689
   summarize:
     cmd: uv run python summarize.py --results_dir results --output_dir results 
       --profile current
@@ -684,13 +684,14 @@ stages:
       size: 255227396511
       nfiles: 81
   evaluate_prompt_decomposition@1:
-    cmd: uv run python -u prompt_decomposition.py --data_dir 
-      data/deepseek_bestofn_full/math500 --output_dir 
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py 
+      --data_dir data/deepseek_bestofn_full/math500 --output_dir 
       results/deepseek_bestofn_full/math500 --dataset_label math500 
       --model_label deepseek --layers 7,14,21 --pca_dim 128 --n 8 
       --expected_prompts 500 --n_splits 5 --n_bootstrap 1000 --seed 42 
       --load_workers 4 --contrastive_regions 
-      full,high_entropy_q20,tail_q20,random_q20 --n_alignment_shuffles 1000 
+      full,high_entropy_q20,tail_q20,random_q20 --hidden_probe_regions 
+      full,high_entropy_q20,tail_q20 --n_alignment_shuffles 1000 
       --alignment_seed 42 --region_seed 42 --hidden_dtype float16 
       --compute_dtype float32 --max_reference_tokens 2000000 --max_new_tokens 
       8192
@@ -710,8 +711,8 @@ stages:
       nfiles: 81
     - path: prompt_decomposition.py
       hash: md5
-      md5: 2de79b7b90226198f8372e465685be94
-      size: 91088
+      md5: 3714e04b0687c1bb874de5af0d363500
+      size: 106561
     params:
       params.yaml:
         analyze.pca_dim: 128
@@ -723,6 +724,7 @@ stages:
           seed: 42
           load_workers: 4
           contrastive_regions: full,high_entropy_q20,tail_q20,random_q20
+          hidden_probe_regions: full,high_entropy_q20,tail_q20
           n_alignment_shuffles: 1000
           alignment_seed: 42
           region_seed: 42
@@ -733,18 +735,18 @@ stages:
     - path: 
         results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: 8c2fc207418288a90ab61b1094e5de48
-      size: 6142094
+      md5: 896752e0734219ca9fa4b2bbf17c1a6e
+      size: 6821165
     - path: 
         results/deepseek_bestofn_full/math500/math500_prompt_decomposition_report.md
       hash: md5
-      md5: aa77e8c8af067e32621afb80a1d8ec92
-      size: 28506
+      md5: 4a26b8afa7a94f5de0b9f796ea1bc3f7
+      size: 33151
     - path: 
         results/deepseek_bestofn_full/math500/math500_prompt_decomposition_results.json
       hash: md5
-      md5: 17ea0344f0ad58f1701ae3c54e7f3951
-      size: 1118618
+      md5: 893f7101eec90f92aad0004928c4e074
+      size: 1144714
   evaluate_wave1_experiments@1:
     cmd: CUDA_VISIBLE_DEVICES="" uv run python wave1_experiments.py --data_dir 
       data/deepseek_bestofn_full/math500 --oof_csv 
@@ -769,17 +771,17 @@ stages:
       nfiles: 81
     - path: prompt_decomposition.py
       hash: md5
-      md5: 2de79b7b90226198f8372e465685be94
-      size: 91088
+      md5: 3714e04b0687c1bb874de5af0d363500
+      size: 106561
     - path: 
         results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
-      md5: 8c2fc207418288a90ab61b1094e5de48
-      size: 6142094
+      md5: 896752e0734219ca9fa4b2bbf17c1a6e
+      size: 6821165
     - path: wave1_experiments.py
       hash: md5
-      md5: 68dd0db234b690ceb569b7a91c092299
-      size: 38940
+      md5: b26a58add2ffd701959c8b5ecc3e81b8
+      size: 39969
     params:
       params.yaml:
         wave1_experiments:
@@ -794,13 +796,13 @@ stages:
     outs:
     - path: results/deepseek_bestofn_full/math500/math500_wave1.png
       hash: md5
-      md5: 06653d64c4f62edc01aca3a40034fce2
-      size: 170325
+      md5: e6d732190675ff3700c2bf6f7420bb8d
+      size: 199939
     - path: results/deepseek_bestofn_full/math500/math500_wave1_report.md
       hash: md5
-      md5: ddd84f40ff2e7996fbd0cb8476c6b479
-      size: 5153
+      md5: e85dc6596df6728c7ffb312fb4c55ef7
+      size: 9460
     - path: results/deepseek_bestofn_full/math500/math500_wave1_results.json
       hash: md5
-      md5: 5161105e41330a2e1540253750483992
-      size: 218521
+      md5: 94ab95b4c90e8df3984a460b5892e14b
+      size: 305194
