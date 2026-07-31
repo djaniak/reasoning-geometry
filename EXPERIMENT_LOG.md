@@ -5,6 +5,129 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-07-31: Supervised probe ceiling + length residualization (BOTH models)
+
+### 1. Stages and parameterization
+
+```
+evaluate_prompt_decomposition@0  (qwen)      evaluate_prompt_decomposition@1  (deepseek)
+evaluate_wave1_experiments@0     (qwen)      evaluate_wave1_experiments@1     (deepseek)
+```
+
+Both models: MATH-500 Best-of-8, 500 prompts, layers 7/14/21, 5 prompt folds,
+1,000-draw prompt-cluster bootstrap. New params in `params.yaml`:
+`prompt_decomposition.hidden_probe_regions: "full,high_entropy_q20,tail_q20"`
+(`random_q20` omitted — it is a control for localization claims and the probe
+makes none). Both stages pinned to `CUDA_VISIBLE_DEVICES=""`; CPU-only.
+
+Two additions:
+
+- **`probe_hidden_*`** — cross-fitted supervised LDA (`solver=lsqr`,
+  `shrinkage=auto`) on PCA-projected region means, pooled labels, trained on
+  parseable training traces only (unparsed traces are auto-labeled incorrect
+  upstream, so training on them would let the probe win by detecting
+  truncation). 45 fits per model = 5 folds × 3 layers × 3 regions. Distinct from
+  `contrast_*`, which is prompt-centered and targets the within-prompt regime.
+- **E1R** (`length_residualized_abstention`) — E1 abstention metrics with
+  `length_score` partialled out of every scorer in rank space, refit inside each
+  bootstrap draw. Reference is an uninformative scorer (expected AURC = base
+  accuracy).
+
+**Both exploratory, not pre-registered** — recorded as `prespecified: false` in
+the emitted JSON.
+
+### 2. Artifacts and schema
+
+- `results/{qwen,deepseek}_bestofn_full/math500/math500_prompt_decomposition_results.json`
+  — new `settings.hidden_state_probe` provenance block; new
+  `layers.<L>.parseable_only.length_collapse` and `hidden_probe_paired_deltas`.
+- `results/{qwen,deepseek}_bestofn_full/math500/math500_wave1_results.json`
+  — new top-level `e1r_length_residualized_abstention`.
+- `..._prompt_decomposition_oof.csv` — three new `probe_hidden_*_score` columns
+  (37 columns total).
+- Tests: `tests/test_hidden_state_probe.py` (10), `tests/test_length_residualization.py` (6).
+
+Regression check: re-running wave1 changed **0 of 10,338** shared scalars in both
+models; the E1R block is purely additive.
+
+### 3. Point estimates and uncertainty
+
+Raw E1 prompt abstention, AURC at L21 (base accuracy 0.620 Qwen / 0.750 DeepSeek):
+
+| Scorer | Qwen | DeepSeek |
+|---|---:|---:|
+| `probe_hidden_tail_q20` | 0.853 | 0.904 |
+| `rmd_tail_q20` | 0.828 | 0.856 |
+| `rmd_high_entropy_q20` | 0.789 | 0.832 |
+| `length` | 0.759 | 0.826 |
+| `logprob` / `entropy` | 0.666 / 0.660 | 0.788 / 0.788 |
+
+`probe_hidden_tail_q20 − rmd_tail_q20`: +0.025 [+0.002, +0.046] p=0.028 Qwen
+(Holm 0.056, does not survive); +0.048 [+0.018, +0.079] p=0.002 DeepSeek
+(Holm 0.006, survives).
+
+`rmd_high_entropy_q20 − length` on DeepSeek: +0.005 [−0.011, +0.025] p=0.506 —
+not distinguishable from length. `rmd_tail_q20 − length` = +0.030 [+0.014, +0.048].
+
+Length collapse (Spearman vs `length_score`, parseable, L21): `rmd` +0.658 Qwen /
+**+0.820** DeepSeek; `probe_hidden_tail_q20` +0.425 / +0.223; `entropy` −0.163 /
+**+0.350** (sign flips between models).
+
+E1R, Δ AURC vs an uninformative scorer:
+
+| Scorer | Qwen | DeepSeek |
+|---|---|---|
+| `probe_hidden_tail_q20` | +0.190 [+0.155, +0.224] | +0.140 [+0.110, +0.168] |
+| `rmd_tail_q20` | +0.161 [+0.128, +0.194] | +0.107 [+0.077, +0.135] |
+| `rmd_high_entropy_q20` | +0.111 [+0.074, +0.148] | +0.063 [+0.027, +0.096] |
+| `logprob` | +0.058 [+0.014, +0.097] | +0.009 [−0.029, +0.046] |
+| `entropy` | +0.057 [+0.013, +0.097] | +0.011 [−0.028, +0.047] |
+
+Holm across the 7 scorers within model: all geometry rows p < 0.01 both models;
+entropy/logprob Holm 0.016 Qwen but **1.000 DeepSeek**.
+
+E1R probe vs RMD: +0.029 [−0.003, +0.060] p=0.090 Qwen, +0.033 [+0.001, +0.064]
+p=0.042 DeepSeek. Holm over 3 comparisons: 0.090 / 0.126 — neither survives. Only
+surviving cell is Qwen `probe_hidden_high_entropy_q20` *losing* (−0.062, Holm 0.018).
+
+Negative control (synthetic scorer = length + sub-tie jitter): +0.008 Qwen /
+−0.007 DeepSeek, p ≥ 0.82.
+
+### 4. Claims ruled in and out
+
+**Ruled IN:**
+
+- RMD carries substantial between-prompt solvability signal that length cannot
+  supply, on both models. Upgrades the §7c "RMD > length + entropy" positive.
+- On DeepSeek, `entropy` and `logprob` are the length proxies, not RMD.
+- A supervised probe on the same activations does not reliably beat unsupervised
+  RMD at length-controlled prompt abstention on either model. Strongest available
+  form of the label-light argument (`PAPER_STRATEGY.md` §6 killer experiment).
+
+**Ruled OUT:**
+
+- "RMD collapses to length on reasoning-distilled models." The rho +0.82
+  diagnostic does not support this; E1R refutes it. Do not report the Spearman
+  table without E1R alongside it.
+- "Supervision recovers materially more geometry signal than RMD." True in raw
+  E1 on DeepSeek (Holm 0.006) but the advantage is largely reduced length
+  dependence — it does not survive length control.
+
+### 5. Limitations and next dependent stage
+
+- Residual retains small rank correlation with length (+0.13 DeepSeek, +0.05
+  Qwen): rank-space OLS zeroes Pearson-of-ranks, not Spearman of the residual's
+  own ranks. Removal is near-complete, not exact.
+- E1R is stricter than incremental value: it shows the orthogonal component ranks
+  prompts alone, not that `length + RMD` beats `length`.
+- The probe is supervised and is a ceiling/diagnostic, not a deployment
+  alternative to RMD.
+- Scope is between-prompt abstention AURC. The ~0.84 supervised-probe figure from
+  arXiv:2511.14773 is raw trace-correctness AUC and is not contradicted here.
+- n=2, both Qwen-lineage. **Next dependent stage:** the `deepseek_llama`
+  (Llama-architecture) collect, cancelled by the 2026-07-29 gate, is now the
+  binding constraint on every claim above.
+
 ## 2026-07-25: DVC graph restructure — retired experiment families
 
 ### Status

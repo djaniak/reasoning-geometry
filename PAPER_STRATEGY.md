@@ -9,10 +9,15 @@ literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 ## 1. Revised thesis (defensible)
 
 > **Relative hidden-state geometry (RMD) is a calibrated *between-prompt solvability*
-> signal that beats both trace-length and entropy baselines. It is useful for abstention /
-> compute allocation / routing — NOT for within-prompt (per-attempt) reranking (Best-of-N
-> is weak). Prior "trace-correctness" readings of such geometry were confounded by trace
-> length and by a truncation/auto-label-as-incorrect artifact.**
+> signal that beats both trace-length and entropy baselines — and beats them on a
+> component length cannot supply, which a supervised probe on the same activations does
+> not reliably improve on. It is useful for abstention / compute allocation / routing —
+> NOT for within-prompt (per-attempt) reranking (Best-of-N is weak). Prior
+> "trace-correctness" readings of such geometry were confounded by trace length and by a
+> truncation/auto-label-as-incorrect artifact.**
+
+*Second clause added 2026-07-31 from the length-residualized (E1R) + supervised-probe
+runs; see §7e. Scope: between-prompt abstention on two Qwen-lineage models.*
 
 Novelty rests on the **length/truncation rigor critique + the between-prompt application**,
 NOT on the RMD primitive (already precedented — see §4).
@@ -84,8 +89,11 @@ selective-prediction AUSC (DeepSeek 0.633), difficulty/subject stratification. T
 
 ## 6. Baselines / experiments a top venue will demand
 
-- Trained linear probe (PCA+LDA, SEP-style) — *the* required baseline; does it ALSO collapse
-  to length? (the killer experiment). RMD-vs-EigenScore head-to-head on reasoning.
+- ~~Trained linear probe (PCA+LDA, SEP-style) — *the* required baseline; does it ALSO collapse
+  to length? (the killer experiment).~~ **DONE 2026-07-31, both models — see §7e.** The probe
+  does not collapse (rho ~0.22 DeepSeek); neither does RMD; entropy/logprob do. Length-
+  controlled, the probe does not reliably beat RMD on either model. RMD-vs-EigenScore
+  head-to-head on reasoning is still open.
 - Length baseline everywhere (done: `rmd_minus_length` wired into prompt_decomposition).
 - Pilot re-collection @ larger `max_new_tokens` (CONFIRMED by probe: Qwen-distill 8192,
   Llama-distill 12288 → 0% truncation) to get clean, well-powered parseable numbers.
@@ -218,6 +226,53 @@ truncation-fix. Ledger: `EXPERIMENT_LOG.md` 2026-07-18; narrative: `FINDINGS.md`
   deepest layer and the two surviving contrasts (localization, entropy-specificity) for
   the cross-model confirmation on deepseek/llama/deepseek_llama full runs
   (deepseek_llama decomposition outputs currently deleted — regenerate first).
+
+## 7e. 2026-07-31 UPDATE (supervised probe ceiling + length residualization, BOTH models)
+
+Ran §6's flagged "killer experiment" — the trained PCA+LDA probe — on both models,
+plus E1R (abstention with trace length partialled out in rank space). Narrative:
+`FINDINGS.md` "Supervised Probe Ceiling and Length Residualization". Exploratory,
+not pre-registered.
+
+**§6 asked: does the trained probe ALSO collapse to length? The answer is the
+inverse of the framing — the probe does not collapse, and neither does RMD, but the
+output baselines do.**
+
+- **The label-light argument is now at its strongest form.** Once length is partialled
+  out of both scorers, the supervised probe does **not** reliably beat unsupervised RMD
+  on either model (probe − rmd_tail_q20: +0.029 Holm 0.090 Qwen, +0.033 Holm 0.126
+  DeepSeek). The one Holm-surviving cell has the probe *losing* (Qwen he_q20, 0.018).
+  This is the comparison §7b's "GATING REALITY" expected to lose ("honest expectation:
+  RMD loses raw AUC to the supervised probe") — at prompt-level abstention, length-
+  controlled, it does not. Note the scope: this is between-prompt abstention AURC, not
+  raw trace-correctness AUC, where the ~0.84 supervised probe number still stands.
+- **RMD survives length control on both models; entropy/logprob do not on DeepSeek.**
+  Δ vs an uninformative scorer: rmd_tail_q20 +0.161 [+0.128, +0.194] Qwen /
+  +0.107 [+0.077, +0.135] DeepSeek, both Holm < 0.01; entropy and logprob
+  +0.009–0.011 on DeepSeek, Holm 1.000. This upgrades §7c's surviving positive
+  "RMD > length + entropy" to the sharper claim: **RMD beats length on a component
+  length cannot supply, and the output-side baselines are the ones that are length
+  proxies on the reasoning-distilled model.** Negative control validates the removal
+  (a pure-length scorer lands at +0.008 / −0.007, p ≥ 0.82).
+- **Do not headline the raw Spearman-vs-length table.** RMD reaches rho +0.82 with
+  length on DeepSeek L21 (vs +0.22 for the probe), which reads as a collapse and is
+  not one. High rank correlation with length coexists with a large length-independent
+  component because length itself explains only part of solvability. Report the
+  correlation *and* E1R together, or the correlation invites a wrong reading — this
+  document previously drew that wrong reading before E1R was run.
+- **Raw (uncontrolled) probe-vs-RMD, for completeness:** probe_hidden_tail_q20 beats
+  rmd_tail_q20 by +0.025 (Qwen, Holm 0.056, does not survive) and +0.048 (DeepSeek,
+  Holm 0.006, survives). Reviewers will want both the raw and the length-controlled
+  version; the gap between them *is* the finding.
+- **One DeepSeek weakness to disclose:** `rmd_high_entropy_q20 − length` = +0.005
+  [−0.011, +0.025] p=0.506 — the entropy-localized region does not clear length on
+  that model. Only `rmd_tail_q20` does (+0.030 [+0.014, +0.048]). Consistent with
+  §7d's failed localization gate: entropy-localization is Qwen-specific, tail
+  localization is what replicates.
+- **Breadth is now the binding constraint, not rigor.** n=2 models, both Qwen-lineage.
+  Every claim in this section needs the Llama-architecture replication
+  (`deepseek_llama`, cancelled by the §7d gate) before it can be stated as a property
+  of reasoning-distilled models rather than of two checkpoints.
 
 ## 7. Open questions for the SECOND research pass (a) — what research #1 did NOT see
 

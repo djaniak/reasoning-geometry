@@ -49,7 +49,19 @@
 > **Cross-model caveat:** the "DeepSeek shows a much larger geometry effect than Qwen"
 > story tracks the **differential truncation rate (43% vs 8%)**, not cleanly distillation.
 
-## Current evidence (updated 2026-07-29)
+## Current evidence (updated 2026-07-31)
+
+> **Length control (2026-07-31): the between-prompt claim strengthens.** RMD's
+> advantage over length is not just a margin on the same ranking — its
+> length-orthogonal component alone reaches +0.161 [+0.128, +0.194] AURC over an
+> uninformative scorer on Qwen and +0.107 [+0.077, +0.135] on DeepSeek, while
+> `entropy` and `logprob` fall to zero on DeepSeek (Holm 1.000). A supervised
+> LDA on the same activations does **not** reliably beat RMD once length is
+> partialled out of both (Holm 0.090 Qwen / 0.126 DeepSeek), which is the
+> strongest available form of the label-light argument. Caution: the raw
+> Spearman-vs-length table looks like a collapse for RMD on DeepSeek (rho +0.82)
+> and is misleading read alone. Full entry: "Supervised Probe Ceiling and Length
+> Residualization" below.
 
 > **Scope correction (2026-07-29): the localization result is Qwen-specific.**
 > A pre-registered cross-model gate on DeepSeek-R1-Distill-Qwen-7B (MATH-500
@@ -852,6 +864,137 @@ entries: the L21 RMD-minus-length centered contrast is now null (+0.029,
 p=0.194; pooled +0.049 [0.018, 0.083] remains, but the pooled view is
 length/truncation-confounded — length alone pools at 0.737 and collapses to
 0.478 within-prompt on parseable traces).
+
+---
+
+## Supervised Probe Ceiling and Length Residualization (Qwen + DeepSeek MATH-500, 2026-07-31)
+
+Two additions to the Best-of-8 decomposition, run on both models at L21 (500
+prompts, N=8, 5 prompt folds, 1,000-draw prompt-cluster bootstrap):
+
+- **`probe_hidden_*`** — a cross-fitted supervised LDA (`lsqr`, Ledoit-Wolf
+  shrinkage) on PCA-projected region means, trained on pooled labels over
+  parseable training traces only. This is the SEP-style ceiling: how much of the
+  geometry signal can supervision on the *same activations* recover? It is
+  distinct from `contrast_*`, which is prompt-centered by construction and so
+  targets the within-prompt regime.
+- **E1R** — the E1 prompt-abstention metrics recomputed with trace length
+  partialled out of every scorer in rank space. E1 shows whether RMD beats
+  length; only E1R shows whether RMD carries anything length does not already
+  supply.
+
+**Both are exploratory, not pre-registered.** Ledger: `EXPERIMENT_LOG.md`
+(2026-07-31). Code: `prompt_decomposition.py` (`fit_hidden_state_probe`,
+`length_collapse_diagnostics`), `wave1_experiments.py`
+(`length_residualized_abstention`).
+
+**Headline: RMD's rank correlation with length is high but not exclusive. Its
+length-orthogonal component is the strongest unsupervised prompt-level signal on
+both models, and the supervised probe does not reliably beat it once length is
+controlled. On DeepSeek, entropy and logprob — not RMD — are the scorers that
+collapse to length.**
+
+### Raw prompt abstention with the probe (AURC, L21)
+
+| Scorer | Qwen | DeepSeek |
+|---|---:|---:|
+| `probe_hidden_tail_q20` | 0.853 | 0.904 |
+| `probe_hidden_full` | 0.806 | 0.882 |
+| `probe_hidden_high_entropy_q20` | 0.779 | 0.880 |
+| `rmd_tail_q20` | 0.828 | 0.856 |
+| `rmd_high_entropy_q20` | 0.789 | 0.832 |
+| `length` | 0.759 | 0.826 |
+| `logprob` / `entropy` | 0.666 / 0.660 | 0.788 / 0.788 |
+
+Base accuracy (full coverage) is 0.620 Qwen / 0.750 DeepSeek, so AURC levels are
+not comparable across models; the paired deltas are.
+
+`probe_hidden_tail_q20 − rmd_tail_q20` is **+0.025 [+0.002, +0.046] p=0.028**
+(Qwen, Holm 0.056 — does not survive) and **+0.048 [+0.018, +0.079] p=0.002**
+(DeepSeek, Holm 0.006 — survives). Same sign both models. On Qwen the other two
+probe regions *lose* to RMD; on DeepSeek all three favor it.
+
+Note the DeepSeek RMD-vs-length picture: `rmd_tail_q20 − length` = +0.030
+[+0.014, +0.048] holds, but `rmd_high_entropy_q20 − length` = +0.005
+[−0.011, +0.025] p=0.506 is **indistinguishable from length**. Only the tail
+region clears the confound baseline on that model.
+
+### The length-collapse diagnostic, and why it misleads on its own
+
+Spearman of each score against `length_score`, parseable traces only (n=3,672
+Qwen / 3,649 DeepSeek), L21:
+
+| Scorer | Qwen | DeepSeek |
+|---|---:|---:|
+| `rmd` | +0.658 | **+0.820** |
+| `rmd_high_entropy_q20` | +0.615 | +0.808 |
+| `rmd_tail_q20` | +0.675 | +0.805 |
+| `probe_hidden_tail_q20` | +0.425 | **+0.223** |
+| `logprob` / `entropy` | −0.134 / −0.163 | **+0.369 / +0.350** |
+
+Two things stand out. RMD is far more length-coupled on the reasoning-distilled
+model (rho +0.82 at L21, rising monotonically with depth from +0.70 at L7),
+while a supervised probe on the same activations sits near +0.22. And the sign
+of the entropy/logprob coupling **flips** between models: negative on Qwen,
+strongly positive on DeepSeek.
+
+**Read on its own, this table invites the wrong conclusion.** A rho of +0.82
+does not imply RMD is a length proxy — length explains only part of the
+solvability ranking, so a scorer can track length closely and still carry a
+large independent component. E1R is the test that settles it.
+
+### E1R — abstention with length partialled out
+
+Length removed in rank space (Spearman's own linear component, so monotone
+non-linear coupling is removed too). The reference is an uninformative scorer,
+whose expected AURC equals base accuracy; a scorer with no length-independent
+signal lands at zero. Negative control on the same data — a synthetic scorer
+that is length plus sub-tie jitter — lands at +0.008 (Qwen) / −0.007 (DeepSeek),
+p ≥ 0.82.
+
+| Scorer | Qwen Δ vs uninformative | DeepSeek Δ vs uninformative |
+|---|---|---|
+| `probe_hidden_tail_q20` | +0.190 [+0.155, +0.224] | +0.140 [+0.110, +0.168] |
+| `rmd_tail_q20` | **+0.161 [+0.128, +0.194]** | **+0.107 [+0.077, +0.135]** |
+| `rmd_high_entropy_q20` | +0.111 [+0.074, +0.148] | +0.063 [+0.027, +0.096] |
+| `logprob` | +0.058 [+0.014, +0.097] | +0.009 [−0.029, +0.046] |
+| `entropy` | +0.057 [+0.013, +0.097] | +0.011 [−0.028, +0.047] |
+
+Holm within model across the seven scorers: every geometry row survives at
+p < 0.01 on both models; `entropy`/`logprob` survive on Qwen (Holm 0.016) and
+**fail completely on DeepSeek (Holm 1.000)**. On DeepSeek, RMD's orthogonal
+component alone (+0.107) exceeds length's own raw advantage over the null
+(+0.076) — so the high rank correlation notwithstanding, RMD is not a length
+proxy, and the output-side baselines are.
+
+**Probe vs RMD once neither scorer may use length:**
+
+| Contrast | Qwen | DeepSeek |
+|---|---|---|
+| `probe_hidden_tail_q20` − `rmd_tail_q20` | +0.029 [−0.003, +0.060] p=0.090 | +0.033 [+0.001, +0.064] p=0.042 |
+| `probe_hidden_full` − `rmd_tail_q20` | −0.037 [−0.074, −0.004] p=0.034 | +0.012 [−0.021, +0.043] p=0.422 |
+| `probe_hidden_high_entropy_q20` − `rmd_tail_q20` | −0.062 [−0.102, −0.023] p=0.006 | +0.004 [−0.033, +0.037] p=0.778 |
+
+Holm within model (3 comparisons): **nothing favoring the probe survives**
+(Qwen 0.090, DeepSeek 0.126). The single surviving cell is Qwen's
+`high_entropy_q20` probe *losing* to RMD (Holm 0.018). So the DeepSeek probe
+advantage in raw E1 (+0.048, Holm 0.006) was substantially the probe being less
+length-dependent than RMD rather than extracting more geometry: strip length
+from both and it falls to +0.033 and stops surviving correction.
+
+### Caveats
+
+- The residual retains small rank correlation with length (+0.13 DeepSeek,
+  +0.05 Qwen). Rank-space OLS zeroes the Pearson correlation of ranks, not the
+  Spearman correlation of the residual's own ranks, so removal is near-complete,
+  not exact.
+- E1R is a stricter test than incremental value. It shows RMD's orthogonal part
+  ranks prompts on its own; it does not show that `length + RMD` beats `length`.
+- Supervision is not a drop-in substitute for RMD's label-light use case. The
+  probe is a ceiling and a diagnostic, not a competing deployment story.
+- Two models, both Qwen-lineage. The `deepseek_llama` (Llama-architecture)
+  collect was cancelled by the localization gate, so no cross-architecture
+  replication of any result in this section exists.
 
 ---
 
