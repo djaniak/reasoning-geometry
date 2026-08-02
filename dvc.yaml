@@ -204,8 +204,12 @@ stages:
   # Only the two evaluate_* stages are live. The collect is frozen: its traces
   # are the fixed input the decomposition iterates on, and re-sampling them
   # would silently move the ground truth under every downstream result.
+  # Finished collects. Frozen on purpose: there is no DVC remote, so `.dvc/cache`
+  # is the only copy of these outputs and a reproduce would delete them before
+  # regenerating. Do not merge this back into one block with the pending collect
+  # below — see the note in params.yaml.
   collect_bestofn_full:
-    foreach: ${bestofn_matrix}
+    foreach: ${bestofn_collected}
     do:
       cmd: >-
         uv run python collect_data.py --dataset math500
@@ -214,6 +218,26 @@ stages:
         --num_samples ${best_of_n.num_samples} --limit ${item.limit}
         --output_dir data/${item.model}_bestofn_${item.scale}/math500
       frozen: true
+      deps:
+        - collect_data.py
+      params:
+        - best_of_n.temperature
+        - best_of_n.num_samples
+        - datasets.math500
+      outs:
+        - data/${item.model}_bestofn_${item.scale}/math500
+
+  # Live collect. Identical to the block above minus `frozen`, so it runs under
+  # `dvc repro`. Move its row to bestofn_collected once the data is committed.
+  collect_bestofn_pending:
+    foreach: ${bestofn_pending}
+    do:
+      cmd: >-
+        uv run python collect_data.py --dataset math500
+        --model_name ${item.model_name} --max_new_tokens ${item.max_new_tokens}
+        --layers ${item.layers} --temperature ${best_of_n.temperature}
+        --num_samples ${best_of_n.num_samples} --limit ${item.limit}
+        --output_dir data/${item.model}_bestofn_${item.scale}/math500
       deps:
         - collect_data.py
       params:
@@ -293,6 +317,40 @@ stages:
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_wave1_report.md:
             cache: false
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_wave1.png:
+            cache: false
+
+  # Output-side baselines scored on the same token masks as the geometry scorers,
+  # plus the calibration and decision-value numbers a routing claim needs. Reads
+  # only entropies and token log-probs from the batches, so it is CPU-only and
+  # cheap despite naming the whole data directory as a dep.
+  evaluate_abstention_baselines:
+    foreach: ${wave1_matrix}
+    do:
+      cmd: >-
+        CUDA_VISIBLE_DEVICES="" uv run python abstention_baselines.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --oof_csv results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
+        --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --dataset_label ${item.dataset} --model_label ${item.model}
+        --layers ${item.layers}
+        --n_bootstrap ${abstention_baselines.n_bootstrap}
+        --seed ${abstention_baselines.seed}
+        --load_workers ${abstention_baselines.load_workers}
+        --n_splits ${abstention_baselines.n_splits}
+      deps:
+        - abstention_baselines.py
+        - wave1_experiments.py
+        - prompt_decomposition.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
+      params:
+        - abstention_baselines
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_abstention_baselines_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_abstention_baselines_report.md:
             cache: false
 
   # ── Current summary only ──────────────────────────────────────────────────
