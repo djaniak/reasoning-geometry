@@ -5,6 +5,109 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-03: Cap-population fix, and loop precursors KILLED (DeepSeek only)
+
+### 1. Stages and parameterization
+
+No DVC stage. Two ad-hoc, CPU-only passes over cached artifacts:
+
+```
+python incremental_abstention.py --model_label qwen --max_new_tokens 1024 --layer 21 \
+    --oof_csv results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+python loop_precursors.py --data_dir data/deepseek_bestofn_full/math500 \
+    --max_new_tokens 8192 --ngram 8 --window 200 --threshold 0.5 --seed 42
+```
+
+### 2. The n=498 cap-population bug
+
+A previously reported Qwen "cap-free valid" population of n=498 was impossible
+against the audit finding of 108/500 Qwen prompts with a capped sibling. Cause:
+the ad-hoc `incremental_abstention.py` run was passed **DeepSeek's
+`--max_new_tokens 8192`** for traces collected at **Qwen's 1024**
+(`params.yaml:69-70`). No trace can reach 8192, so every cap count was zero and
+`cap_free_valid_plurality` silently equalled `valid_plurality`. Not the
+`max_new_tokens is None` path — that was a separate latent defect, now also closed.
+
+`trace_caps.resolve_cap` now rejects a missing cap *and* a cap above every
+observed length; `truncation_report`, `answer_cluster_eligibility`, and
+`prompt_accounting` all route through it. A repo-wide sweep found no other
+result file carrying a mismatched cap, and DeepSeek's correctly-capped run
+reproduces bit-identically.
+
+**Corrected Qwen populations** (MATH-500, layer 21, 1,000-draw bootstrap):
+
+| population | n | prompts w/ ≥1 capped sibling | B1−B0 AUACC |
+|---|---|---|---|
+| full_population | 500 | 108 | 0.052 [0.019, 0.083] p=0.002 |
+| valid_plurality | 498 | 106 | 0.052 [0.018, 0.083] p=0.002 |
+| cap_free_valid_plurality | 392 | 0 | 0.059 [0.023, 0.096] p=0.002 |
+| all_eight_parseable | 392 | 1 | 0.059 [0.021, 0.099] p=0.004 |
+
+Automatic failures: 2. **The tail-RMD increment survives the correction** and is
+slightly larger on the cap-free population. The 108 figure now matches the audit.
+
+### 3. Loop precursors: the premise is false
+
+Scope: DeepSeek only. `data/qwen_bestofn_full` stores no `tokens_*` and no
+`generated_text`, so no token- or text-level analysis can run on Qwen. **Nothing
+in this section is a cross-model replication.**
+
+Population: 4,000 traces, 500 prompts, cap 8192. 374 traces capped (9.3%),
+consuming **24.7% of the 12.4M generated tokens**, at accuracy **0.056**.
+107/500 prompts have ≥1 capped sibling; 9 have all eight capped.
+
+An 8-gram prefix-novelty detector (200-token window, 0.5 threshold) flags 80% of
+capped traces at a median onset of **44.9% of budget** — which looked like a
+large early-stop prize. It is not:
+
+- it also flags **21.1% of uncapped traces**, and those are only mildly less
+  accurate than unflagged ones (0.712 vs 0.782), so the flag is not reading a
+  pathology;
+- reading 21 capped traces **at the onset position** (7 each from early-onset,
+  late-onset, and no-onset strata), only **2 are degenerate loops**. The other 19
+  are coherent, unfinished reasoning — symmetric case analysis, re-verification of
+  a shoelace computation, Asymptote code re-reading, second-approach checks. The
+  detector fires on structural repetition intrinsic to mathematical reasoning.
+
+Quantified with a tail-periodicity statistic (best repeating period in the last
+500 tokens, calibrated on the two hand-labelled loops, which scored 1.000 and
+0.423 against a 0.188 maximum for the other nineteen):
+
+| threshold | degenerate share of capped | of uncapped |
+|---|---|---|
+| ≥0.20 | 0.070 (26) | 0.043 (157) |
+| ≥0.30 | 0.011 (4) | 0.012 (44) |
+| ≥0.50 | 0.005 (2) | 0.005 (17) |
+
+**Degenerate looping occurs at ~1% in both populations and is therefore not what
+causes capping.** The result is insensitive to the threshold across 0.20–0.90.
+
+### 4. Claims ruled out
+
+- **Ruled out:** capping in DeepSeek-R1-Distill-Qwen-7B on MATH-500 is a
+  degenerate-loop phenomenon. It is not. Capped traces are overwhelmingly hard
+  problems the model does not finish in 8192 tokens.
+- **Ruled out:** "detect the loop, early-stop, recover the compute". There is no
+  loop to detect in ~99% of capped traces.
+- **Not run, by the pre-registered kill criterion:** the geometric precursor test
+  (L2) and the tokens-saved/answers-lost curve (L3). Both target loop onset, and
+  the object does not exist at population scale.
+
+### 5. Limitations and next dependent stage
+
+The hand taxonomy is 21 traces, stratified rather than random; the population
+periodicity statistic is what carries the claim, not the reading. The periodicity
+threshold rests on two hand-labelled positives, which is why §3 reports a
+threshold sweep instead of a single number.
+
+The 24.7% of budget spent on 5.6%-accurate capped traces is real and still
+unrecovered. Recovering it means predicting **non-convergence**, not detecting a
+loop — a different and harder target, and a scope change. Gate it behind an
+explicit decision rather than drifting into it.
+
+Artifacts: `loop_precursors.py`, `trace_caps.py`, `tests/test_loop_precursors.py`,
+`tests/test_trace_caps.py`. Run outputs are scratch-only and not checked in.
+
 ## 2026-07-31: Supervised probe ceiling + length residualization (BOTH models)
 
 ### 1. Stages and parameterization
