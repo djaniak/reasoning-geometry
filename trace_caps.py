@@ -53,7 +53,6 @@ class Cap:
 
     value: int
     sources: tuple[str, ...] = ()
-    warning: str | None = None
 
     @property
     def verified(self) -> bool:
@@ -65,12 +64,6 @@ class Cap:
         if not self.sources:
             return "caller-supplied; unvalidated (heuristic)"
         return "confirmed by " + ", ".join(self.sources)
-
-    def __index__(self) -> int:  # lets a Cap be used wherever the int cap was
-        return self.value
-
-    def __int__(self) -> int:
-        return self.value
 
 
 def _repo_root(start: Path) -> Path | None:
@@ -229,14 +222,13 @@ def resolve_cap(
         return Cap(cap, tuple(records))
 
     observed = [int(value) for value in lengths if value is not None]
-    warning = None
     if observed and max(observed) < cap:
-        warning = (
+        warnings.warn(
             f"max_new_tokens={cap} exceeds every observed trace length "
             f"(max {max(observed)}){where} and no pipeline record covers "
             f"{origin}, so the cap is unvalidated: a clean collect and a cap "
             "borrowed from another model look identical here. No trace will be "
-            "counted as capped."
+            "counted as capped.",
+            stacklevel=2,
         )
-        warnings.warn(warning, stacklevel=2)
-    return Cap(cap, (), warning)
+    return Cap(cap, ())

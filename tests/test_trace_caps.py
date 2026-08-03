@@ -1,5 +1,7 @@
 import sys
 import textwrap
+import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trace_caps import collection_budget, resolve_cap
+
+
+@contextmanager
+def _no_warning():
+    """Fail if the body warns -- the cap was validated, so nothing is in doubt."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        yield
 
 
 def _pipeline(root: Path, *, qwen_cap: int = 1024, llama_cap: int = 12288,
@@ -84,11 +94,11 @@ def test_a_valid_cap_above_every_observed_length_is_accepted(tmp_path):
     _pipeline(tmp_path)
     data_dir = tmp_path / "data" / "deepseek_llama_bestofn_full" / "math500"
 
-    cap = resolve_cap(12288, data_dir=data_dir, lengths=[1200, 4000, 9000])
+    with _no_warning():
+        cap = resolve_cap(12288, data_dir=data_dir, lengths=[1200, 4000, 9000])
 
     assert cap.value == 12288
     assert cap.verified
-    assert cap.warning is None
 
 
 def test_the_budget_is_recovered_when_the_caller_passes_none(tmp_path):
@@ -135,10 +145,10 @@ def test_an_unrecorded_binding_cap_is_not_warned_about(tmp_path):
     data_dir = tmp_path / "scratch"
     data_dir.mkdir()
 
-    cap = resolve_cap(1024, data_dir=data_dir, lengths=[79, 500, 1024])
+    with _no_warning():
+        cap = resolve_cap(1024, data_dir=data_dir, lengths=[79, 500, 1024])
 
     assert cap.value == 1024
-    assert cap.warning is None
     assert not cap.verified
 
 
