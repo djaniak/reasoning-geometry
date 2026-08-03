@@ -892,3 +892,115 @@ stages:
       hash: md5
       md5: 92940d16171bb0ea3c6f460dea2c0803
       size: 13109
+  evaluate_abstention_baselines@0:
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python abstention_baselines.py 
+      --data_dir data/qwen_bestofn_full/math500 --oof_csv 
+      results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv 
+      --output_dir results/qwen_bestofn_full/math500 --dataset_label math500 
+      --model_label qwen --layers 7,14,21 --n_bootstrap 1000 --seed 42 
+      --load_workers 4 --n_splits 5
+    deps:
+    - path: abstention_baselines.py
+      hash: md5
+      md5: 19aa7adb7ef65e8789a725a51d0b4930
+      size: 32638
+    - path: analyze.py
+      hash: md5
+      md5: 102f1809d24167bdc1956ba9634b47f2
+      size: 108275
+    - path: data/qwen_bestofn_full/math500
+      hash: md5
+      md5: 7855e73dd0aca0dc8df01b88fe77a1f1.dir
+      size: 44677418578
+      nfiles: 80
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: b8ba10f7f73522ff86e111fa0eb050a5
+      size: 106980
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: d0ed37ca0750827c37336a7367a66557
+      size: 6850876
+    - path: trace_caps.py
+      hash: md5
+      md5: 7545f533be886f94148c4f63d9e4ce24
+      size: 9746
+    - path: wave1_experiments.py
+      hash: md5
+      md5: 82b8f91a6e53d82d6d1272e270c23378
+      size: 50690
+    params:
+      params.yaml:
+        abstention_baselines:
+          n_bootstrap: 1000
+          seed: 42
+          load_workers: 4
+          n_splits: 5
+    outs:
+    - path: 
+        results/qwen_bestofn_full/math500/math500_abstention_baselines_report.md
+      hash: md5
+      md5: da42e4286a119e094505ae9dfcc490b7
+      size: 6456
+    - path: 
+        results/qwen_bestofn_full/math500/math500_abstention_baselines_results.json
+      hash: md5
+      md5: 2a821e8a91dcf0cc5d52418f0c7341e5
+      size: 513269
+  evaluate_abstention_baselines@1:
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python abstention_baselines.py 
+      --data_dir data/deepseek_bestofn_full/math500 --oof_csv 
+      results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      --output_dir results/deepseek_bestofn_full/math500 --dataset_label math500
+      --model_label deepseek --layers 7,14,21 --n_bootstrap 1000 --seed 42 
+      --load_workers 4 --n_splits 5
+    deps:
+    - path: abstention_baselines.py
+      hash: md5
+      md5: 19aa7adb7ef65e8789a725a51d0b4930
+      size: 32638
+    - path: analyze.py
+      hash: md5
+      md5: 102f1809d24167bdc1956ba9634b47f2
+      size: 108275
+    - path: data/deepseek_bestofn_full/math500
+      hash: md5
+      md5: 1744de79852f4e825c5274a36f5d32a1.dir
+      size: 255227396511
+      nfiles: 81
+    - path: prompt_decomposition.py
+      hash: md5
+      md5: b8ba10f7f73522ff86e111fa0eb050a5
+      size: 106980
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: 896752e0734219ca9fa4b2bbf17c1a6e
+      size: 6821165
+    - path: trace_caps.py
+      hash: md5
+      md5: 7545f533be886f94148c4f63d9e4ce24
+      size: 9746
+    - path: wave1_experiments.py
+      hash: md5
+      md5: 82b8f91a6e53d82d6d1272e270c23378
+      size: 50690
+    params:
+      params.yaml:
+        abstention_baselines:
+          n_bootstrap: 1000
+          seed: 42
+          load_workers: 4
+          n_splits: 5
+    outs:
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_abstention_baselines_report.md
+      hash: md5
+      md5: 8c8097b6427c41e1bb69aee7dbebace2
+      size: 6460
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_abstention_baselines_results.json
+      hash: md5
+      md5: 913562059b0b3bad43f9a9a695617b2b
+      size: 513064
