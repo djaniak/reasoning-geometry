@@ -5,6 +5,74 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-03: Abstention frozen — the headline increment now has a stage
+
+The B1−B0 increment quoted in `FINDINGS.md` was produced by
+`incremental_abstention.py`, which was **untracked in git and absent from
+`dvc.yaml`**. It existed only in a working tree, and had already drifted into two
+versions: DeepSeek's stored artifact predated both the `deepconf_*` features and
+cap validation that Qwen's was regenerated under. Neither version was
+recoverable. This entry records closing that hole, not a new result.
+
+### 1. What moved, and what did not
+
+Point estimates are bootstrap-independent and did not move. Intervals and Holm
+families did, because the feature set changed the resampling draw order and the
+correction family size:
+
+| DeepSeek, cap_free_valid_plurality | AUACC | interval | p |
+|---|---|---|---|
+| stored (untracked script, seed 20260802) | +0.036 | [0.011, 0.064] | 0.002 |
+| current (staged, seed 42) | +0.036 | [0.010, 0.065] | 0.006 |
+
+Anything quoted at p=0.002 from the old DeepSeek artifact should be requoted.
+Qwen was already on seed 42 and reproduces its published number exactly:
+**+0.059 [0.023, 0.096] p=0.002** on `cap_free_valid_plurality`.
+
+Determinism was checked directly rather than assumed: two runs at one seed into
+separate directories are byte-identical, so the drift was version, not RNG.
+
+### 2. Both models, one seed, one code hash
+
+| population | Qwen (n) | Qwen B1−B0 | DeepSeek (n) | DeepSeek B1−B0 |
+|---|---|---|---|---|
+| full_population | 500 | +0.052 [.019,.083] | 500 | +0.028 [.004,.053] |
+| valid_plurality | 498 | +0.052 [.018,.083] | 493 | +0.029 [.006,.053] |
+| cap_free_valid_plurality | 392 | **+0.059 [.023,.096]** | 393 | **+0.036 [.010,.065]** |
+| all_eight_parseable | 392 | +0.059 [.021,.099] | 384 | +0.039 [.012,.071] |
+
+The increment survives on the clean population in both models and is larger
+there than on the full one, so it is not carried by capped prompts. DeepSeek's
+is ~1.6x smaller than Qwen's, the same ordering the 2026-07-29 between-prompt
+gate found.
+
+### 3. The last hand-passed cap is gone
+
+`abstention_baselines.py` took `--max_new_tokens` from the `wave1_matrix` row
+sitting beside the model name — the exact arrangement that produced a cap-free
+population of 498 against 108 known capped prompts. It now resolves the budget
+from the pipeline record keyed by its data directory, like the other call sites.
+The stage had never passed the flag at all, so its artifacts carried no cap
+accounting whatsoever; they now agree with the independent audit (Qwen 108
+prompts with a capped sibling, DeepSeek 107).
+
+Both `evaluate_abstention_baselines` artifacts were additionally stale against
+four of their five code deps *before* this change — they corresponded to no
+committed version of the code. Regenerated and relocked.
+
+### 4. Stage record
+
+`evaluate_incremental_abstention@{0,1}` and `evaluate_abstention_baselines@{0,1}`
+are locked and clean. The `@2` rows (deepseek_llama) remain stale and are
+expected to: that collect is pending and its decomposition table does not exist.
+`abstention_layer` is now a per-row matrix field rather than a global 21, since
+the Llama-arch row probes 8/16/24.
+
+### 5. Not done
+
+No new analysis. The geometry-of-completion study that the continuation result
+gates open (entry above) was not started.
+
 ## 2026-08-03: Budget-limited noncompletion — capping is a budget shortfall
 
 Supersedes the guard described in the entry below, and answers the question that
