@@ -11,10 +11,71 @@ from abstention_baselines import (
     decision_values,
     group_confidences,
     holm_correction,
+    prompt_auacc,
+    prompt_aurc,
     prompt_vote_scores,
     trace_confidence_scores,
 )
 from prompt_decomposition import region_indices
+
+
+def _ranked_toy(n=100, base=0.6):
+    """Outcomes ordered so that a higher score means a likelier-correct prompt."""
+    outcomes = {i: float(i >= n * (1 - base)) for i in range(n)}
+    perfect = {i: float(i) for i in range(n)}  # ranks every correct prompt first
+    inverted = {i: -float(i) for i in range(n)}
+    uninformative = {i: 0.0 for i in range(n)}
+    return outcomes, perfect, inverted, uninformative
+
+
+def test_auacc_is_higher_better_and_aurc_is_lower_better():
+    outcomes, perfect, inverted, _ = _ranked_toy()
+    assert prompt_auacc(perfect, outcomes) > prompt_auacc(inverted, outcomes)
+    assert prompt_aurc(perfect, outcomes) < prompt_aurc(inverted, outcomes)
+
+
+def test_perfect_ranking_saturates_auacc_and_floors_aurc():
+    """A perfect ranker holds accuracy at 1.0 until coverage reaches base rate."""
+    outcomes, perfect, _, _ = _ranked_toy(n=100, base=0.6)
+    span = 1.0 - 1.0 / 100
+    # Accuracy is 1.0 up to coverage 0.6 then decays as 0.6/c, so the closed form
+    # is 0.6 + 0.6*ln(1/0.6) minus the unswept first 1/n of the grid.
+    expected = 0.6 + 0.6 * np.log(1 / 0.6) - 0.01
+    assert prompt_auacc(perfect, outcomes) == pytest.approx(expected, abs=0.01)
+    assert prompt_auacc(perfect, outcomes) < span  # cannot reach the full span
+    assert prompt_aurc(perfect, outcomes) == pytest.approx(span - expected, abs=0.01)
+
+
+def test_constant_scores_are_ranked_by_prompt_id_not_averaged():
+    """Ties are broken deterministically by prompt id, so a constant score is an
+    arbitrary ranking rather than an average-case one.
+
+    This matters for the discrete baselines: vote_agreement takes only nine
+    distinct values over eight traces, so a large share of its ordering is decided
+    by prompt id. The behaviour is inherited from wave1's sort key; the test pins
+    it so the arbitrariness is visible rather than mistaken for a null result.
+    """
+    outcomes, _, _, uninformative = _ranked_toy(n=100, base=0.6)
+    # Correct prompts have the *higher* ids here, so id-ascending ties put them
+    # last and the constant scorer lands well below base accuracy, not at it.
+    assert prompt_auacc(uninformative, outcomes) < 0.4
+    flipped = {i: float(i < 40) for i in range(100)}
+    assert prompt_auacc({i: 0.0 for i in range(100)}, flipped) > 0.6
+
+
+def test_auacc_and_aurc_sum_to_the_coverage_span():
+    outcomes, perfect, _, _ = _ranked_toy(n=40)
+    span = 1.0 - 1.0 / 40
+    assert prompt_auacc(perfect, outcomes) + prompt_aurc(perfect, outcomes) == pytest.approx(span)
+
+
+def test_the_reported_auacc_exceeds_base_accuracy_only_when_ranking_helps():
+    """Guards the mislabel that motivated this test: 0.83 against base 0.62 is
+    only sensible for an accuracy integral, never for a risk integral."""
+    outcomes, perfect, _, uninformative = _ranked_toy(n=100, base=0.62)
+    assert prompt_auacc(perfect, outcomes) > 0.62
+    assert prompt_aurc(perfect, outcomes) < 1 - 0.62
+    assert prompt_auacc(uninformative, outcomes) < prompt_auacc(perfect, outcomes)
 
 
 def test_group_confidences_are_sliding_window_means():
@@ -142,6 +203,35 @@ def test_calibration_penalises_a_confidently_wrong_scorer():
     metrics = calibration_metrics(np.full(200, 0.95), outcomes)
     assert metrics["ece"] == pytest.approx(0.95)
     assert metrics["brier"] == pytest.approx(0.95**2)
+
+
+def test_calibration_does_not_leak_labels_across_folds():
+    """A score carrying no information must not calibrate better than the base rate.
+
+    If the logistic were fitted on all prompts before scoring them, a noise score
+    would pick up sample-specific structure and beat p*(1-p). Fitting strictly
+    inside the training folds leaves it at the base rate.
+    """
+    from abstention_baselines import _oof_probabilities
+
+    rng = np.random.default_rng(7)
+    n, base = 500, 0.62
+    outcomes = (rng.random(n) < base).astype(float)
+    noise = rng.normal(size=n)
+    probabilities = _oof_probabilities(noise, outcomes, seed=0)
+    brier = calibration_metrics(probabilities, outcomes)["brier"]
+    assert brier == pytest.approx(base * (1 - base), abs=0.02)
+
+
+def test_calibration_rewards_an_informative_score():
+    from abstention_baselines import _oof_probabilities
+
+    rng = np.random.default_rng(8)
+    n = 500
+    signal = rng.normal(size=n)
+    outcomes = (rng.random(n) < 1 / (1 + np.exp(-2 * signal))).astype(float)
+    probabilities = _oof_probabilities(signal, outcomes, seed=0)
+    assert calibration_metrics(probabilities, outcomes)["brier"] < 0.20
 
 
 def test_calibration_ignores_uncalibrated_prompts():

@@ -14,17 +14,25 @@ region-matched tail confidence, the wave-1 result is a reimplementation of an
 output-side signal, not a geometry result.
 
 Two things it also fixes, because ranking metrics alone cannot support a routing
-claim: calibration (ECE/Brier, currently absent everywhere) and decision values
-(selective accuracy and token savings at fixed abstention rates).
+claim: calibration (Brier/log loss/ECE, currently absent everywhere) and decision
+values (selective accuracy at fixed abstention rates).
 
-Approximation notice -- DeepConf (arXiv 2508.15260) defines token confidence as
-the negative mean log-probability of the top-k next-token candidates. Collection
-stored only the sampled token's log-probability and the full-distribution entropy,
-not the top-k tail, so the exact statistic is unrecoverable from cached data.
-Entropy is the untruncated limit of that quantity and the sampled-token
-log-probability is its one-sample estimate, so both are reported side by side and
-every DeepConf-derived scorer is named `*_ent` or `*_lp` accordingly. A claim that
-survives under both is not sensitive to the substitution.
+SUBSTITUTE, NOT DEEPCONF -- DeepConf (arXiv 2508.15260) defines token confidence
+as the negative mean log-probability of the top-k next-token candidates.
+Collection stored only the sampled token's log-probability and the
+full-distribution entropy, so the exact statistic is unrecoverable from cached
+data. The two stored quantities are *not* bounds on it in either direction:
+entropy is probability-weighted over the whole vocabulary, and the sampled
+token's log-probability is a one-draw quantity, not the top-k mean. Agreement
+between the `*_ent` and `*_lp` forms is therefore evidence of robustness to this
+substitution and nothing more -- it does not license the claim "beats DeepConf".
+Only `deepconf_exact.py`, which teacher-forces the cached traces to recover the
+top-k logits, can support that claim.
+
+Metric naming -- AUACC integrates accuracy over coverage and is better when
+larger; conventional AURC integrates risk and is better when smaller. They are
+affine reflections of one another. `wave1_experiments` calls the former "aurc";
+that name is wrong and is corrected at the boundary here.
 """
 
 from __future__ import annotations
@@ -40,11 +48,9 @@ import numpy as np
 from analyze import load_all_traces
 from prompt_decomposition import region_indices
 from wave1_experiments import (
-    _ci_pvalue,
     _load_oof_csv,
     _majority_outcomes,
     _prompt_aurc,
-    _prompt_coverage_accuracy,
     aggregate_prompt_scores,
     length_residualized_abstention,
     prompt_abstention_bootstrap,
@@ -78,7 +84,7 @@ CARRIED_METHODS = (
     "entropy",
 )
 
-# The Gate A family: does geometry beat the output side on a matched token mask?
+# Four individual confidence-baseline comparisons on matched token masks.
 # Holm-corrected together because they are the comparisons the decision rests on.
 PRIMARY_COMPARISONS = (
     ("rmd_tail_q20", "conf_tail_q20_ent"),
@@ -111,6 +117,50 @@ ABSTENTION_RATES = (0.10, 0.25, 0.50, 0.75, 0.90)
 
 def _status(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
+
+
+def prompt_auacc(scores: dict[int, float], outcomes: dict[int, float]) -> float:
+    """Area under the accuracy-coverage curve; higher is better.
+
+    This is what `wave1_experiments._prompt_aurc` computes despite its name --
+    it integrates *accuracy*, not risk. The name is wrong there and is corrected
+    here rather than propagated: conventional AURC integrates risk and is better
+    when lower, so reporting a 0.83 "AURC" against a base accuracy of 0.62 is not
+    just mislabeled, it is unreadable.
+    """
+    return _prompt_aurc(scores, outcomes)
+
+
+def prompt_aurc(scores: dict[int, float], outcomes: dict[int, float]) -> float:
+    """Conventional area under the risk-coverage curve; lower is better.
+
+    Risk at each coverage is 1 - selective accuracy, integrated over the same
+    coverage grid, so this is an exact affine reflection of `prompt_auacc`:
+    AURC = (1 - 1/n) - AUACC, where 1 - 1/n is the width of the grid. Every
+    paired delta therefore flips sign and keeps its magnitude, which is why the
+    published comparisons survive the relabeling unchanged.
+    """
+    n = max(1, len(outcomes))
+    return float((1.0 - 1.0 / n) - prompt_auacc(scores, outcomes))
+
+
+def _relabel_aurc_to_auacc(payload: dict) -> dict:
+    """Rewrite the inherited `aurc` metric key to `auacc` throughout a result.
+
+    The bootstrap helpers live in wave1_experiments and emit the wrong name. They
+    are not edited here: the wave-1 stages are cached against that file's hash and
+    three of them would rerun, one of which is blocked behind an active collect.
+    The correction is applied at the boundary instead, and the wave-1 rename is
+    tracked as separate work.
+    """
+    if isinstance(payload, dict):
+        return {
+            ("auacc" if key == "aurc" else key): _relabel_aurc_to_auacc(value)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, list):
+        return [_relabel_aurc_to_auacc(item) for item in payload]
+    return payload
 
 
 def group_confidences(values: np.ndarray, window: int) -> np.ndarray:
@@ -257,12 +307,28 @@ def _oof_probabilities(
 def calibration_metrics(
     probabilities: np.ndarray, outcomes: np.ndarray, *, n_bins: int = 15
 ) -> dict:
-    """Expected calibration error and Brier score over the calibrated prompts."""
+    """Proper scores and ECE over the out-of-fold calibrated prompts.
+
+    Brier and log loss are the primary numbers: both are strictly proper and need
+    no binning. ECE is reported alongside because it is what the routing
+    literature quotes, but it depends on an arbitrary bin count and carries no
+    interval here, so it should not carry an argument on its own.
+    """
     usable = np.isfinite(probabilities)
     if usable.sum() == 0:
-        return {"ece": None, "brier": None, "n_calibrated": 0, "n_bins": n_bins}
+        return {
+            "ece": None,
+            "brier": None,
+            "log_loss": None,
+            "n_calibrated": 0,
+            "n_bins": n_bins,
+        }
     probabilities = probabilities[usable]
     labels = outcomes[usable]
+    clipped = np.clip(probabilities, 1e-12, 1 - 1e-12)
+    log_loss = float(
+        -np.mean(labels * np.log(clipped) + (1 - labels) * np.log(1 - clipped))
+    )
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     assignments = np.clip(np.digitize(probabilities, edges[1:-1], right=False), 0, n_bins - 1)
     ece = 0.0
@@ -275,6 +341,7 @@ def calibration_metrics(
     return {
         "ece": float(ece),
         "brier": float(np.mean((probabilities - labels) ** 2)),
+        "log_loss": log_loss,
         "n_calibrated": int(usable.sum()),
         "n_bins": n_bins,
     }
@@ -332,6 +399,7 @@ def run_abstention_baselines(
     dataset_label: str,
     model_label: str,
     layers: list[int],
+    max_new_tokens: int | None = None,
     n_bootstrap: int = 1000,
     seed: int = 42,
     load_workers: int = 4,
@@ -380,6 +448,47 @@ def run_abstention_baselines(
     prompt_tokens = {
         prompt_id: float(sum(float(row.get("trace_length") or 0.0) for row in group))
         for prompt_id, group in rows_by_prompt.items()
+    }
+
+    # What the metrics are actually predicting, stated in the artifact rather than
+    # left to be inferred. The outcome is plurality-vote correctness -- whether the
+    # answer self-consistency would return is right -- which is the only one of the
+    # three candidate targets (plurality / selected-trace / oracle any-of-8) that
+    # corresponds to an operational abstention decision.
+    unparsed = [
+        row for row in layer_rows if not str(row.get("predicted_answer") or "").strip()
+    ]
+    capped = (
+        [row for row in layer_rows if int(row.get("trace_length") or 0) >= max_new_tokens]
+        if max_new_tokens
+        else []
+    )
+    target = {
+        "outcome": "plurality_vote_correctness",
+        "definition": (
+            "1 if the majority answer over the prompt's parseable traces equals gold "
+            "(ties broken by best trace logprob), else 0"
+        ),
+        "not": ["selected_trace_correctness", "oracle_any_of_n"],
+        "population": "all prompts; none dropped for capped or unparsed siblings",
+        "unparsed_traces": len(unparsed),
+        "unparsed_trace_fraction": float(len(unparsed) / len(layer_rows)),
+        "prompts_with_any_unparsed_sibling": len(
+            {int(row["prompt_id"]) for row in unparsed}
+        ),
+        "prompts_with_all_traces_unparsed": len(
+            [pid for pid, group in rows_by_prompt.items()
+             if all(not str(row.get("predicted_answer") or "").strip() for row in group)]
+        ),
+        "max_new_tokens": max_new_tokens,
+        "capped_traces": len(capped) if max_new_tokens else None,
+        "prompts_with_any_capped_sibling": (
+            len({int(row["prompt_id"]) for row in capped}) if max_new_tokens else None
+        ),
+        "score_aggregation": (
+            "trace scores averaged over parseable traces only; a prompt with no "
+            "parseable trace scores -inf and sorts last"
+        ),
     }
 
     _status(f"Bootstrapping abstention deltas over {len(outcomes)} prompts")
@@ -432,6 +541,12 @@ def run_abstention_baselines(
             prompt_tokens,
         )
 
+    abstention = _relabel_aurc_to_auacc(abstention)
+    residual = _relabel_aurc_to_auacc(residual)
+    for method in methods:
+        column = {pid: prompt_scores[pid].get(method, -np.inf) for pid in prompt_ids}
+        abstention["point"][method]["aurc_risk"] = prompt_aurc(column, outcomes)
+
     gate = _gate_a(abstention, residual)
 
     result = {
@@ -440,6 +555,7 @@ def run_abstention_baselines(
         "layer": layer,
         "n_prompts": len(prompt_ids),
         "base_accuracy": float(outcome_array.mean()),
+        "target": target,
         "n_bootstrap": int(n_bootstrap),
         "seed": int(seed),
         "methods": list(methods),
@@ -465,7 +581,9 @@ def run_abstention_baselines(
 
 
 def _gate_a(abstention: dict, residual: dict) -> dict:
-    """Does geometry beat every region-matched output baseline, raw and residual?
+    """Summarize whether RMD beats each individual output-confidence baseline.
+
+    Scored on AUACC, where larger is better, so a win is a positive delta.
 
     Reported as a verdict rather than left to the reader because the handoff makes
     this comparison load-bearing: a loss here means the wave-1 result is an
@@ -475,8 +593,8 @@ def _gate_a(abstention: dict, residual: dict) -> dict:
     entries = {}
     for method, baseline in PRIMARY_COMPARISONS:
         key = f"{method}_minus_{baseline}"
-        entry = abstention["deltas"].get(key, {}).get("aurc")
-        residual_entry = residual.get("deltas", {}).get(key, {}).get("aurc")
+        entry = abstention["deltas"].get(key, {}).get("auacc")
+        residual_entry = residual.get("deltas", {}).get(key, {}).get("auacc")
         if entry is None:
             continue
         raw_p[key] = entry.get("p_two_sided")
@@ -540,13 +658,13 @@ def write_report(result: dict, path: str | Path) -> None:
         "",
         f"*{result['confidence_approximation']}*",
         "",
-        "## Gate A — geometry vs region-matched output confidence",
+        "## Four individual confidence-baseline comparisons",
         "",
-        "Verdict: **" + ("PASS" if result["gate_a"]["passes"] else "FAIL") + "**"
-        " (geometry beats every region-matched output baseline on AURC, raw and"
-        " with length partialled out).",
+        "Result: **" + ("RMD beats four individual confidence baselines" if result["gate_a"]["passes"] else "RMD does not beat all four individual confidence baselines") + "**"
+        " on AUACC, both raw and with length partialled out. This is not a"
+        " categorical gate for the geometry claim.",
         "",
-        "| comparison (AURC) | raw delta | Holm p | length-residualized delta |",
+        "| comparison (AUACC, higher better) | raw delta | Holm p | length-residualized delta |",
         "| --- | --- | --- | --- |",
     ]
     for key, entry in result["gate_a"]["comparisons"].items():
@@ -555,15 +673,22 @@ def write_report(result: dict, path: str | Path) -> None:
             f"{_interval(entry['length_residualized'])} |"
         )
 
-    lines += ["", "## Point estimates", "", "| method | AURC | acc@50% | acc@80% | ECE | Brier |", "| --- | --- | --- | --- | --- | --- |"]
+    lines += ["", "## Point estimates", "",
+        "AUACC integrates accuracy (higher better); AURC integrates risk (lower better). "
+        "They are affine reflections of each other, so deltas differ only in sign. "
+        "Brier and log loss are OOF probabilistic-forecast scores after logistic "
+        "calibration; they do not isolate calibration from discrimination/resolution.", "",
+        "| method | AUACC | AURC | acc@50% | acc@80% | Brier | log loss | ECE |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for method in result["methods"]:
         point = result["abstention"]["point"].get(method, {})
         coverage = point.get("accuracy_at_coverage", {})
         calibration = result["calibration"].get(method, {})
         lines.append(
-            f"| {method} | {_fmt(point.get('aurc'))} | {_fmt(coverage.get('0.5'))} | "
-            f"{_fmt(coverage.get('0.8'))} | {_fmt(calibration.get('ece'))} | "
-            f"{_fmt(calibration.get('brier'))} |"
+            f"| {method} | {_fmt(point.get('auacc'))} | {_fmt(point.get('aurc_risk'))} | "
+            f"{_fmt(coverage.get('0.5'))} | {_fmt(coverage.get('0.8'))} | "
+            f"{_fmt(calibration.get('brier'))} | {_fmt(calibration.get('log_loss'))} | "
+            f"{_fmt(calibration.get('ece'))} |"
         )
 
     lines += ["", "## Decision values — selective accuracy and token savings", ""]
@@ -598,6 +723,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset_label", default="math500")
     parser.add_argument("--model_label", default="model")
     parser.add_argument("--layers", default="7,14,21")
+    parser.add_argument("--max_new_tokens", type=int, default=None)
     parser.add_argument("--n_bootstrap", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--load_workers", type=int, default=4)
@@ -614,13 +740,14 @@ def main() -> None:
         dataset_label=args.dataset_label,
         model_label=args.model_label,
         layers=[int(value) for value in args.layers.split(",") if value.strip()],
+        max_new_tokens=args.max_new_tokens,
         n_bootstrap=args.n_bootstrap,
         seed=args.seed,
         load_workers=args.load_workers,
         n_splits=args.n_splits,
     )
     _status(
-        f"Gate A: {'PASS' if result['gate_a']['passes'] else 'FAIL'} "
+        f"RMD vs four individual confidence baselines: {'PASS' if result['gate_a']['passes'] else 'FAIL'} "
         f"({len(result['gate_a']['raw_wins'])}/{result['gate_a']['n_comparisons']} raw wins, "
         f"{len(result['gate_a']['length_residualized_wins'])} residual wins)"
     )
