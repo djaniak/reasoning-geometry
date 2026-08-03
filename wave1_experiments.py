@@ -29,6 +29,7 @@ from analyze import (
     set_max_reference_tokens,
 )
 from best_of_n import group_traces_by_problem
+from trace_caps import resolve_cap
 from prompt_decomposition import (
     HIDDEN_PROBE_METHODS,
     bootstrap_parseable_paired_deltas,
@@ -582,6 +583,11 @@ def answer_cluster_eligibility(rows: list[dict], max_new_tokens: int | None = No
     grouped: dict[int, list[dict]] = defaultdict(list)
     for row in rows:
         grouped[int(row["prompt_id"])].append(row)
+    cap = resolve_cap(
+        max_new_tokens,
+        (row.get("trace_length") for row in rows),
+        context="answer_cluster_eligibility",
+    )
     correct_ge2 = wrong_ge2 = both_ge2 = eligible_clusters = 0
     for prompt_rows in grouped.values():
         gold = str(prompt_rows[0].get("gold_answer"))
@@ -603,7 +609,7 @@ def answer_cluster_eligibility(rows: list[dict], max_new_tokens: int | None = No
                 row
                 for row in values
                 if row.get("predicted_answer") not in (None, "")
-                and not (max_new_tokens and int(row.get("trace_length", 0)) >= int(max_new_tokens))
+                and int(row.get("trace_length", 0)) < cap
             ]
             eligible_clusters += int(len(eligible) >= 2)
     return {

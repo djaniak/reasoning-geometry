@@ -507,6 +507,7 @@ def test_analysis_reports_prespecified_pairs_and_legacy_view(tmp_path: Path):
         },
         n_bootstrap=5,
         seed=42,
+        max_new_tokens=10,
     )
 
     parseable = result["layers"]["7"]["parseable_only"]

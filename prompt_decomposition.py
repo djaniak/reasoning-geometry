@@ -34,6 +34,7 @@ from analyze import (
     load_all_traces,
 )
 from best_of_n import group_traces_by_problem
+from trace_caps import resolve_cap
 
 
 SCALAR_METRICS = (
@@ -729,25 +730,22 @@ def truncation_report(rows: list[dict], max_new_tokens: int | None = None) -> di
 
     A high unparsed/capped rate means within-prompt metrics are largely driven by
     correct-vs-truncated contrasts (a generation-length/termination signal) rather
-    than correct-vs-wrong reasoning. ``max_new_tokens`` defines the length cap; if
-    omitted it is inferred as the maximum observed trace length.
+    than correct-vs-wrong reasoning. ``max_new_tokens`` defines the length cap and
+    is required: inferring it from the observed lengths marks only the single
+    longest trace as capped.
     """
     lengths = [
         int(row["trace_length"])
         for row in rows
         if row.get("trace_length") is not None
     ]
-    cap = int(max_new_tokens) if max_new_tokens else (max(lengths) if lengths else None)
+    cap = resolve_cap(max_new_tokens, lengths, context="truncation_report")
     n_traces = len(rows)
     n_unparsed = sum(1 for row in rows if is_unparsed(row))
     n_unparsed_incorrect = sum(
         1 for row in rows if is_unparsed(row) and not int(row["is_correct"])
     )
-    n_capped = (
-        sum(1 for row in rows if int(row.get("trace_length", 0)) >= cap)
-        if cap is not None
-        else 0
-    )
+    n_capped = sum(1 for row in rows if int(row.get("trace_length", 0)) >= cap)
     n_incorrect = sum(1 for row in rows if not int(row["is_correct"]))
     return {
         "n_traces": int(n_traces),

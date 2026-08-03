@@ -599,7 +599,7 @@ def test_result_schema_and_writers(tmp_path: Path):
         },
     }
 
-    result = analyze_oof_scores(rows, config=config, n_bootstrap=10, seed=42)
+    result = analyze_oof_scores(rows, config=config, n_bootstrap=10, seed=42, max_new_tokens=2048)
 
     assert result["settings"]["no_layer_selection"] is True
     assert result["settings"]["raw_score"].startswith("-mean(raw")
@@ -657,13 +657,15 @@ def test_truncation_report_quantifies_unparsed_and_capped_traces():
     assert report["unparsed_share_of_incorrect"] == pytest.approx(2 / 3)
 
 
-def test_truncation_report_infers_cap_from_max_observed_length():
+def test_truncation_report_requires_an_explicit_cap():
+    """Inferring the cap marks only the longest trace as capped, understating truncation."""
     rows = [
         {"is_correct": 1, "predicted_answer": "1", "trace_length": 500},
         {"is_correct": 0, "predicted_answer": "", "trace_length": 1024},
     ]
 
-    assert truncation_report(rows)["max_new_tokens"] == 1024
+    with pytest.raises(ValueError, match="max_new_tokens is required"):
+        truncation_report(rows)
 
 
 def _artifact_rows():
@@ -774,7 +776,7 @@ def test_paired_rmd_minus_length_is_surfaced_and_reported(tmp_path: Path):
         "data_report": {"partial_data": False, "observed_complete_prompts": 4},
     }
 
-    result = analyze_oof_scores(rows, config=config, n_bootstrap=20, seed=1)
+    result = analyze_oof_scores(rows, config=config, n_bootstrap=20, seed=1, max_new_tokens=100)
 
     paired_length = result["layers"]["7"]["paired_rmd_minus_length"]
     assert "pooled_auc" in paired_length
