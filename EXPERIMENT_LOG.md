@@ -5,6 +5,101 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-03: The increment is not a prompt-difficulty proxy (BOTH models)
+
+A falsification of the headline, not a variant of it. The three entries below
+left an alternative reading of the central result unexamined, and it is the first
+thing a reviewer will raise.
+
+### 1. The competing reading
+
+B1−B0 is a **prompt-level** increment, and it is *larger* on the cap-free
+population than the full one (Qwen .052 → .059, DeepSeek .028 → .036). That has
+been read as evidence that truncation does not carry it. But the sibling-structure
+entry showed capping is prompt-structured: finished-sibling accuracy falls
+monotonically with capped-sibling count, and affected prompts' longest *finisher*
+already burns a median 88% of budget against 35% elsewhere. "Hard prompt",
+"prompt caps", and "prompt answers wrong" are one axis. So dropping capped
+prompts removes the band where B0's cheap features are most informative — which
+weakens B0 and widens geometry's margin for a reason that is not geometry.
+
+Both readings predict the published numbers. Nothing on record separated them.
+
+### 2. Stages and parameterization
+
+No DVC stage. Two CPU passes over cached artifacts:
+
+```
+python difficulty_control.py --model_label {qwen,deepseek} --layer 21 \
+    --oof_csv results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv \
+    --data_dir data/{model}_bestofn_full/math500
+```
+
+Artifacts: `results/{qwen,deepseek}_bestofn_full/math500/math500_difficulty_control_results.json`.
+The module imports the frozen `incremental_abstention` functions and its seed
+convention rather than copying them, so `B1_minus_B0` recomputed here must equal
+the locked artifact. **It does, on both models and all five populations** — that
+agreement is the harness check, and `tests/test_difficulty_control.py` pins the
+seed convention so the check cannot silently lapse.
+
+### 3. Two controls, one endogenous and one exogenous
+
+**Endogenous — budget-edge pressure** from the traces: longest-finisher fraction
+of budget, capped-sibling fraction, sibling length dispersion. NaN when every
+sibling capped (Qwen 2 prompts, DeepSeek 9); the cross-fit imputes from training
+prompts.
+
+**Exogenous — MATH-500's annotated `level`, 1–5**, which never saw the model.
+`prompt_id` is the test-split row index: 448/500 gold answers match as exact
+strings and the other 52 differ only by whitespace or case (`'p-q'` against
+`'p - q'`), so the alignment is the identity.
+
+Both controls carry real signal, checked rather than assumed:
+
+| | corr(·, outcome) | accuracy L1 → L5 | AUACC alone | B0 | base acc |
+|---|---|---|---|---|---|
+| Qwen level | −0.270 | 0.81 → 0.42 | 0.715 | 0.773 | 0.620 |
+| DeepSeek level | −0.126 | 0.88 → 0.67 | 0.782 | 0.834 | 0.750 |
+
+### 4. Result — neither control absorbs the increment
+
+AUACC, `cap_free_valid_plurality` (the headline population), 1000-draw
+prompt bootstrap, seed 42:
+
+| model | B1−B0 | given budget-edge | given annotated level |
+|---|---|---|---|
+| Qwen | +0.059 [.023, .096] | +0.062 [.024, .101] | +0.063 [.024, .102] |
+| DeepSeek | +0.036 [.010, .065] | +0.037 [.010, .066] | +0.041 [.014, .072] |
+
+Unchanged, both models, and the same on the other four populations. Neither
+control is worth anything added to B0 — every point estimate for
+`control_minus_B0` is zero or negative, and DeepSeek's level control is
+significantly negative (−0.015 [−0.024, −0.006] on the full population). B0's own
+features already carry the usable difficulty information; the geometry adds on
+top of it.
+
+### 5. Two things not to quote from this
+
+- **The increment appears to grow under control** (Qwen .052 → .064 on the full
+  population). That is not geometry gaining. Adding three weak features degrades
+  a four-feature readout more than a five-feature one; B0 loses more than B1
+  does. The load-bearing number is that the headline population **does not move**.
+- **The endogenous control is weak**, and weaker than it was proposed to be.
+  `longest_finisher_frac` correlates **−0.947 (Qwen) / −0.901 (DeepSeek)** with
+  the mean `length` already in B0 — it is nearly the same feature, not a sharper
+  one. The argument rests on the exogenous level control, which is independent of
+  the traces by construction.
+
+### 6. Claims ruled in and out
+
+- **Ruled in.** The B1−B0 increment is not explained by prompt difficulty. Two
+  controls, one of which never saw the model, both fail to absorb it, on two
+  models and five populations.
+- **Ruled out.** That the cap-free increment is an artifact of B0 weakening on
+  the easier population.
+- **Not established.** What the geometry *is* reading. This entry closes a
+  confound; it does not identify a mechanism.
+
 ## 2026-08-03: Abstention frozen — the headline increment now has a stage
 
 The B1−B0 increment quoted in `FINDINGS.md` was produced by
