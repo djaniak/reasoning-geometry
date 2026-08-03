@@ -47,6 +47,7 @@ import numpy as np
 
 from analyze import load_all_traces
 from prompt_decomposition import region_indices
+from trace_caps import resolve_cap
 from wave1_experiments import (
     _load_oof_csv,
     _majority_outcomes,
@@ -458,11 +459,20 @@ def run_abstention_baselines(
     unparsed = [
         row for row in layer_rows if not str(row.get("predicted_answer") or "").strip()
     ]
-    capped = (
-        [row for row in layer_rows if int(row.get("trace_length") or 0) >= max_new_tokens]
-        if max_new_tokens
-        else []
+    # The budget comes from the pipeline record keyed by this data directory, not
+    # from a value copied alongside the model name in a matrix row. Copying it by
+    # hand is what produced a cap-free population of 498 against 108 known capped
+    # prompts: Qwen traces counted against DeepSeek's 8192 can never reach it, so
+    # every cap count silently came out zero.
+    cap = resolve_cap(
+        max_new_tokens,
+        data_dir=data_dir,
+        lengths=(int(row.get("trace_length") or 0) for row in layer_rows),
+        context="abstention_baselines",
     )
+    capped = [
+        row for row in layer_rows if int(row.get("trace_length") or 0) >= cap.value
+    ]
     target = {
         "outcome": "plurality_vote_correctness",
         "definition": (
@@ -480,10 +490,11 @@ def run_abstention_baselines(
             [pid for pid, group in rows_by_prompt.items()
              if all(not str(row.get("predicted_answer") or "").strip() for row in group)]
         ),
-        "max_new_tokens": max_new_tokens,
-        "capped_traces": len(capped) if max_new_tokens else None,
-        "prompts_with_any_capped_sibling": (
-            len({int(row["prompt_id"]) for row in capped}) if max_new_tokens else None
+        "max_new_tokens": cap.value,
+        "cap_provenance": cap.provenance,
+        "capped_traces": len(capped),
+        "prompts_with_any_capped_sibling": len(
+            {int(row["prompt_id"]) for row in capped}
         ),
         "score_aggregation": (
             "trace scores averaged over parseable traces only; a prompt with no "

@@ -131,11 +131,14 @@ wave1_experiments:
   max_reference_tokens: 2000000
 
 # Qwen row first (index 0) — completed run; keep byte-identical.
+# `abstention_layer` is the single deepest probed layer, which is where the
+# incremental readout is fitted; it tracks `layers` per architecture rather than
+# being a global constant, since the Llama-arch row does not probe 21.
 wave1_matrix:
-  - {model: qwen, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 1024}
-  - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 8192}
+  - {model: qwen, scale: full, dataset: math500, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 1024}
+  - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 8192}
   # Restored 2026-07-31 alongside the bestofn row; Llama-arch layers.
-  - {model: deepseek_llama, scale: full, dataset: math500, layers: "8,16,24", max_new_tokens: 12288}
+  - {model: deepseek_llama, scale: full, dataset: math500, layers: "8,16,24", abstention_layer: 24, max_new_tokens: 12288}
 
 # Region-matched output-confidence baselines (Gate A), calibration, and decision
 # values. Seed and bootstrap count match wave1 so the shared prompt resampling is
@@ -147,6 +150,17 @@ abstention_baselines:
   # Folds for the out-of-fold logistic calibration. The unit is the prompt, so
   # plain stratified K-fold is already group-clean.
   n_splits: 5
+
+# Prompt-held-out incremental abstention: does a tail-RMD feature add anything to
+# the output-side readout B0? One seed across both models, so the increments are
+# comparable; it matches abstention_baselines for the same reason that block
+# matches wave1. The generation budget is not listed here on purpose -- it is
+# resolved from dvc.lock/dvc.yaml per data directory, because a budget written
+# beside a model name is the thing that silently mismatched before.
+incremental_abstention:
+  n_bootstrap: 1000
+  seed: 42
+  expected_traces: 8
 
 summary:
   profile: current

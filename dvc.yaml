@@ -339,6 +339,7 @@ stages:
         --n_splits ${abstention_baselines.n_splits}
       deps:
         - abstention_baselines.py
+        - trace_caps.py
         - wave1_experiments.py
         - prompt_decomposition.py
         - analyze.py
@@ -351,6 +352,38 @@ stages:
             cache: false
       outs:
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_abstention_baselines_report.md:
+            cache: false
+
+  # The prompt-held-out incremental readout: does tail RMD add anything to the
+  # output-side baseline B0? This is the source of the B1-B0 increment quoted in
+  # FINDINGS, so it is a stage rather than an ad-hoc invocation -- the artifact it
+  # replaces was written by an untracked script in two mutually irreproducible
+  # versions. Reads the OOF table plus batch metadata; CPU-only.
+  evaluate_incremental_abstention:
+    foreach: ${wave1_matrix}
+    do:
+      cmd: >-
+        CUDA_VISIBLE_DEVICES="" uv run python incremental_abstention.py
+        --oof_csv results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
+        --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --dataset_label ${item.dataset} --model_label ${item.model}
+        --layer ${item.abstention_layer}
+        --expected_traces ${incremental_abstention.expected_traces}
+        --n_bootstrap ${incremental_abstention.n_bootstrap}
+        --seed ${incremental_abstention.seed}
+      deps:
+        - incremental_abstention.py
+        - trace_caps.py
+        - data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
+      params:
+        - incremental_abstention
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_incremental_abstention_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_incremental_abstention_report.md:
             cache: false
 
   # ── Current summary only ──────────────────────────────────────────────────

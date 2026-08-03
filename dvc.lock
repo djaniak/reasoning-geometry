@@ -806,3 +806,89 @@ stages:
       hash: md5
       md5: 6ea5ccfc5bac4d5e36bb357ee1131969
       size: 313518
+  evaluate_incremental_abstention@0:
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python incremental_abstention.py 
+      --oof_csv 
+      results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv 
+      --output_dir results/qwen_bestofn_full/math500 --data_dir 
+      data/qwen_bestofn_full/math500 --dataset_label math500 --model_label qwen 
+      --layer 21 --expected_traces 8 --n_bootstrap 1000 --seed 42
+    deps:
+    - path: data/qwen_bestofn_full/math500
+      hash: md5
+      md5: 7855e73dd0aca0dc8df01b88fe77a1f1.dir
+      size: 44677418578
+      nfiles: 80
+    - path: incremental_abstention.py
+      hash: md5
+      md5: 1edac56e3e93ec12f17af3656a26f385
+      size: 32304
+    - path: 
+        results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: d0ed37ca0750827c37336a7367a66557
+      size: 6850876
+    - path: trace_caps.py
+      hash: md5
+      md5: 7545f533be886f94148c4f63d9e4ce24
+      size: 9746
+    params:
+      params.yaml:
+        incremental_abstention:
+          n_bootstrap: 1000
+          seed: 42
+          expected_traces: 8
+    outs:
+    - path: 
+        results/qwen_bestofn_full/math500/math500_incremental_abstention_report.md
+      hash: md5
+      md5: c9646218d816b5c34bb07ac5a1acf742
+      size: 3459
+    - path: 
+        results/qwen_bestofn_full/math500/math500_incremental_abstention_results.json
+      hash: md5
+      md5: 8260d5df18f059b801cba28cfdb49b74
+      size: 13057
+  evaluate_incremental_abstention@1:
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python incremental_abstention.py 
+      --oof_csv 
+      results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      --output_dir results/deepseek_bestofn_full/math500 --data_dir 
+      data/deepseek_bestofn_full/math500 --dataset_label math500 --model_label 
+      deepseek --layer 21 --expected_traces 8 --n_bootstrap 1000 --seed 42
+    deps:
+    - path: data/deepseek_bestofn_full/math500
+      hash: md5
+      md5: 1744de79852f4e825c5274a36f5d32a1.dir
+      size: 255227396511
+      nfiles: 81
+    - path: incremental_abstention.py
+      hash: md5
+      md5: 1edac56e3e93ec12f17af3656a26f385
+      size: 32304
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: 896752e0734219ca9fa4b2bbf17c1a6e
+      size: 6821165
+    - path: trace_caps.py
+      hash: md5
+      md5: 7545f533be886f94148c4f63d9e4ce24
+      size: 9746
+    params:
+      params.yaml:
+        incremental_abstention:
+          n_bootstrap: 1000
+          seed: 42
+          expected_traces: 8
+    outs:
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_incremental_abstention_report.md
+      hash: md5
+      md5: d3b483cd75609abd41aa280ee66dfb71
+      size: 3460
+    - path: 
+        results/deepseek_bestofn_full/math500/math500_incremental_abstention_results.json
+      hash: md5
+      md5: 92940d16171bb0ea3c6f460dea2c0803
+      size: 13109
