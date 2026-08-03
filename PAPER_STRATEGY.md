@@ -59,6 +59,16 @@ selective-prediction AUSC (DeepSeek 0.633), difficulty/subject stratification. T
 "DeepSeek ≫ Qwen geometry effect" tracks differential truncation (43% vs 8%).
 **RETRACTED:** within-prompt 0.93 "genuinely trace-level" claim.
 
+**Amended 2026-08-03.** The mechanism line above is right about the *label* and wrong
+about the *traces*. Capped traces resumed to 16,384 tokens terminate 70% [0.56, 0.81]
+of the time and are correct 46% of those times, versus 5.6% as scored. Capping is a
+budget shortfall, so the contaminated rows are censored observations rather than
+failures. Two consequences for the paper: (i) exclusion is defensible as missing-data
+handling, which is a stronger footing than "drop the degenerate traces"; (ii) do not
+write that geometry detects non-termination — it detects *unfinished*, and the
+distinction is checkable. Reviewers of a truncation-heavy table will ask; the
+continuation study is the answer. Ledger: `EXPERIMENT_LOG.md` (2026-08-03).
+
 ## 4. Literature map (deep-research wf_ea6e6b93-88e, 21/25 claims confirmed)
 
 - **RMD primitive is NOT novel.** NAACL 2025 [arXiv:2502.14427] (SAT(R)MD) already does

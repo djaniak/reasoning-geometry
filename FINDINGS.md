@@ -48,6 +48,17 @@
 >
 > **Cross-model caveat:** the "DeepSeek shows a much larger geometry effect than Qwen"
 > story tracks the **differential truncation rate (43% vs 8%)**, not cleanly distillation.
+>
+> **Amended 2026-08-03 — what a capped trace actually is.** The notice above reads the
+> truncated class as off-manifold, non-terminating generation. It is not. Fifty capped
+> DeepSeek traces resumed from their saved prefixes to 16,384 tokens **terminate 70%
+> [0.56, 0.81] of the time, and 46% of those terminations are correct** — against the
+> 5.6% these same traces score when judged truncated. Only 6% degenerate into
+> repetition; the median finisher needed 2,846 further tokens. So `is_correct=False`
+> on a capped trace is a **censoring event**, not a wrong-reasoning example. Excluding
+> capped traces remains the right call — but as *missing data*, not as noise, and any
+> statement that geometry was "detecting non-termination" overstates what was there.
+> Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
 ## Current evidence (updated 2026-07-31)
 
