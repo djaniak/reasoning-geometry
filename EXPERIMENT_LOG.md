@@ -5,6 +5,75 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-05: The increment does NOT clear DeepConf's tail statistic (DeepSeek)
+
+The first genuine limit on the headline claim. A primary-source literature check
+(`RELATED_WORK.md`, same day) established that DeepConf (arXiv:2508.15260) is not
+a citation but a **baseline**: its bottom-10% and tail-confidence statistics are
+the same "low-order statistic over a privileged region" move as `rmd_tail_q20`,
+applied to token confidence instead of geometry. A reviewer's first question is
+whether the geometry increment is a worse-instrumented DeepConf. This entry
+answers it, and the answer is not the one we wanted.
+
+### 1. Provenance first — this run existed already, and should not have been trusted
+
+A full 500-prompt teacher-forced DeepConf run and its incremental results were
+sitting in `results/deepseek_bestofn_full/math500/incremental_exact_prompt/`,
+produced by an untracked ad-hoc invocation. Its results file carried
+`"cap_provenance": null`. That is the same class of run that produced the
+8192-against-1024 error (2026-08-03 cap-population fix), so it was re-run through
+`incremental_abstention.py` with `--data_dir` supplied, resolving the cap from the
+pipeline record: **`8192, confirmed by dvc.lock, dvc.yaml/params.yaml`**.
+
+Every point estimate came back **identical** to the ad-hoc run. So that run's
+arithmetic was right and only its provenance was missing — recorded here because
+"it happened to be right" is exactly what we were burned by before. `B1_minus_B0`
+also reproduced the locked stage artifact on all five populations, which is the
+harness check. Output: `results/deepseek_bestofn_full/math500/deepconf_controlled/`
+(a separate directory, so the locked stage artifact is untouched).
+
+### 2. The result (AUACC, 1000 draws, seed 42, layer 21)
+
+| population | n | B1 − (B0+DeepConf_global) | B1 − (B0+DeepConf_tail_q20) |
+|---|---:|---|---|
+| full_population | 500 | +0.031 [+0.005, +0.055] p=0.018 | +0.026 [+0.002, +0.050] p=0.036 |
+| valid_plurality | 493 | +0.031 [+0.006, +0.056] p=0.016 | +0.026 [+0.002, +0.052] p=0.026 |
+| **cap_free_valid_plurality** | 393 | +0.035 [+0.007, +0.066] p=0.020 | **+0.027 [−0.003, +0.058] p=0.078** |
+| cap_free_full_population | 393 | +0.035 [+0.007, +0.066] p=0.020 | **+0.027 [−0.003, +0.058] p=0.078** |
+| all_eight_parseable | 384 | +0.042 [+0.009, +0.074] p=0.016 | **+0.029 [−0.003, +0.064] p=0.078** |
+
+**On the headline population, the increment over `B0 + DeepConf_tail_q20` does not
+clear zero.** It clears DeepConf's *global* variant everywhere. It clears the tail
+variant on the full and valid-plurality populations. It fails on precisely the
+three cap-free populations where the main claim is stated.
+
+Standalone AUACC on `cap_free_valid_plurality`: B0 0.845, `DeepConf_tail_q20`
+alone 0.799, `B0+DeepConf_tail_q20` 0.854, B1 0.881,
+`B0+DeepConf_tail_q20+RMD` 0.886. So geometry and DeepConf are *not*
+redundant — stacking both beats either — but the margin is no longer separable
+from zero at n=393.
+
+### 3. Two things not to quote from this
+
+- **This is not "DeepConf beats geometry".** DeepConf's tail statistic alone
+  (0.799) is well below B0 (0.845) and far below B1 (0.881). The finding is that
+  once DeepConf is *added to B0*, the remaining geometry margin is not
+  significant at this sample size on the clean population.
+- **This is not a two-model result, and cannot become one.** The exact DeepConf
+  statistic requires teacher-forcing cached token IDs; `data/qwen_bestofn_full`
+  stores no token arrays, so this baseline can never run on Qwen. The model where
+  the increment is *strongest* (+0.059) is structurally unable to carry this
+  control. Any write-up must state that rather than implying replication.
+
+### 4. Claims
+
+- **Ruled in.** Geometry and DeepConf tail confidence are complementary, not
+  redundant: stacking both (0.886) beats either alone.
+- **Not established, and previously assumed.** That the geometry increment
+  survives the closest published competitor on the headline population. It does
+  not, at p=0.078.
+- **Blocked.** A cross-model version of this control, by the Qwen cache format.
+
 ## 2026-08-03: The increment is not a prompt-difficulty proxy (BOTH models)
 
 A falsification of the headline, not a variant of it. The three entries below

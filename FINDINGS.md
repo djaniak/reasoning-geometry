@@ -65,7 +65,25 @@ pre-registered cross-model gate.*
 > statement that geometry was "detecting non-termination" overstates what was there.
 > Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
-## Current evidence (updated 2026-08-03)
+## Current evidence (updated 2026-08-05)
+
+> **Limit on the headline claim (2026-08-05): the increment does not clear
+> DeepConf's tail statistic on the clean population.** DeepConf
+> (arXiv:2508.15260) applies the same "low-order statistic over a privileged
+> region" aggregation to *token confidence* that `rmd_tail_q20` applies to
+> geometry, so it is a baseline rather than a citation. Added to B0, it leaves a
+> geometry margin of **+0.027 [−0.003, +0.058], p = 0.078** on
+> `cap_free_valid_plurality` — the population the main claim is stated on. The
+> margin does clear DeepConf's *global* variant everywhere (+0.035 [+0.007,
+> +0.066] on the same population), and clears the tail variant on the full and
+> valid-plurality populations. Geometry and DeepConf are not redundant —
+> stacking both reaches 0.886 against 0.881 for B1 and 0.854 for
+> `B0+DeepConf_tail_q20` — but the increment over the closest published
+> competitor is not separable from zero at n=393. **This control is
+> DeepSeek-only and cannot be replicated:** the exact statistic needs cached
+> token IDs, and `data/qwen_bestofn_full` stores none, so the model with the
+> largest increment (+0.059) can never carry it. Full entry:
+> `EXPERIMENT_LOG.md` (2026-08-05).
 
 > **Incremental abstention, frozen (2026-08-03): geometry adds over a
 > four-feature output-side readout, and it is not a difficulty proxy.** The
