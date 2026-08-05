@@ -1004,3 +1004,27 @@ stages:
       hash: md5
       md5: 913562059b0b3bad43f9a9a695617b2b
       size: 513064
+  collect_bestofn_pending@0:
+    cmd: uv run python collect_data.py --dataset math500 --model_name 
+      deepseek-ai/DeepSeek-R1-Distill-Llama-8B --max_new_tokens 12288 --layers 
+      8,16,24 --temperature 0.6 --num_samples 8 --limit 500 --output_dir 
+      data/deepseek_llama_bestofn_full/math500
+    deps:
+    - path: collect_data.py
+      hash: md5
+      md5: 07e020ebb5037979fb62b763f8536fd1
+      size: 33127
+    params:
+      params.yaml:
+        best_of_n.num_samples: 8
+        best_of_n.temperature: 0.6
+        datasets.math500:
+          hf_path: HuggingFaceH4/MATH-500
+          hf_name:
+          split: test
+    outs:
+    - path: data/deepseek_llama_bestofn_full/math500
+      hash: md5
+      md5: c30a08b33755baa40b9d7b77e3b6ceb1.dir
+      size: 278093353059
+      nfiles: 80

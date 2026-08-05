@@ -68,15 +68,16 @@ The pipeline is managed with [DVC](https://dvc.org). Each stage collects hidden 
 ```bash
 # Reproduce the current CPU analysis
 CUDA_VISIBLE_DEVICES="" uv run dvc repro --single-item evaluate_prompt_decomposition@0
-CUDA_VISIBLE_DEVICES="" uv run dvc repro --single-item evaluate_prompt_selection@0
+CUDA_VISIBLE_DEVICES="" uv run dvc repro --single-item evaluate_wave1_experiments@0
+CUDA_VISIBLE_DEVICES="" uv run dvc repro --single-item evaluate_abstention_baselines@0
 
 # Inspect the active graph
 uv run dvc status
 ```
 
 The default DAG contains the Qwen baseline, dense-layer/PCA checks,
-truncation-budget diagnostics, Qwen Best-of-N decomposition/selection, and
-Wave-1 CPU follow-ups. Retired model-family and application stages are not
+truncation-budget diagnostics, Qwen Best-of-N decomposition, and Wave-1 CPU
+follow-ups. Retired model-family and application stages are not
 default dependencies; see the experiment log for their status.
 
 Configuration is in [params.yaml](params.yaml): model names, layer indices, PCA dimension, bootstrap count, etc.
