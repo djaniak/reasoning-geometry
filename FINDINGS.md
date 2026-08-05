@@ -1,4 +1,9 @@
-# Hidden-State Geometry Predicts Math Reasoning Errors
+# Hidden-State Geometry Predicts Which Math Problems a Model Will Fail
+
+*Retitled 2026-08-03. The old title — "Predicts Math Reasoning Errors" — contradicted
+this document's own conclusion, which is that geometry indicates **which problems are
+hard, not which attempt is right**. The within-prompt (per-attempt) reading failed its
+pre-registered cross-model gate.*
 
 *Qwen2.5-7B-Instruct and DeepSeek-R1-Distill-Qwen-7B on MATH-500 and GSM8K.*
 *Includes dense 14-layer sweep (Qwen) and temperature sampling (DeepSeek T=0.6).*
@@ -60,7 +65,47 @@
 > statement that geometry was "detecting non-termination" overstates what was there.
 > Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
-## Current evidence (updated 2026-07-31)
+## Current evidence (updated 2026-08-03)
+
+> **Incremental abstention, frozen (2026-08-03): geometry adds over a
+> four-feature output-side readout, and it is not a difficulty proxy.** The
+> claim is now stated as an *increment*, which is the form a reviewer will
+> demand. Baseline `B0 = (length, entropy, logprob, vote_agreement)` aggregated
+> over the 8 sibling traces; `B1 = B0 + rmd_tail_q20`. Out-of-fold logistic
+> readouts, prompt-clustered paired bootstrap (1000 draws, seed 42), scored by
+> AUACC (accuracy-coverage integral, higher better; `AURC = (1 − 1/n) − AUACC`).
+> On the cap-free valid-plurality population, **Qwen +0.059 [+0.023, +0.096]
+> and DeepSeek +0.036 [+0.010, +0.065]**, and the increment holds on all five
+> populations on both models.
+>
+> **Two difficulty controls do not absorb it.** Given budget-edge pressure
+> measured from trace lengths, the increment is +0.062 (Qwen) / +0.037
+> (DeepSeek); given MATH-500's *human-annotated* level 1–5 — exogenous by
+> construction, since it never saw the model — +0.063 / +0.041. Neither control
+> is worth anything added to B0 on its own (every `control − B0` point estimate
+> is zero or negative; DeepSeek's level control is significantly negative,
+> −0.015 [−0.024, −0.006]). Read: the cap-free increment is not an artifact of
+> B0 weakening on an easier population, which was the live alternative reading.
+>
+> Two things **not** to quote from this. (i) The increment *appears* to grow
+> under control on the full population (Qwen +0.052 → +0.064); that is B0
+> degrading faster than B1 when three weak features are added, not geometry
+> gaining. The load-bearing fact is that the headline population does not move.
+> (ii) The endogenous budget-edge control is weak — `longest_finisher_frac`
+> correlates −0.947 (Qwen) / −0.901 (DeepSeek) with the mean `length` already in
+> B0, so it is nearly the same feature. The exogenous level control carries the
+> argument. Full entry: `EXPERIMENT_LOG.md` (2026-08-03, difficulty proxy).
+
+> **Cap-population correction (2026-08-03): a reported Qwen population was
+> arithmetically impossible.** An ad-hoc run had been passed DeepSeek's
+> `--max_new_tokens 8192` against Qwen traces collected at **1024**. No trace can
+> reach 8192, so every cap count came out zero and `cap_free_valid_plurality`
+> silently equalled `valid_plurality` at n=498. Corrected: n=392, with 108/500
+> prompts carrying at least one capped sibling. The cap is now resolved from
+> `dvc.lock`/`params.yaml` rather than passed by hand (`trace_caps.py`), and a
+> cap above every observed length raises instead of counting nothing. **The
+> increment survives the correction and is slightly larger on the clean
+> population.** DeepSeek's 8192 was correct and its numbers are unchanged.
 
 > **Length control (2026-07-31): the between-prompt claim strengthens.** RMD's
 > advantage over length is not just a margin on the same ranking — its
@@ -95,12 +140,16 @@
 > cleanly across models: **geometry indicates which problems are hard, not which
 > attempt is right.** Full entries: `EXPERIMENT_LOG.md` (2026-07-29, both).
 
-The load-bearing result is the clean Qwen Best-of-8 MATH-500 rerun. Highest-entropy
-20% RMD beats full-trace RMD at all three layers and beats a matched random-token
-control. It is competitive with output baselines, has only suggestive incremental
-probe value, and does not improve Best-of-N tie-breaking. The defensible claim is
-prompt-level difficulty/abstention; within-prompt correctness geometry is small
-**and does not generalize to the reasoning-distilled model tested.**
+The load-bearing result is **prompt-level abstention, stated as an increment over an
+output-side readout, on both models** (2026-08-03 above). It is the only claim that
+survives every control applied to it and replicates across the instruct/distill pair.
+
+The Qwen Best-of-8 localization result is secondary: highest-entropy 20% RMD beats
+full-trace RMD at all three layers and beats a matched random-token control, but does
+not improve Best-of-N tie-breaking, and the pre-registered cross-model gate on it
+**failed**. Within-prompt correctness geometry is small **and does not generalize to
+the reasoning-distilled model tested.** So: geometry indicates which problems are
+hard, not which attempt is right.
 
 All DeepSeek 2,048-token analyses, temperature runs, transfer grids, old selective
 prediction, and one-class sweeps are historical diagnostics. They remain on disk for
