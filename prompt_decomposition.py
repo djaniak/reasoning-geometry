@@ -34,6 +34,7 @@ from analyze import (
     load_all_traces,
 )
 from best_of_n import group_traces_by_problem
+from trace_caps import resolve_cap
 
 
 SCALAR_METRICS = (
@@ -724,34 +725,42 @@ def length_collapse_diagnostics(
     return summary
 
 
-def truncation_report(rows: list[dict], max_new_tokens: int | None = None) -> dict:
+def truncation_report(
+    rows: list[dict],
+    max_new_tokens: int | None = None,
+    data_dir: str | None = None,
+) -> dict:
     """Diagnose how much of the 'incorrect' class is non-answers vs wrong answers.
 
     A high unparsed/capped rate means within-prompt metrics are largely driven by
     correct-vs-truncated contrasts (a generation-length/termination signal) rather
-    than correct-vs-wrong reasoning. ``max_new_tokens`` defines the length cap; if
-    omitted it is inferred as the maximum observed trace length.
+    than correct-vs-wrong reasoning. The length cap comes from ``max_new_tokens``,
+    from the pipeline record for ``data_dir``, or from both if they agree; at
+    least one is required, since inferring it from the observed lengths marks only
+    the single longest trace as capped.
     """
     lengths = [
         int(row["trace_length"])
         for row in rows
         if row.get("trace_length") is not None
     ]
-    cap = int(max_new_tokens) if max_new_tokens else (max(lengths) if lengths else None)
+    cap = resolve_cap(
+        max_new_tokens,
+        data_dir=data_dir,
+        lengths=lengths,
+        context="truncation_report",
+    )
     n_traces = len(rows)
     n_unparsed = sum(1 for row in rows if is_unparsed(row))
     n_unparsed_incorrect = sum(
         1 for row in rows if is_unparsed(row) and not int(row["is_correct"])
     )
-    n_capped = (
-        sum(1 for row in rows if int(row.get("trace_length", 0)) >= cap)
-        if cap is not None
-        else 0
-    )
+    n_capped = sum(1 for row in rows if int(row.get("trace_length", 0)) >= cap.value)
     n_incorrect = sum(1 for row in rows if not int(row["is_correct"]))
     return {
         "n_traces": int(n_traces),
-        "max_new_tokens": cap,
+        "max_new_tokens": cap.value,
+        "cap_provenance": cap.provenance,
         "n_unparsed": int(n_unparsed),
         "unparsed_rate": float(n_unparsed / n_traces) if n_traces else None,
         "n_capped": int(n_capped),
@@ -2043,6 +2052,7 @@ def analyze_oof_scores(
     seed: int,
     show_progress: bool = False,
     max_new_tokens: int | None = None,
+    data_dir: str | None = None,
 ) -> dict:
     result = {
         "dataset": config["dataset"],
@@ -2067,7 +2077,9 @@ def analyze_oof_scores(
             "All trace scores are out-of-fold by prompt. PCA, correct-manifold, "
             "and background-manifold parameters use training prompts only."
         ),
-        "truncation": truncation_report(rows, max_new_tokens=max_new_tokens),
+        "truncation": truncation_report(
+            rows, max_new_tokens=max_new_tokens, data_dir=data_dir
+        ),
         "truncation_caveat": (
             "Unparsed traces (no final answer) are auto-labeled incorrect upstream "
             "and are typically length-capped, not wrong-answer. They confound the "
@@ -2158,7 +2170,9 @@ def analyze_oof_scores(
             # wrong/hard/truncated traces ramble, so length alone predicts correctness.
             # RMD's contribution is its margin OVER length, not over entropy.
             "paired_rmd_minus_length": paired_by_baseline.get("length", {}),
-            "truncation": truncation_report(layer_rows, max_new_tokens=max_new_tokens),
+            "truncation": truncation_report(
+                layer_rows, max_new_tokens=max_new_tokens, data_dir=data_dir
+            ),
             "parseable_only": parseable_within_prompt_metrics(layer_rows),
         }
         parseable_rows = [row for row in layer_rows if not is_unparsed(row)]
@@ -2723,6 +2737,7 @@ def main() -> None:
         seed=args.seed,
         show_progress=not args.no_progress,
         max_new_tokens=args.max_new_tokens,
+        data_dir=args.data_dir,
     )
 
     output_dir = Path(args.output_dir)

@@ -29,6 +29,7 @@ from analyze import (
     set_max_reference_tokens,
 )
 from best_of_n import group_traces_by_problem
+from trace_caps import resolve_cap
 from prompt_decomposition import (
     HIDDEN_PROBE_METHODS,
     bootstrap_parseable_paired_deltas,
@@ -577,11 +578,21 @@ def length_residualized_abstention(
     }
 
 
-def answer_cluster_eligibility(rows: list[dict], max_new_tokens: int | None = None) -> dict:
+def answer_cluster_eligibility(
+    rows: list[dict],
+    max_new_tokens: int | None = None,
+    data_dir: str | None = None,
+) -> dict:
     """Count sibling answer clusters, retaining an explicit invalid cluster."""
     grouped: dict[int, list[dict]] = defaultdict(list)
     for row in rows:
         grouped[int(row["prompt_id"])].append(row)
+    cap = resolve_cap(
+        max_new_tokens,
+        data_dir=data_dir,
+        lengths=(row.get("trace_length") for row in rows),
+        context="answer_cluster_eligibility",
+    )
     correct_ge2 = wrong_ge2 = both_ge2 = eligible_clusters = 0
     for prompt_rows in grouped.values():
         gold = str(prompt_rows[0].get("gold_answer"))
@@ -603,11 +614,13 @@ def answer_cluster_eligibility(rows: list[dict], max_new_tokens: int | None = No
                 row
                 for row in values
                 if row.get("predicted_answer") not in (None, "")
-                and not (max_new_tokens and int(row.get("trace_length", 0)) >= int(max_new_tokens))
+                and int(row.get("trace_length", 0)) < cap.value
             ]
             eligible_clusters += int(len(eligible) >= 2)
     return {
         "n_prompts": len(grouped),
+        "max_new_tokens": cap.value,
+        "cap_provenance": cap.provenance,
         "prompts_with_correct_cluster_ge2": correct_ge2,
         "prompts_with_wrong_cluster_ge2": wrong_ge2,
         "prompts_with_both_ge2": both_ge2,
@@ -884,7 +897,9 @@ def run_wave1(
             if method in e1_methods
         ),
     )
-    eligibility = answer_cluster_eligibility(layer_rows, max_new_tokens=max_new_tokens)
+    eligibility = answer_cluster_eligibility(
+        layer_rows, max_new_tokens=max_new_tokens, data_dir=data_dir
+    )
 
     base_traces = load_all_traces(
         data_dir,

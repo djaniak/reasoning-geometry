@@ -48,13 +48,38 @@ best_of_n:
   temperature: 0.6
   num_samples: 8
 
-# math500 best-of-8 cells. Qwen row first (index 0) — data exists; keep its
-# values byte-identical.
+# math500 best-of-8 cells, split by collect status.
+#
+# The split exists because `frozen: true` in dvc.yaml applies to a whole foreach
+# block. With a single list, unfreezing it to collect a new model also unfreezes
+# the finished collects -- and collect_bestofn_full@0's recorded collect_data.py
+# hash is already stale, so `dvc repro` would delete and regenerate 42 GB of Qwen
+# traces that no remote can restore. Two lists keep the finished collects frozen
+# while the new one stays reproducible.
+#
+#   bestofn_collected -> frozen collect stage; never reproduced
+#   bestofn_pending   -> live collect stage; runs under `dvc repro`
+#   bestofn_matrix    -> union; drives every downstream evaluation stage
+#
+# When a pending collect finishes and is committed, move its row to
+# bestofn_collected and leave the bestofn_matrix order alone so the evaluation
+# stage indices never shift. Qwen row first (index 0) — keep values
+# byte-identical.
+bestofn_collected:
+  - &bestofn_qwen {model: qwen, scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "7,14,21"}
+  - &bestofn_deepseek {model: deepseek, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
+
+bestofn_pending:
+  # Restored 2026-07-31 (removed 2026-07-29 when the localization gate cancelled
+  # it). Purpose has changed: this is no longer a localization confirmation but
+  # the cross-ARCHITECTURE replication of the between-prompt/E1R results, which
+  # are currently n=2 and both Qwen-lineage.
+  - &bestofn_deepseek_llama {model: deepseek_llama, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24"}
+
 bestofn_matrix:
-  - {model: qwen, scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "7,14,21"}
-  - {model: deepseek, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
-  # deepseek_llama row removed 2026-07-29: the collect was cancelled when the
-  # cross-model gate failed on deepseek, so this cell never produced data.
+  - *bestofn_qwen
+  - *bestofn_deepseek
+  - *bestofn_deepseek_llama
 
 truncation_probe_matrix:
   - {name: deepseek, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, limit: 24, num_samples: 1, batch_size: 8}
@@ -106,10 +131,36 @@ wave1_experiments:
   max_reference_tokens: 2000000
 
 # Qwen row first (index 0) — completed run; keep byte-identical.
+# `abstention_layer` is the single deepest probed layer, which is where the
+# incremental readout is fitted; it tracks `layers` per architecture rather than
+# being a global constant, since the Llama-arch row does not probe 21.
 wave1_matrix:
-  - {model: qwen, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 1024}
-  - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", max_new_tokens: 8192}
-  # deepseek_llama row removed 2026-07-29: no bestofn data for that model.
+  - {model: qwen, scale: full, dataset: math500, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 1024}
+  - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 8192}
+  # Restored 2026-07-31 alongside the bestofn row; Llama-arch layers.
+  - {model: deepseek_llama, scale: full, dataset: math500, layers: "8,16,24", abstention_layer: 24, max_new_tokens: 12288}
+
+# Region-matched output-confidence baselines (Gate A), calibration, and decision
+# values. Seed and bootstrap count match wave1 so the shared prompt resampling is
+# comparable across the two reports.
+abstention_baselines:
+  n_bootstrap: 1000
+  seed: 42
+  load_workers: 4
+  # Folds for the out-of-fold logistic calibration. The unit is the prompt, so
+  # plain stratified K-fold is already group-clean.
+  n_splits: 5
+
+# Prompt-held-out incremental abstention: does a tail-RMD feature add anything to
+# the output-side readout B0? One seed across both models, so the increments are
+# comparable; it matches abstention_baselines for the same reason that block
+# matches wave1. The generation budget is not listed here on purpose -- it is
+# resolved from dvc.lock/dvc.yaml per data directory, because a budget written
+# beside a model name is the thing that silently mismatched before.
+incremental_abstention:
+  n_bootstrap: 1000
+  seed: 42
+  expected_traces: 8
 
 summary:
   profile: current

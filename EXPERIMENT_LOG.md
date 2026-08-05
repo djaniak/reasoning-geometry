@@ -5,6 +5,417 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-03: The increment is not a prompt-difficulty proxy (BOTH models)
+
+A falsification of the headline, not a variant of it. The three entries below
+left an alternative reading of the central result unexamined, and it is the first
+thing a reviewer will raise.
+
+### 1. The competing reading
+
+B1−B0 is a **prompt-level** increment, and it is *larger* on the cap-free
+population than the full one (Qwen .052 → .059, DeepSeek .028 → .036). That has
+been read as evidence that truncation does not carry it. But the sibling-structure
+entry showed capping is prompt-structured: finished-sibling accuracy falls
+monotonically with capped-sibling count, and affected prompts' longest *finisher*
+already burns a median 88% of budget against 35% elsewhere. "Hard prompt",
+"prompt caps", and "prompt answers wrong" are one axis. So dropping capped
+prompts removes the band where B0's cheap features are most informative — which
+weakens B0 and widens geometry's margin for a reason that is not geometry.
+
+Both readings predict the published numbers. Nothing on record separated them.
+
+### 2. Stages and parameterization
+
+No DVC stage. Two CPU passes over cached artifacts:
+
+```
+python difficulty_control.py --model_label {qwen,deepseek} --layer 21 \
+    --oof_csv results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv \
+    --data_dir data/{model}_bestofn_full/math500
+```
+
+Artifacts: `results/{qwen,deepseek}_bestofn_full/math500/math500_difficulty_control_results.json`.
+The module imports the frozen `incremental_abstention` functions and its seed
+convention rather than copying them, so `B1_minus_B0` recomputed here must equal
+the locked artifact. **It does, on both models and all five populations** — that
+agreement is the harness check, and `tests/test_difficulty_control.py` pins the
+seed convention so the check cannot silently lapse.
+
+### 3. Two controls, one endogenous and one exogenous
+
+**Endogenous — budget-edge pressure** from the traces: longest-finisher fraction
+of budget, capped-sibling fraction, sibling length dispersion. NaN when every
+sibling capped (Qwen 2 prompts, DeepSeek 9); the cross-fit imputes from training
+prompts.
+
+**Exogenous — MATH-500's annotated `level`, 1–5**, which never saw the model.
+`prompt_id` is the test-split row index: 448/500 gold answers match as exact
+strings and the other 52 differ only by whitespace or case (`'p-q'` against
+`'p - q'`), so the alignment is the identity.
+
+Both controls carry real signal, checked rather than assumed:
+
+| | corr(·, outcome) | accuracy L1 → L5 | AUACC alone | B0 | base acc |
+|---|---|---|---|---|---|
+| Qwen level | −0.270 | 0.81 → 0.42 | 0.715 | 0.773 | 0.620 |
+| DeepSeek level | −0.126 | 0.88 → 0.67 | 0.782 | 0.834 | 0.750 |
+
+### 4. Result — neither control absorbs the increment
+
+AUACC, `cap_free_valid_plurality` (the headline population), 1000-draw
+prompt bootstrap, seed 42:
+
+| model | B1−B0 | given budget-edge | given annotated level |
+|---|---|---|---|
+| Qwen | +0.059 [.023, .096] | +0.062 [.024, .101] | +0.063 [.024, .102] |
+| DeepSeek | +0.036 [.010, .065] | +0.037 [.010, .066] | +0.041 [.014, .072] |
+
+Unchanged, both models, and the same on the other four populations. Neither
+control is worth anything added to B0 — every point estimate for
+`control_minus_B0` is zero or negative, and DeepSeek's level control is
+significantly negative (−0.015 [−0.024, −0.006] on the full population). B0's own
+features already carry the usable difficulty information; the geometry adds on
+top of it.
+
+### 5. Two things not to quote from this
+
+- **The increment appears to grow under control** (Qwen .052 → .064 on the full
+  population). That is not geometry gaining. Adding three weak features degrades
+  a four-feature readout more than a five-feature one; B0 loses more than B1
+  does. The load-bearing number is that the headline population **does not move**.
+- **The endogenous control is weak**, and weaker than it was proposed to be.
+  `longest_finisher_frac` correlates **−0.947 (Qwen) / −0.901 (DeepSeek)** with
+  the mean `length` already in B0 — it is nearly the same feature, not a sharper
+  one. The argument rests on the exogenous level control, which is independent of
+  the traces by construction.
+
+### 6. Claims ruled in and out
+
+- **Ruled in.** The B1−B0 increment is not explained by prompt difficulty. Two
+  controls, one of which never saw the model, both fail to absorb it, on two
+  models and five populations.
+- **Ruled out.** That the cap-free increment is an artifact of B0 weakening on
+  the easier population.
+- **Not established.** What the geometry *is* reading. This entry closes a
+  confound; it does not identify a mechanism.
+
+## 2026-08-03: Abstention frozen — the headline increment now has a stage
+
+The B1−B0 increment quoted in `FINDINGS.md` was produced by
+`incremental_abstention.py`, which was **untracked in git and absent from
+`dvc.yaml`**. It existed only in a working tree, and had already drifted into two
+versions: DeepSeek's stored artifact predated both the `deepconf_*` features and
+cap validation that Qwen's was regenerated under. Neither version was
+recoverable. This entry records closing that hole, not a new result.
+
+### 1. What moved, and what did not
+
+Point estimates are bootstrap-independent and did not move. Intervals and Holm
+families did, because the feature set changed the resampling draw order and the
+correction family size:
+
+| DeepSeek, cap_free_valid_plurality | AUACC | interval | p |
+|---|---|---|---|
+| stored (untracked script, seed 20260802) | +0.036 | [0.011, 0.064] | 0.002 |
+| current (staged, seed 42) | +0.036 | [0.010, 0.065] | 0.006 |
+
+Anything quoted at p=0.002 from the old DeepSeek artifact should be requoted.
+Qwen was already on seed 42 and reproduces its published number exactly:
+**+0.059 [0.023, 0.096] p=0.002** on `cap_free_valid_plurality`.
+
+Determinism was checked directly rather than assumed: two runs at one seed into
+separate directories are byte-identical, so the drift was version, not RNG.
+
+### 2. Both models, one seed, one code hash
+
+| population | Qwen (n) | Qwen B1−B0 | DeepSeek (n) | DeepSeek B1−B0 |
+|---|---|---|---|---|
+| full_population | 500 | +0.052 [.019,.083] | 500 | +0.028 [.004,.053] |
+| valid_plurality | 498 | +0.052 [.018,.083] | 493 | +0.029 [.006,.053] |
+| cap_free_valid_plurality | 392 | **+0.059 [.023,.096]** | 393 | **+0.036 [.010,.065]** |
+| all_eight_parseable | 392 | +0.059 [.021,.099] | 384 | +0.039 [.012,.071] |
+
+The increment survives on the clean population in both models and is larger
+there than on the full one, so it is not carried by capped prompts. DeepSeek's
+is ~1.6x smaller than Qwen's, the same ordering the 2026-07-29 between-prompt
+gate found.
+
+### 3. The last hand-passed cap is gone
+
+`abstention_baselines.py` took `--max_new_tokens` from the `wave1_matrix` row
+sitting beside the model name — the exact arrangement that produced a cap-free
+population of 498 against 108 known capped prompts. It now resolves the budget
+from the pipeline record keyed by its data directory, like the other call sites.
+The stage had never passed the flag at all, so its artifacts carried no cap
+accounting whatsoever; they now agree with the independent audit (Qwen 108
+prompts with a capped sibling, DeepSeek 107).
+
+Both `evaluate_abstention_baselines` artifacts were additionally stale against
+four of their five code deps *before* this change — they corresponded to no
+committed version of the code. Regenerated and relocked.
+
+### 4. Stage record
+
+`evaluate_incremental_abstention@{0,1}` and `evaluate_abstention_baselines@{0,1}`
+are locked and clean. The `@2` rows (deepseek_llama) remain stale and are
+expected to: that collect is pending and its decomposition table does not exist.
+`abstention_layer` is now a per-row matrix field rather than a global 21, since
+the Llama-arch row probes 8/16/24.
+
+### 5. Not done
+
+No new analysis. The geometry-of-completion study that the continuation result
+gates open (entry above) was not started.
+
+## 2026-08-03: Budget-limited noncompletion — capping is a budget shortfall
+
+Supersedes the guard described in the entry below, and answers the question that
+entry left open by naming it prematurely: cap hits are **not** non-convergence.
+
+### 1. Stages and parameterization
+
+No DVC stage. One CPU pass over cached artifacts, one GPU continuation run.
+
+```
+python sibling_structure.py --model_label deepseek \
+    --oof_csv results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv \
+    --data_dir data/deepseek_bestofn_full/math500
+python sibling_structure.py --model_label qwen ... --data_dir data/qwen_bestofn_full/math500
+python continue_capped.py --data_dir data/deepseek_bestofn_full/math500 \
+    --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-7B \
+    --n_traces 50 --extra_tokens 8192 --batch_size 6 --seed 42 --num_shards 3 --shard {0,1,2}
+```
+
+Artifacts: `results/{deepseek,qwen}_bestofn_full/math500/math500_sibling_structure_{results.json,report.md}`,
+`results/deepseek_bestofn_full/math500/math500_continue_capped_{results,traces}.json`.
+
+### 2. The cap guard, corrected
+
+The 2026-08-03 guard below rejected any cap above every observed trace length.
+That is the signature of a wrong budget, but equally of a **clean collect**:
+DeepSeek-Llama runs at 12288 and need never reach it, so the guard would have
+refused a correct cap. Observed lengths are not evidence and no longer decide.
+
+`collect_data.py` stores no run-level budget, so `trace_caps.resolve_cap` now
+recovers it from the two records that are authoritative — `dvc.lock` (the collect
+command that actually ran) and `dvc.yaml` + `params.yaml` (the declared stage
+config) — keyed by the data directory. A caller-supplied cap that contradicts
+either raises, and so does disagreement between the two; that is what catches the
+original Qwen-at-8192 defect, without the length heuristic. Directories outside
+the pipeline resolve to an unvalidated cap that says so: `Cap.provenance` is
+written into every report rather than implying the count was checked.
+
+Verified live: Qwen 1024 and DeepSeek 8192 from both records; DeepSeek-Llama
+12288 from `params.yaml` alone (pending collect, absent from `dvc.lock`) and
+**accepted** despite no trace reaching it. Qwen's corrected abstention run
+reproduces the table in the entry below bit-identically apart from the new
+provenance field.
+
+### 3. Sibling structure — both models
+
+Counts only, no fitting. This needs lengths and answers rather than tokens, so
+unlike the loop study it **is** a two-model result.
+
+| | DeepSeek (8192) | Qwen (1024) |
+|---|---|---|
+| prompts with >=1 capped sibling | 107/500 | 108/500 |
+| prompts with all eight capped | 9 | 2 |
+| P(another sibling finishes given a cap) | 0.916 | 0.981 |
+| P(a finisher is correct given a cap) | 0.570 | 0.454 |
+
+Finished-sibling accuracy falls monotonically with the number of capped siblings
+— DeepSeek 0.785 at zero capped through 0.250 at seven; Qwen 0.657 through 0.333.
+Capping tracks prompt difficulty; it is not an independent sampling accident.
+
+The control that gives "borderline" content: the **longest finishing sibling uses
+a median 88% of the budget at affected prompts against 35% at unaffected ones**
+(Qwen: 93% against 52%). Prompts that cap are prompts already pressed against the
+cap. Regime split among affected prompts (definitions in `sibling_structure.py`):
+
+| regime | DeepSeek | Qwen |
+|---|---|---|
+| prompt-limited (>=5 of 8 capped) | 34 (32%) | 27 (25%) |
+| budget-borderline (longest finisher >=90% of budget) | 31 (29%) | 53 (49%) |
+| trajectory-limited (a sibling finished correctly) | 29 (27%) | 15 (14%) |
+| unresolved | 13 (12%) | 13 (12%) |
+
+### 4. Continuation — what capped traces were actually doing
+
+50 capped DeepSeek traces sampled at seed 42 from the 370 that were not already
+looping (4 excluded), resumed from prompt + their own 8192 stored tokens — which
+round-trip exactly through `convert_tokens_to_ids` — and run to 16384 at the
+collection temperature 0.6. Intervals are Wilson 95%.
+
+| outcome | n | share |
+|---|---|---|
+| completed, correct | 16 | 0.32 [0.21, 0.46] |
+| completed, incorrect | 18 | 0.36 |
+| still unfinished at 16384 | 13 | 0.26 [0.16, 0.40] |
+| degenerate loop | 3 | 0.06 [0.02, 0.16] |
+
+**70% [0.56, 0.81] terminate given 8192 more tokens, and 45.7% [0.31, 0.62] of
+those are correct** — against the 5.6% accuracy these same traces are scored at
+when judged truncated. Extra tokens needed by the finishers: median 2846,
+mean 3386, p90 7014; 21 of 35 fit in +4096.
+
+Zero traces answered and then kept going *in the continuation*, but at population
+scale **38 of 374 capped traces (10.2%) already carried a parseable answer** when
+the budget ran out — those were never budget-limited, only bad at stopping.
+
+The gate for entering geometry — two reproducible regimes — is met, by the
+section 3 labels:
+
+| regime | n | correct | incorrect | unfinished | loop |
+|---|---|---|---|---|---|
+| prompt-limited | 31 | 7 | 12 | 10 | 2 |
+| budget-borderline | 11 | 5 | 5 | 1 | 0 |
+| trajectory-limited | 5 | 4 | 0 | 1 | 0 |
+| unresolved | 3 | 0 | 1 | 1 | 1 |
+
+Termination is 0.61 [0.44, 0.76] under prompt-limited against 0.84 [0.62, 0.95]
+otherwise. The direction is consistent and the cells are tiny; treat the ordering
+as real and the magnitudes as unestimated.
+
+### 5. Claims ruled in and out
+
+- **Ruled in.** A cap hit is predominantly a **budget shortfall**, not a failure
+  to converge. The name "non-convergence" was premature and is retired.
+- **Ruled in.** Capping is prompt-structured, not sample-structured: affected
+  prompts sit at the budget edge and their finishers are less accurate. Two
+  models.
+- **Ruled out.** That most capped traces are stuck. 6% degenerate on continuation,
+  1% at the cap itself (entry below) — the same order, still not the story.
+- **Not established.** Any prompt-level accuracy gain from a larger budget. Only
+  the sampled capped traces were continued, not their siblings, so nothing here
+  measures a plurality vote. The trace-level flip rate is 0.32.
+- **Costing, for the budget-engineering framing.** Continuing only the capped
+  traces to 16384 costs ~4.8k tokens each in expectation, ~1.8M over the 370
+  coherent ones, **+14.4% on a 12.4M-token run**, to flip ~32% of them.
+
+### 6. Limitations and the next dependent stage
+
+Continuation cannot reproduce the original sampling stream — the RNG state is
+gone — so this measures what the model does next from that prefix, not what it
+did on the day. n=50 is a marginal sample of capped *traces*, so it is dominated
+by prompt-limited prompts (31 of 50), which is the honest population weighting
+but leaves the other cells at n=3-11.
+
+Next stage, now gated open: geometry on fixed prefixes (512/1024/2048 tokens),
+comparing **capped against completed siblings of the same prompt**, which removes
+prompt difficulty without another global correctness score. Plots first — path
+efficiency, recurrence, velocity, distance to a successful sibling, sibling
+dispersion, with entropy and log-probability controls. The target is the regime
+label from section 3, not correctness.
+
+Not started, and deliberately: held-out-sibling forecasting (the backup branch),
+and any continuation of Qwen, which stores no tokens and so cannot be resumed.
+
+## 2026-08-03: Cap-population fix, and loop precursors KILLED (DeepSeek only)
+
+### 1. Stages and parameterization
+
+No DVC stage. Two ad-hoc, CPU-only passes over cached artifacts:
+
+```
+python incremental_abstention.py --model_label qwen --max_new_tokens 1024 --layer 21 \
+    --oof_csv results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+python loop_precursors.py --data_dir data/deepseek_bestofn_full/math500 \
+    --max_new_tokens 8192 --ngram 8 --window 200 --threshold 0.5 --seed 42
+```
+
+### 2. The n=498 cap-population bug
+
+A previously reported Qwen "cap-free valid" population of n=498 was impossible
+against the audit finding of 108/500 Qwen prompts with a capped sibling. Cause:
+the ad-hoc `incremental_abstention.py` run was passed **DeepSeek's
+`--max_new_tokens 8192`** for traces collected at **Qwen's 1024**
+(`params.yaml:69-70`). No trace can reach 8192, so every cap count was zero and
+`cap_free_valid_plurality` silently equalled `valid_plurality`. Not the
+`max_new_tokens is None` path — that was a separate latent defect, now also closed.
+
+`trace_caps.resolve_cap` now rejects a missing cap; `truncation_report`,
+`answer_cluster_eligibility`, and `prompt_accounting` all route through it.
+(Its first version also rejected a cap above every observed length. That was
+wrong and was replaced on the same day — see the 2026-08-03 budget-limited
+noncompletion entry.) A repo-wide sweep found no other
+result file carrying a mismatched cap, and DeepSeek's correctly-capped run
+reproduces bit-identically.
+
+**Corrected Qwen populations** (MATH-500, layer 21, 1,000-draw bootstrap):
+
+| population | n | prompts w/ ≥1 capped sibling | B1−B0 AUACC |
+|---|---|---|---|
+| full_population | 500 | 108 | 0.052 [0.019, 0.083] p=0.002 |
+| valid_plurality | 498 | 106 | 0.052 [0.018, 0.083] p=0.002 |
+| cap_free_valid_plurality | 392 | 0 | 0.059 [0.023, 0.096] p=0.002 |
+| all_eight_parseable | 392 | 1 | 0.059 [0.021, 0.099] p=0.004 |
+
+Automatic failures: 2. **The tail-RMD increment survives the correction** and is
+slightly larger on the cap-free population. The 108 figure now matches the audit.
+
+### 3. Loop precursors: the premise is false
+
+Scope: DeepSeek only. `data/qwen_bestofn_full` stores no `tokens_*` and no
+`generated_text`, so no token- or text-level analysis can run on Qwen. **Nothing
+in this section is a cross-model replication.**
+
+Population: 4,000 traces, 500 prompts, cap 8192. 374 traces capped (9.3%),
+consuming **24.7% of the 12.4M generated tokens**, at accuracy **0.056**.
+107/500 prompts have ≥1 capped sibling; 9 have all eight capped.
+
+An 8-gram prefix-novelty detector (200-token window, 0.5 threshold) flags 80% of
+capped traces at a median onset of **44.9% of budget** — which looked like a
+large early-stop prize. It is not:
+
+- it also flags **21.1% of uncapped traces**, and those are only mildly less
+  accurate than unflagged ones (0.712 vs 0.782), so the flag is not reading a
+  pathology;
+- reading 21 capped traces **at the onset position** (7 each from early-onset,
+  late-onset, and no-onset strata), only **2 are degenerate loops**. The other 19
+  are coherent, unfinished reasoning — symmetric case analysis, re-verification of
+  a shoelace computation, Asymptote code re-reading, second-approach checks. The
+  detector fires on structural repetition intrinsic to mathematical reasoning.
+
+Quantified with a tail-periodicity statistic (best repeating period in the last
+500 tokens, calibrated on the two hand-labelled loops, which scored 1.000 and
+0.423 against a 0.188 maximum for the other nineteen):
+
+| threshold | degenerate share of capped | of uncapped |
+|---|---|---|
+| ≥0.20 | 0.070 (26) | 0.043 (157) |
+| ≥0.30 | 0.011 (4) | 0.012 (44) |
+| ≥0.50 | 0.005 (2) | 0.005 (17) |
+
+**Degenerate looping occurs at ~1% in both populations and is therefore not what
+causes capping.** The result is insensitive to the threshold across 0.20–0.90.
+
+### 4. Claims ruled out
+
+- **Ruled out:** capping in DeepSeek-R1-Distill-Qwen-7B on MATH-500 is a
+  degenerate-loop phenomenon. It is not. Capped traces are overwhelmingly hard
+  problems the model does not finish in 8192 tokens.
+- **Ruled out:** "detect the loop, early-stop, recover the compute". There is no
+  loop to detect in ~99% of capped traces.
+- **Not run, by the pre-registered kill criterion:** the geometric precursor test
+  (L2) and the tokens-saved/answers-lost curve (L3). Both target loop onset, and
+  the object does not exist at population scale.
+
+### 5. Limitations and next dependent stage
+
+The hand taxonomy is 21 traces, stratified rather than random; the population
+periodicity statistic is what carries the claim, not the reading. The periodicity
+threshold rests on two hand-labelled positives, which is why §3 reports a
+threshold sweep instead of a single number.
+
+The 24.7% of budget spent on 5.6%-accurate capped traces is real and still
+unrecovered. Recovering it means predicting **non-convergence**, not detecting a
+loop — a different and harder target, and a scope change. Gate it behind an
+explicit decision rather than drifting into it.
+
+Artifacts: `loop_precursors.py`, `trace_caps.py`, `tests/test_loop_precursors.py`,
+`tests/test_trace_caps.py`. Run outputs are scratch-only and not checked in.
+
 ## 2026-07-31: Supervised probe ceiling + length residualization (BOTH models)
 
 ### 1. Stages and parameterization
