@@ -54,6 +54,7 @@ from incremental_abstention import (
     is_parseable_answer,
     paired_bootstrap_delta,
     prompt_metrics,
+    select_layer_rows,
 )
 
 DEEPCONF_STATISTICS = (
@@ -294,9 +295,7 @@ def analyze_model(
     n_bootstrap: int = 1000,
     seed: int = 42,
 ) -> dict:
-    rows = _read_oof(oof_csv)
-    layer = max(int(row["layer"]) for row in rows)
-    rows = [row for row in rows if int(row["layer"]) == layer]
+    rows, layer = select_layer_rows(_read_oof(oof_csv), context=str(oof_csv))
     rows_by_prompt: dict[int, list[dict]] = defaultdict(list)
     for row in rows:
         rows_by_prompt[int(row["prompt_id"])].append(row)

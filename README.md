@@ -4,8 +4,8 @@ Probing hidden-state geometry in math reasoning.
 
 The core question: when a language model generates a reasoning trace, does the *geometry* of its hidden states tell us something about correctness that token-level entropy misses? We fit a reference manifold (PCA + Gaussian) on hidden states from correct traces, then measure Mahalanobis distance for each new trace. The hypothesis is that incorrect reasoning deviates from this manifold even when the output distribution looks similar token-by-token.
 
-Current evidence is the clean Qwen Best-of-8 MATH-500 rerun. Historical
-DeepSeek, transfer, temperature, and prefix runs remain under `results/` for
+Current evidence is the Best-of-8 MATH-500 runs on three models. Historical
+greedy, transfer, temperature, and prefix runs remain under `results/` for
 provenance but are not current evidence. See [FINDINGS.md](FINDINGS.md) and
 [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
@@ -21,33 +21,52 @@ notebooks are current evidence versus archived diagnostics.
 
 | Model | Architecture | Decoding |
 |---|---|---|
-| Qwen2.5-7B-Instruct | Qwen2.5, 28 layers, hidden dim 3584 | Greedy / Best-of-8 |
-| DeepSeek-R1-Distill-Qwen-7B | Historical diagnostic; clean replication pending | — |
-| Llama-3.1-8B-Instruct | Historical diagnostic; clean replication pending | — |
-| DeepSeek-R1-Distill-Llama-8B | Historical diagnostic; clean replication pending | — |
+| Qwen2.5-7B-Instruct | Qwen2.5, 28 layers, hidden dim 3584 | Best-of-8, layer 21, 1024-token budget |
+| DeepSeek-R1-Distill-Qwen-7B | Qwen2.5 lineage, reasoning distill | Best-of-8, layer 21, 8192-token budget |
+| DeepSeek-R1-Distill-Llama-8B | Llama lineage, reasoning distill | Best-of-8, layer 24, 12288-token budget |
+| Llama-3.1-8B-Instruct | Historical diagnostic; not current evidence | — |
 
 Datasets: **MATH-500** (500 problems, 5 difficulty levels, 7 subjects) and **GSM8K** test set (~1300 problems).
 
 ## Current result
 
-On clean Qwen Best-of-8 traces, RMD over the highest-entropy 20% of tokens
-beats full-trace RMD at all three layers and beats a matched random-token
-control. It remains competitive with output baselines, adds only suggestive
-incremental value, and does not improve Best-of-N tie-breaking. The strongest
-surviving interpretation is prompt-level difficulty/abstention, not a reliable
-per-attempt correctness detector.
+**Hidden-state geometry adds selective-prediction value on top of a
+self-consistency baseline, on three models.** The claim is an *increment*, not a
+score for the feature alone. Baseline `B0 = (length, entropy, logprob,
+vote_agreement)` aggregated over 8 sibling traces; `B1 = B0 + rmd_tail_q20`,
+the 20th percentile of relative Mahalanobis distance over the trace tail.
+Out-of-fold logistic readouts, prompt-clustered paired bootstrap, 1000 draws.
 
-**The within-prompt result is Qwen-specific; the between-prompt result is not.**
+On the cap-free valid-plurality population, in **AURC** (area under the
+risk-coverage curve, lower is better):
+
+| Model | n | `B1 − B0` |
+|---|---:|---|
+| Qwen2.5-7B-Instruct | 392 | −0.0585 [−0.1026, −0.0182] |
+| DeepSeek-R1-Distill-Qwen-7B | 393 | −0.0355 [−0.0642, −0.0097] |
+| DeepSeek-R1-Distill-Llama-8B | 408 | −0.0560 [−0.0910, −0.0232] |
+
+Controls it survives: two difficulty controls, one of them MATH-500's exogenous
+human-annotated level; a length residualization; DeepConf (arXiv:2508.15260) as
+a prompt-level score, as a confidence-weighted vote, and as a confidence filter,
+with all four of its statistics; and a vote-proxy control answering Orgad et al.
+(arXiv:2410.02707) — geometry scores AUROC 0.71–0.83 *inside* the stratum where
+the eight siblings agree unanimously and self-consistency is silent.
+
+**This is a between-prompt result, and the within-prompt one is Qwen-specific.**
 A pre-registered cross-model gate on DeepSeek-R1-Distill-Qwen-7B failed
 (2026-07-29): the localization effect is +0.004 [−0.016, +0.027], excluding
 Qwen's +0.058, and *every* within-prompt AUC on that model — geometry and output
-baselines alike — sits at or below chance. On the same data, prompt-level
-abstention **did** replicate, beating the length confound baseline by +0.030
-AURC [+0.014, +0.048], p < 0.001.
+baselines alike — sits at or below chance.
 
 The cross-model claim is therefore: **hidden-state geometry indicates which
 problems are hard, not which attempt is right.** See
 [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+
+*Metric note: AURC and AUACC are affinely related at fixed n and both inherit the
+base accuracy, so levels are not comparable across models — only deltas are.
+AUROC is the base-rate-free metric and is used wherever a comparison crosses
+models.*
 
 ## Setup
 

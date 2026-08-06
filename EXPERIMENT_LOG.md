@@ -5,6 +5,184 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-06: Freeze — AURC as the reported metric, and the vote-proxy objection answered
+
+Two unactioned items from `RELATED_WORK.md`, run together because they are both
+about how the frozen result is *stated* rather than about a new effect. Neither
+moves the headline. One of them turned up a defect in the entry below.
+
+### 1. Stages and parameterization
+
+No DVC stage, no GPU, no new collection. `orgad_agreement_control.py` re-reads
+the cached OOF rows and imports the frozen aggregation, folds, cross-fitting,
+and paired bootstrap from `incremental_abstention`.
+
+```
+python orgad_agreement_control.py --output_dir results/orgad_agreement_control \
+  --model "DeepSeek-Qwen:<oof_csv>:data/deepseek_bestofn_full/math500" \
+  --model "Llama:<oof_csv>:data/deepseek_llama_bestofn_full/math500" \
+  --model "Qwen:<oof_csv>:data/qwen_bestofn_full/math500"
+```
+
+Its `B0` and `B1` AURC reproduce the frozen files to the sixth decimal on all
+three models, which is the check that it is scoring the same objects.
+Artifacts: `results/orgad_agreement_control/`, `results/deepconf_asymmetry/`
+(regenerated, see §4).
+
+### 2. AURC is the convention. It is not a base-rate fix
+
+`RELATED_WORK.md` §4 established that risk-coverage (AURC, lower better) is the
+dominant convention in selective classification and AUACC the minority one, and
+recommended the swap. Done — every headline below leads with AURC. But the
+reason given for the swap in the entry below was wrong, and the correction
+matters more than the convention:
+
+**AURC inherits the base rate exactly as AUACC does.** They are affinely related
+at fixed `n` (`AURC = (1 − 1/n) − AUACC`), so an uninformative scorer does not
+land at zero; it lands at `(1 − 1/n) − base_accuracy`:
+
+| model | n | base accuracy | AURC at chance | B0 | B1 |
+|---|---:|---:|---:|---:|---:|
+| Qwen | 392 | 0.6913 | 0.3061 | 0.1960 | 0.1375 |
+| DeepSeek-Qwen | 393 | 0.7964 | 0.2010 | 0.1522 | 0.1167 |
+| Llama | 408 | 0.6740 | 0.3235 | 0.2369 | 0.1808 |
+
+B0's 0.152 on DeepSeek-Qwen against 0.237 on Llama reads as the stronger
+baseline and is the weaker one: measured from each model's own floor it removes
+0.049 of risk against Llama's 0.087. That is the same conclusion the excess-AUACC
+reading reached, by the same arithmetic. **The metric that removes the base rate
+is AUROC, and nothing else here does.** Report AURC because reviewers expect it;
+report *deltas*, which are base-rate-free at fixed population, and never a bare
+level across models in either metric.
+
+### 3. The frozen result, stated in AURC
+
+`cap_free_valid_plurality`, out-of-fold logistic readouts, prompt-clustered
+paired bootstrap, 1000 draws, seed 42. Lower is better, so the increment is
+negative:
+
+| comparison | Qwen | DeepSeek-Qwen | Llama |
+|---|---|---|---|
+| `B1 − B0` | **−0.0585 [−0.1026, −0.0182]** p=.004 | **−0.0355 [−0.0642, −0.0097]** p=.004 | **−0.0560 [−0.0910, −0.0232]** p<.001 |
+| `B1 − (B0 + DeepConf_tail_q20)` | n/a (no cached tokens) | −0.0269 [−0.0567, +0.0039] p=.090 | −0.0547 [−0.0977, −0.0124] p=.004 |
+
+The AUACC mirror is the same estimand with the sign flipped: +0.0585, +0.0355,
++0.0560. **Its interval is not the exact negation of the AURC interval** — the
+stored runs seed the bootstrap per metric (`seed + 1000 + len(metric) + …`), so
+the two metrics resample independently and their bounds differ by Monte-Carlo
+noise of ≤0.001. Quote one metric's interval, not a mix.
+
+### 4. Orgad et al.: tail RMD is not a proxy for the vote
+
+Orgad et al. (arXiv:2410.02707, ICLR 2025) sample K=30 responses per prompt,
+build an error taxonomy out of the answer distribution, and show probes on
+hidden states predict it. Read adversarially: hidden states encode the
+resampling agreement structure, so `rmd_tail_q20` is a worse-instrumented
+`vote_agreement` and the increment is a fitting artifact. The increment is
+already measured over a baseline containing the vote, which answers this in the
+supervised sense. Three readings that do not route through a fitted model:
+
+**Redundancy is weak.** Prompt-level correlation between the two features:
+
+| model | Pearson | Spearman | shared variance |
+|---|---:|---:|---:|
+| Qwen | 0.361 | 0.325 | 13% |
+| DeepSeek-Qwen | 0.105 | 0.098 | 1% |
+| Llama | 0.274 | 0.287 | 8% |
+
+**Geometry is strongest exactly where agreement is silent.** Splitting prompts
+by whether the eight siblings agree unanimously, and scoring `rmd_tail_q20`
+*inside* each stratum — agreement does not vary there, so a proxy cannot
+separate anything:
+
+| model | unanimous n / AUROC | split n / AUROC | pooled AUROC |
+|---|---|---|---:|
+| Qwen | 274 / **0.829 [0.771, 0.884]** | 118 / 0.726 [0.634, 0.812] | 0.806 |
+| DeepSeek-Qwen | 349 / **0.714 [0.648, 0.784]** | 44 / 0.531 [0.369, 0.701] | 0.686 |
+| Llama | 214 / **0.756 [0.685, 0.830]** | 194 / 0.636 [0.554, 0.713] | 0.709 |
+
+On every model the unanimous stratum scores **at or above** the pooled figure,
+on the majority of prompts, with the interval clear of chance. Unanimity is not
+a rare corner: it is 70%, 89%, and 52% of the population.
+
+**The orthogonal component survives; the mirror does not.** Out-of-fold linear
+residual, the same construction the 2026-07-31 length control used:
+
+| model | `rmd_tail_q20` given the vote | the vote given `rmd_tail_q20` |
+|---|---|---|
+| Qwen | **0.744 [0.689, 0.801]** | 0.480 [0.404, 0.558] |
+| DeepSeek-Qwen | **0.660 [0.590, 0.728]** | 0.447 [0.373, 0.534] |
+| Llama | **0.670 [0.618, 0.723]** | 0.562 [0.500, 0.627] |
+
+**Substitution, both directions** (AURC, lower better; `B1 − B0` point estimates
+reproduce the frozen ones exactly, intervals from this run's seed):
+
+| model | `B1 − B0` | geometry *in place of* the vote, − B0 | `B1 −` (geometry for vote) |
+|---|---|---|---|
+| Qwen | −0.0585 [−0.0975, −0.0221] | −0.0548 [−0.0963, −0.0183] p=.004 | −0.0037 [−0.0174, +0.0082] p=.632 |
+| DeepSeek-Qwen | −0.0355 [−0.0636, −0.0071] | −0.0232 [−0.0563, +0.0113] p=.208 | −0.0123 [−0.0267, +0.0005] p=.056 |
+| Llama | −0.0560 [−0.0917, −0.0183] | −0.0467 [−0.0879, −0.0020] p=.032 | −0.0093 [−0.0192, −0.0007] p=.042 |
+
+Deleting the vote from B0 and putting geometry in its place still beats the
+full B0 on two of three models. Adding the vote back on top of geometry buys
+between 0.004 and 0.012. The dependence runs the opposite way from the
+objection.
+
+### 5. A defect in the entry below: the layer sweep was never selected
+
+`deepconf_asymmetry.py` read the OOF file without picking a layer. That file
+holds one row per `(trace, layer)` across a three-layer sweep. The output-side
+columns repeat unchanged at every layer, so `length`, `entropy`, `logprob`,
+`vote_agreement`, and all four DeepConf statistics are **unaffected** — and the
+baseline reproduced exactly, which is why nothing looked wrong. `rmd_tail_q20`
+is layer-dependent, so its AUROC was a mean over layers 7/14/21 rather than the
+frozen layer:
+
+| feature | as published | corrected |
+|---|---|---|
+| `rmd_tail_q20`, DeepSeek-Qwen (L21) | 0.708 [0.643, 0.769] | **0.686 [0.620, 0.750]** |
+| `rmd_tail_q20`, Llama (L24) | 0.702 [0.651, 0.752] | **0.709 [0.660, 0.760]** |
+
+Every other cell of that entry's §3 table is unchanged to four decimals. The
+claim it supports — that geometry is the only feature clearly separated from
+chance on both models, and that all four DeepConf statistics contain 0.5 — is
+unchanged, and the two-architecture agreement is if anything closer.
+
+Layer selection is now one tested helper, `incremental_abstention.select_layer_rows`,
+used by every module that reads an OOF file. `deepconf_weighted_vote.py` and
+`incremental_abstention.py` were already selecting the deepest layer and their
+numbers do not move; `difficulty_control.py` and `prompt_selection.py` take an
+explicit layer and never had the defect.
+
+### 6. Two things not to quote from this
+
+- **The residual mirror is a weak instrument, not a finding.** `vote_agreement`
+  is a share over at most eight siblings with 52–89% of its mass at exactly 1.0.
+  A *linear* residual is a crude thing to take from a variable that lumpy, so
+  "the vote adds nothing once geometry is partialled out" is not supported at the
+  strength of the forward direction. The load-bearing readings are the weak
+  correlation and the within-stratum AUROC.
+- **The DeepSeek-Qwen split stratum is 44 prompts.** Its 0.531 [0.369, 0.701] is
+  uninformative in both directions. That model is unanimous on 89% of prompts at
+  N=8, so on DeepSeek-Qwen the unanimous stratum essentially *is* the population.
+
+### 7. Claims
+
+- **Ruled out.** That `rmd_tail_q20` is a hidden-state restatement of
+  `vote_agreement`. It correlates 0.10–0.36, scores AUROC 0.71–0.83 inside the
+  stratum where agreement is constant, and keeps 0.66–0.74 after the vote is
+  linearly partialled out — on three models.
+- **Ruled in.** Geometry can stand in for the vote, and does so at no loss on
+  two of three models; the vote adds ≤0.012 AURC once geometry is present.
+- **Ruled out.** That switching to AURC removes the base-rate trap. It does not;
+  only AUROC does. AURC is adopted for convention, and levels stay
+  non-comparable across models.
+- **Corrected.** `rmd_tail_q20` AUROC in the 2026-08-06 asymmetry entry: 0.708
+  and 0.702 were three-layer averages; the layer-21/24 figures are 0.686 and
+  0.709. No conclusion of that entry changes.
+- **Reporting standard, frozen.** AURC primary, AUACC mirror, AUROC whenever a
+  comparison crosses models. Never a bare level across models in AURC or AUACC.
+
 ## 2026-08-06: DeepConf used inside the prompt — weighting changes nothing, filtering hurts
 
 The entry below closes with "Not established: whether DeepConf helps in its own
@@ -165,9 +343,14 @@ is in fact nearly **twice as informative on Llama** (+0.087 against +0.049).
 AUROC over the raw prompt-level feature, prompt bootstrap, 1000 draws, seed 42.
 Chance is 0.500:
 
+*Corrected 2026-08-06 (see the freeze entry above): the `rmd_tail_q20` row as
+first published averaged the three-layer sweep instead of selecting the frozen
+layer. Every other row is unaffected — the output-side and DeepConf columns
+repeat unchanged across layers.*
+
 | feature | DeepSeek-Qwen | Llama |
 |---|---|---|
-| `rmd_tail_q20` | **0.708 [0.643, 0.769]** | **0.702 [0.651, 0.752]** |
+| `rmd_tail_q20` (L21 / L24) | **0.686 [0.620, 0.750]** | **0.709 [0.660, 0.760]** |
 | `vote_agreement` | 0.587 [0.541, 0.639] | 0.650 [0.599, 0.706] |
 | `length` | 0.584 [0.512, 0.654] | 0.526 [0.464, 0.590] |
 | `entropy` | 0.539 [0.462, 0.610] | 0.527 [0.470, 0.590] |
@@ -178,7 +361,7 @@ Chance is 0.500:
 
 **Every DeepConf interval contains 0.5, on both models.** There is no
 asymmetry to explain — the statistic carries no prompt-level signal on either.
-`rmd_tail_q20` meanwhile lands at 0.708 and 0.702: two architectures, the same
+`rmd_tail_q20` meanwhile lands at 0.686 and 0.709: two architectures, the same
 number to within noise, and the only feature clearly separated from chance.
 
 The reason adding DeepConf to B0 moves so little is visible in the correlations:
@@ -221,8 +404,8 @@ control was not weakened by the omission, but it was luck, not design.
   from a feature at chance that duplicates `entropy` and `logprob`. The null is
   a power result at n=393, not evidence that DeepConf absorbs geometry.
 - **Ruled in.** `rmd_tail_q20` has the same standalone discriminative power on
-  two architectures (AUROC 0.708 and 0.702) and is the only feature examined
-  that is clearly separated from chance on both.
+  two architectures (AUROC 0.686 and 0.709, corrected) and is the only feature
+  examined that is clearly separated from chance on both.
 - ~~**Not established.** Whether DeepConf helps in its *own* setting here —
   confidence-weighted voting within a prompt. That is the honest next test and
   the one objection this entry cannot answer.~~ *Answered 2026-08-06 by the

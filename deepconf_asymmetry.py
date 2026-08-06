@@ -42,6 +42,7 @@ from incremental_abstention import (
     _population_ids,
     _read_oof,
     aggregate_prompt_features,
+    select_layer_rows,
 )
 
 # `_load_exact_prompt_scores` reads only the first two, so the comparison on
@@ -195,7 +196,7 @@ def analyze_model(
     n_bootstrap: int = 1000,
     seed: int = 42,
 ) -> dict:
-    rows = _read_oof(oof_csv)
+    rows, layer = select_layer_rows(_read_oof(oof_csv), context=str(oof_csv))
     deepconf = load_all_deepconf_scores(exact_scores_npz)
     features = aggregate_prompt_features(
         rows,
@@ -249,6 +250,7 @@ def analyze_model(
     return {
         "label": label,
         "population": population,
+        "layer": layer,
         "n_prompts": len(prompt_ids),
         "base_accuracy": base_accuracy,
         "stored_base_accuracy": stored["base_accuracy"],

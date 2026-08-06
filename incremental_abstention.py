@@ -372,6 +372,30 @@ def _read_oof(path: str | Path) -> list[dict]:
     return rows
 
 
+def select_layer_rows(
+    rows: list[dict],
+    layer: int | None = None,
+    *,
+    context: str = "",
+) -> tuple[list[dict], int]:
+    """Rows from a single layer, defaulting to the deepest one present.
+
+    An OOF file holds one row per ``(trace, layer)``.  The output-side columns repeat
+    unchanged across layers, but the geometry columns do not, so an analysis that
+    forgets to select a layer averages ``rmd_tail_q20`` over the whole sweep and scores
+    a feature no frozen result was ever computed from.  The failure is silent -- the
+    baseline still reproduces exactly, because only geometry moves -- so every module
+    that reads an OOF file goes through here.
+    """
+    if not rows:
+        raise ValueError(f"no OOF rows to select a layer from{context and ' in ' + context}")
+    chosen = max(int(row["layer"]) for row in rows) if layer is None else int(layer)
+    kept = [row for row in rows if int(row["layer"]) == chosen]
+    if not kept:
+        raise ValueError(f"no rows at layer {chosen}{context and ' in ' + context}")
+    return kept, chosen
+
+
 def _load_prompt_states(data_dir: str | Path, layer: int) -> dict[int, np.ndarray]:
     """Extract row-zero (last prompt position) states without retaining tokens."""
     source = Path(data_dir)
@@ -529,12 +553,7 @@ def run_incremental_analysis(
     exact_scores_npz: str | None = None,
 ) -> dict:
     rows = _read_oof(oof_csv)
-    if not rows:
-        raise ValueError(f"no OOF rows in {oof_csv}")
-    layer = max(int(row["layer"]) for row in rows) if layer is None else int(layer)
-    rows = [row for row in rows if int(row["layer"]) == layer]
-    if not rows:
-        raise ValueError(f"no rows at layer {layer} in {oof_csv}")
+    rows, layer = select_layer_rows(rows, layer, context=str(oof_csv))
     states = None
     geometry = None
     exact_scores = _load_exact_prompt_scores(exact_scores_npz) if exact_scores_npz else None

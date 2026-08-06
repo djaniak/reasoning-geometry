@@ -16,6 +16,7 @@ from incremental_abstention import (
     prompt_accounting,
     prompt_metrics,
     crossfit_logistic_predictions,
+    select_layer_rows,
 )
 
 
@@ -121,3 +122,49 @@ def test_exact_scores_are_aggregated_and_exposed_as_incremental_models(tmp_path)
     assert scores[0]["deepconf_global"] == pytest.approx(11.0)
     specs = _model_specs({0: {"prompt_only_geometry": np.nan, "deepconf_global": 11.0}})
     assert "B0_plus_DeepConf_tail_q20" in specs
+
+
+def test_layer_selection_defaults_to_the_deepest_layer_present():
+    rows = [
+        {"prompt_id": 0, "layer": 7, "rmd_tail_q20_score": 0.0},
+        {"prompt_id": 0, "layer": 21, "rmd_tail_q20_score": 9.0},
+    ]
+
+    kept, layer = select_layer_rows(rows)
+
+    assert layer == 21
+    assert [row["rmd_tail_q20_score"] for row in kept] == [9.0]
+
+
+def test_layer_selection_honours_an_explicit_layer_and_rejects_an_absent_one():
+    rows = [
+        {"prompt_id": 0, "layer": 7, "rmd_tail_q20_score": 0.0},
+        {"prompt_id": 0, "layer": 21, "rmd_tail_q20_score": 9.0},
+    ]
+
+    assert select_layer_rows(rows, 7)[1] == 7
+    with pytest.raises(ValueError, match="no rows at layer 14"):
+        select_layer_rows(rows, 14)
+    with pytest.raises(ValueError, match="no OOF rows"):
+        select_layer_rows([])
+
+
+def test_leaving_the_layer_sweep_in_would_change_geometry_but_not_the_baseline():
+    """Why the helper exists: the defect it prevents is silent in every B0 column.
+
+    Output-side scores repeat unchanged at every layer, so an analysis that forgets
+    to select one still reproduces the frozen baseline exactly -- and quietly scores
+    a cross-layer average of `rmd_tail_q20` that no frozen result was computed from.
+    """
+    rows = [
+        _row(0, 0, "a", fold=0, rmd=0.0) | {"layer": 7},
+        _row(0, 0, "a", fold=0, rmd=4.0) | {"layer": 21},
+    ]
+
+    swept = aggregate_prompt_features(rows, max_new_tokens=100)[0]
+    selected = aggregate_prompt_features(select_layer_rows(rows)[0], max_new_tokens=100)[0]
+
+    assert swept["logprob"] == pytest.approx(selected["logprob"])
+    assert swept["vote_agreement"] == pytest.approx(selected["vote_agreement"])
+    assert swept["rmd_tail_q20"] == pytest.approx(2.0)
+    assert selected["rmd_tail_q20"] == pytest.approx(4.0)

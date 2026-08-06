@@ -42,12 +42,26 @@ Where a claim is my inference rather than something a paper states, it is labell
   arXiv:1805.08206; Kamath et al., ACL 2020), and Nature-level UQ work uses AURAC (Farquhar et
   al. 2024). Recommendation: report AURC as the primary number and AUACC as the mirror, not the
   other way round — the repo already computes both and they are affinely related.
+  **Actioned 2026-08-06**, with one correction to the reasoning above: the swap buys the
+  convention and nothing else. AURC inherits the base accuracy exactly as AUACC does, just
+  with the sign flipped — an uninformative scorer sits at `(1 − 1/n) − base`, not at zero.
+  AUROC is the only base-rate-free metric in play. So: AURC primary, AUACC mirror, AUROC
+  whenever a comparison crosses models, and never a bare level across models in either.
 - **Threat to novelty worth naming out loud:** Orgad et al. (arXiv:2410.02707) resample K=30
   responses per prompt and show hidden-state probes predict *which* resampling regime a prompt
   is in. That is the opposite-direction result — geometry predicts agreement — and a hostile
   reviewer will read it as "so the geometry feature is a proxy for the vote-agreement feature
   you already have in B0." The difficulty controls partly answer this, but the paper should
   answer it directly with the B0/B1 residual structure.
+  **Answered 2026-08-06** (`orgad_agreement_control.py`, three models,
+  `cap_free_valid_plurality`). The two features correlate at Pearson 0.36 / 0.11 / 0.27
+  (Qwen / DeepSeek-Qwen / Llama), so at most 13% of either is the other. Inside the
+  *unanimous* stratum — where agreement is constant by construction and carries no
+  information — `rmd_tail_q20` scores AUROC 0.829 / 0.714 / 0.756, at or above its pooled
+  figure, on 70% / 89% / 52% of prompts. After an out-of-fold linear residualization on the
+  vote it keeps 0.744 / 0.660 / 0.670. Swapping geometry in *for* the vote still beats the
+  full B0 on two of three models, while adding the vote back on top of geometry buys ≤0.012
+  AURC. Cite Orgad et al. as the motivation for the control, and report the control.
 - **Second threat:** arXiv:2607.18553 (July 2026) reports the same *shape* of claim — hidden
   states add +0.066 AUROC on GSM8K over length and log-probability shortcut features, with a CI
   excluding zero. Different model class (a looped 2.6B transformer), different metric, no

@@ -67,6 +67,31 @@ pre-registered cross-model gate.*
 
 ## Current evidence (updated 2026-08-06)
 
+> **Frozen reporting standard, and the vote-proxy objection answered
+> (2026-08-06).** Two changes to how the result is *stated*, neither of which
+> moves it. **(i) AURC is now the primary metric**, AUACC the mirror — the
+> dominant convention in selective classification, where the minority AUACC
+> convention had been leading. On `cap_free_valid_plurality` the increment is
+> **Qwen −0.0585 [−0.1026, −0.0182], DeepSeek-Qwen −0.0355 [−0.0642, −0.0097],
+> Llama −0.0560 [−0.0910, −0.0232]** (lower is better, so negative is the gain).
+> The swap fixes the convention and **not** the base-rate trap: AURC inherits the
+> base accuracy exactly as AUACC does, with the sign flipped — an uninformative
+> scorer sits at `(1 − 1/n) − base`, which is 0.306 / 0.201 / 0.324 here. Only
+> AUROC is base-rate free. Report *deltas*, never a bare level across models, in
+> either metric. **(ii) `rmd_tail_q20` is not a restatement of the vote it is
+> scored against** — the reading a reviewer will take from Orgad et al.
+> (arXiv:2410.02707), which shows hidden states encode resampling agreement
+> structure. Three answers that do not route through a fitted model. It
+> correlates with `vote_agreement` at Pearson **0.36 / 0.11 / 0.27** (1–13% shared
+> variance). Inside the *unanimous* stratum, where agreement is constant and
+> self-consistency has nothing left to say, geometry scores AUROC **0.829 / 0.714
+> / 0.756** — at or above its pooled figure, on 70% / 89% / 52% of prompts. After
+> the vote is linearly partialled out of it out-of-fold, it keeps **0.744 / 0.660
+> / 0.670**. Deleting the vote from B0 and putting geometry in its place still
+> beats the full B0 on two of three models, while adding the vote back on top of
+> geometry buys ≤0.012 AURC: the dependence runs the opposite way from the
+> objection. Full entry: `EXPERIMENT_LOG.md` (2026-08-06, freeze).
+
 > **The DeepConf control is closed: given its own within-prompt use, DeepConf
 > still adds nothing, and its filtering costs accuracy (2026-08-06).** The
 > standing objection to the entry below — that a *sibling-mean* discards the
@@ -97,7 +122,10 @@ pre-registered cross-model gate.*
 > AUROC, which is base-rate invariant, all four DeepConf statistics land at
 > chance on both models: 0.460–0.473 (DeepSeek-Qwen) and 0.492–0.528 (Llama),
 > **every interval containing 0.5**. `rmd_tail_q20` meanwhile scores AUROC
-> **0.708 and 0.702** — two architectures, the same number to within noise, and
+> **0.686 and 0.709** *(corrected 2026-08-06 from 0.708 and 0.702, which averaged
+> a three-layer sweep instead of selecting the frozen layer; no DeepConf or
+> output-side number moved, since those columns repeat across layers)* — two
+> architectures, the same number to within noise, and
 > the only feature examined that is clearly separated from chance on both. Three
 > consequences. **(i)** The 2026-08-05 null is a power result at n=393, not
 > evidence that a strong competitor absorbs geometry. **(ii)** B0 is nearly
@@ -160,7 +188,9 @@ pre-registered cross-model gate.*
 > AUACC (accuracy-coverage integral, higher better; `AURC = (1 − 1/n) − AUACC`).
 > On the cap-free valid-plurality population, **Qwen +0.059 [+0.023, +0.096]
 > and DeepSeek +0.036 [+0.010, +0.065]**, and the increment holds on all five
-> populations on both models.
+> populations on both models. *(Amended 2026-08-06: AURC is now the primary
+> metric. The same increments read −0.0585 [−0.1026, −0.0182] and −0.0355
+> [−0.0642, −0.0097]; see the leading entry.)*
 >
 > **Two difficulty controls do not absorb it.** Given budget-edge pressure
 > measured from trace lengths, the increment is +0.062 (Qwen) / +0.037
@@ -224,9 +254,14 @@ pre-registered cross-model gate.*
 > cleanly across models: **geometry indicates which problems are hard, not which
 > attempt is right.** Full entries: `EXPERIMENT_LOG.md` (2026-07-29, both).
 
-The load-bearing result is **prompt-level abstention, stated as an increment over an
-output-side readout, on both models** (2026-08-03 above). It is the only claim that
-survives every control applied to it and replicates across the instruct/distill pair.
+The load-bearing result is **prompt-level abstention, stated as an increment over a
+four-feature output-side readout that already contains self-consistency, on three
+models** — Qwen2.5-7B-Instruct, DeepSeek-R1-Distill-Qwen-7B, and
+DeepSeek-R1-Distill-Llama-8B, the last outside the Qwen2.5 lineage. In AURC (lower
+better): **−0.0585, −0.0355, −0.0560**, every interval clear of zero. It is the only
+claim that survives every control applied to it: two difficulty controls including an
+exogenous human-annotated one, a length residualization, DeepConf run three ways with
+all four of its statistics, and the vote-proxy control answering Orgad et al.
 
 The Qwen Best-of-8 localization result is secondary: highest-entropy 20% RMD beats
 full-trace RMD at all three layers and beats a matched random-token control, but does
