@@ -5,6 +5,120 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-06: The DeepConf asymmetry is a base-rate artifact — DeepConf is at chance on both models
+
+Written to answer the "not established" item the entry below left open: why
+DeepConf's tail statistic scores AUACC 0.799 on DeepSeek-Qwen and 0.625 on
+Llama. The answer is that it does not. **Neither number is a measure of
+DeepConf**, and the gap between them is almost entirely the gap between the two
+models' accuracy.
+
+### 1. Stages and parameterization
+
+No DVC stage, no GPU, no new collection — a re-read of two artifacts that
+already exist.
+
+```
+python deepconf_asymmetry.py --output_dir results/deepconf_asymmetry \
+  --model "deepseek_qwen:<oof_csv>:<data_dir>:<exact_npz>:<results_json>" \
+  --model "llama:<oof_csv>:<data_dir>:<exact_npz>:<results_json>"
+```
+
+It imports the frozen `aggregate_prompt_features` and `_population_ids`, so the
+prompts and populations are the same objects the locked results were computed
+from. Artifacts: `results/deepconf_asymmetry/`.
+
+### 2. AUACC is not zero-based, and the two models do not share a floor
+
+A readout that ranks prompts at chance still integrates to the base accuracy.
+On `cap_free_valid_plurality` the base rates are **0.7964 (DeepSeek-Qwen)** and
+**0.6740 (Llama)**, so every AUACC on one model carries 0.12 of free credit the
+other does not. Re-stated as excess over the base rate:
+
+| readout | DeepSeek-Qwen AUACC / excess | Llama AUACC / excess |
+|---|---|---|
+| `B0` | 0.8452 / **+0.0488** | 0.7607 / **+0.0867** |
+| `B1` | 0.8807 / +0.0843 | 0.8167 / +0.1427 |
+| `DeepConf_global` | 0.7680 / −0.0284 | 0.6224 / −0.0516 |
+| `DeepConf_tail_q20` | 0.7985 / **+0.0021** | 0.6249 / **−0.0491** |
+| `B0+DeepConf_tail_q20` | 0.8538 / +0.0574 | 0.7620 / +0.0880 |
+| `B0+DeepConf_tail_q20+RMD` | 0.8856 / +0.0892 | 0.8355 / +0.1615 |
+
+`DeepConf_tail_q20` at 0.799 on DeepSeek-Qwen sits **+0.002 above chance**. It
+was never a strong competitor there; it was a base rate. And B0 — read as
+"stronger on DeepSeek-Qwen (0.845) than Llama (0.761)" in both entries below —
+is in fact nearly **twice as informative on Llama** (+0.087 against +0.049).
+
+### 3. AUROC removes the base rate entirely, and DeepConf is at chance
+
+AUROC over the raw prompt-level feature, prompt bootstrap, 1000 draws, seed 42.
+Chance is 0.500:
+
+| feature | DeepSeek-Qwen | Llama |
+|---|---|---|
+| `rmd_tail_q20` | **0.708 [0.643, 0.769]** | **0.702 [0.651, 0.752]** |
+| `vote_agreement` | 0.587 [0.541, 0.639] | 0.650 [0.599, 0.706] |
+| `length` | 0.584 [0.512, 0.654] | 0.526 [0.464, 0.590] |
+| `entropy` | 0.539 [0.462, 0.610] | 0.527 [0.470, 0.590] |
+| `deepconf_global` | 0.471 [0.393, 0.545] | 0.522 [0.456, 0.588] |
+| `deepconf_tail_q20` | 0.460 [0.386, 0.539] | 0.492 [0.430, 0.558] |
+| `bottom10_group_confidence` | 0.472 [0.396, 0.546] | 0.526 [0.464, 0.593] |
+| `lowest_group_confidence` | 0.473 [0.397, 0.547] | 0.528 [0.467, 0.595] |
+
+**Every DeepConf interval contains 0.5, on both models.** There is no
+asymmetry to explain — the statistic carries no prompt-level signal on either.
+`rmd_tail_q20` meanwhile lands at 0.708 and 0.702: two architectures, the same
+number to within noise, and the only feature clearly separated from chance.
+
+The reason adding DeepConf to B0 moves so little is visible in the correlations:
+`bottom10_group_confidence` correlates **+0.62 / +0.62 with `entropy`** and
+**+0.59 / +0.58 with `logprob`** across the two models. It is largely a
+restatement of two features B0 already has.
+
+### 4. The comparison had been run against the wrong statistic, and it did not matter
+
+`incremental_abstention._load_exact_prompt_scores` reads exactly two keys,
+`deepconf_global` and `deepconf_tail_q20`. **DeepConf's own headline statistic,
+bottom-10% group confidence, was computed by `deepconf_exact.py`, stored in both
+npz artifacts, and never loaded into any comparison.** That is a real gap in the
+control as run. Checked here rather than assumed harmless: it is at chance too
+(0.472 and 0.526), and it is the *most* redundant with B0 of the four. The
+control was not weakened by the omission, but it was luck, not design.
+
+### 5. Two things not to quote from this
+
+- **This is not "DeepConf does not work".** It is a statement about one readout
+  task — predicting plurality-vote correctness from a *sibling-mean* of the
+  statistic over 8 traces. That aggregation deliberately discards within-prompt
+  variation, which is what DeepConf is actually for: weighting or filtering
+  traces *inside* a prompt. A confidence-weighted vote could still beat an
+  unweighted one with a prompt-level statistic that is at chance. Untested.
+- **Our `tail_q20` is not DeepConf's published tail window.** Theirs is the last
+  2048 tokens; ours is the final 20%, matching `rmd_tail_q20` so the aggregation
+  is held fixed and only the underlying signal varies. At these trace lengths
+  (median 1876 and 1166 tokens) the published window would cover the whole trace
+  for most traces and collapse into the global statistic, so the choice made
+  here is the sharper of the two, not a weakened one.
+
+### 6. Claims
+
+- **Ruled out.** That DeepConf's discriminative power differs by architecture —
+  the open question from the entry below. It does not differ; it is absent on
+  both. The apparent gap is the base rate.
+- **Ruled out.** That the 2026-08-05 null means geometry fails against a strong
+  competitor. `B0+DeepConf_tail_q20` beats B0 by +0.0086 AUACC on DeepSeek-Qwen,
+  from a feature at chance that duplicates `entropy` and `logprob`. The null is
+  a power result at n=393, not evidence that DeepConf absorbs geometry.
+- **Ruled in.** `rmd_tail_q20` has the same standalone discriminative power on
+  two architectures (AUROC 0.708 and 0.702) and is the only feature examined
+  that is clearly separated from chance on both.
+- **Not established.** Whether DeepConf helps in its *own* setting here —
+  confidence-weighted voting within a prompt. That is the honest next test and
+  the one objection this entry cannot answer.
+- **Reporting consequence.** AUACC must be reported against its base rate, or
+  as AURC. Bare AUACC is not comparable across models, and both entries below
+  compared it across models.
+
 ## 2026-08-06: The DeepConf limit does not replicate on Llama (cross-architecture)
 
 Yesterday's entry called the DeepConf control "DeepSeek-only, and it cannot
@@ -72,14 +186,18 @@ B0 0.761, `DeepConf_global` 0.622, `DeepConf_tail_q20` 0.625,
 
 ### 3. Two things not to quote from this
 
-- **This was an easier control than the one DeepSeek-Qwen failed, and the
-  DeepSeek-Qwen null still stands.** DeepConf is a much weaker competitor here:
-  its tail statistic sits 0.136 below B0 (0.625 against 0.761), where on
-  DeepSeek-Qwen the gap was 0.046 (0.799 against 0.845). Added to B0 it moves
-  the readout from 0.7607 to 0.7620 — nothing — and the *global* variant added
-  to B0 is actively **negative** (0.756 against 0.761). Clearing a baseline that
-  contributes nothing is not the same test as clearing one that contributes.
-  Both results must be reported; this one does not replace 2026-08-05.
+- ~~**This was an easier control than the one DeepSeek-Qwen failed.**~~
+  *Withdrawn 2026-08-06 by the asymmetry entry above.* The reasoning was that
+  DeepConf's tail statistic sits 0.136 below B0 here (0.625 against 0.761)
+  against 0.046 on DeepSeek-Qwen (0.799 against 0.845), so this model offered a
+  weaker competitor. That compared AUACC across models with different base
+  rates. Corrected: DeepConf is at chance on **both** models (AUROC 0.460 and
+  0.492, both intervals containing 0.5), and its DeepSeek-Qwen AUACC of 0.799
+  is +0.002 over that model's base rate of 0.796. Neither run cleared a strong
+  competitor, because there was not one. What survives unchanged is that adding
+  DeepConf to B0 gains +0.0086 on DeepSeek-Qwen and +0.0013 here, so the
+  DeepSeek-Qwen null is still the tighter of the two tests — but by a margin
+  produced by a chance-level feature, which makes it a power result at n=393.
 - **There is no harness check on this run.** On DeepSeek-Qwen, `B1_minus_B0`
   reproduced the locked stage artifact, which validated the wiring end to end.
   Llama has no prior locked artifact, so nothing here is cross-checked against

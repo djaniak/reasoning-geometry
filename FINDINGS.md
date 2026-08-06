@@ -67,6 +67,28 @@ pre-registered cross-model gate.*
 
 ## Current evidence (updated 2026-08-06)
 
+> **DeepConf carries no prompt-level signal on either model, and the apparent
+> asymmetry was a base-rate artifact (2026-08-06).** AUACC is not zero-based —
+> a readout that ranks at chance still integrates to the base accuracy, which is
+> **0.796** on DeepSeek-Qwen and **0.674** on Llama. `DeepConf_tail_q20`'s
+> "strong" 0.799 on DeepSeek-Qwen is therefore **+0.002 over chance**, and on
+> AUROC, which is base-rate invariant, all four DeepConf statistics land at
+> chance on both models: 0.460–0.473 (DeepSeek-Qwen) and 0.492–0.528 (Llama),
+> **every interval containing 0.5**. `rmd_tail_q20` meanwhile scores AUROC
+> **0.708 and 0.702** — two architectures, the same number to within noise, and
+> the only feature examined that is clearly separated from chance on both. Three
+> consequences. **(i)** The 2026-08-05 null is a power result at n=393, not
+> evidence that a strong competitor absorbs geometry. **(ii)** B0 is nearly
+> twice as informative on Llama as on DeepSeek-Qwen (+0.087 against +0.049 over
+> base), the reverse of the bare-AUACC reading. **(iii)** DeepConf's own
+> headline statistic, bottom-10% group confidence, was stored but never loaded
+> into any comparison — a real gap in the control as run, checked here and found
+> to be at chance too. **The open objection:** this measures a *sibling-mean*
+> over 8 traces, which discards the within-prompt variation DeepConf is actually
+> for. Confidence-weighted voting is untested. AUACC must be reported against
+> its base rate, or as AURC. Full entry: `EXPERIMENT_LOG.md` (2026-08-06,
+> asymmetry).
+
 > **The DeepConf limit is model-specific, and the increment replicates
 > cross-architecture (2026-08-06).** The control below was re-run on
 > DeepSeek-R1-Distill-Llama-8B — a third model, and the first outside the
@@ -75,14 +97,15 @@ pre-registered cross-model gate.*
 > and every interval excludes zero on every population against both DeepConf
 > variants. `B1 − B0` itself replicates at **+0.056 [+0.020, +0.094]**, against
 > Qwen's +0.059 and DeepSeek-Qwen's +0.036. Two qualifications, both
-> load-bearing. **(i) This was the easier test.** DeepConf is a much weaker
-> competitor on Llama — its tail statistic scores 0.625 against B0's 0.761, and
-> adding it to B0 moves the readout from 0.7607 to 0.7620, i.e. nothing. On
-> DeepSeek-Qwen it scored 0.799 against B0's 0.845 and genuinely added. The
-> DeepSeek-Qwen null below remains the harder case and is reported alongside
-> this, not replaced by it. **(ii) Why DeepConf's power differs this sharply by
-> architecture is unexplained**, and until it is, neither result is the settled
-> answer. Full entry: `EXPERIMENT_LOG.md` (2026-08-06).
+> load-bearing, and **both were revised the same day** by the entry above.
+> **(i)** This was read as the easier test, on the grounds that DeepConf is a
+> weaker competitor on Llama (0.625 against B0's 0.761, where DeepSeek-Qwen gave
+> 0.799 against 0.845). That comparison crossed two different base rates;
+> DeepConf is at chance on both models. The DeepSeek-Qwen test remains the
+> tighter of the two — adding DeepConf to B0 gains +0.009 there against +0.001
+> here — but neither run cleared a strong competitor. **(ii)** "Why DeepConf's
+> power differs by architecture" was the open question; it does not differ, and
+> the entry above closes it. Full entry: `EXPERIMENT_LOG.md` (2026-08-06).
 
 > **Limit on the headline claim (2026-08-05): the increment does not clear
 > DeepConf's tail statistic on the clean population.** DeepConf
