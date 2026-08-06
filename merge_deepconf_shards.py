@@ -48,9 +48,16 @@ def merge(shard_dirs: list[Path], output_dir: Path, *, stem: str) -> dict:
     def weighted(key: str) -> float:
         return float(np.sum(weights * [check[key] for check in checks]) / total) if total else 0.0
 
+    # Seeded from shard 0, so every key that describes a *subset* has to be
+    # replaced or renamed below. Left alone, `prompt_ids` and `correlations`
+    # would read as if they covered the merge.
     merged_meta = dict(metas[0])
     merged_meta.update(
         {
+            "prompt_ids": prompt_ids,
+            # Rank correlations over disjoint prompt subsets cannot be pooled,
+            # so they stay per-shard rather than being silently misattributed.
+            "shard_correlations": [meta.get("correlations") for meta in metas],
             "sample_size": len(prompt_ids),
             "roundtrip_token_mismatches": int(
                 sum(meta["roundtrip_token_mismatches"] for meta in metas)
@@ -69,6 +76,7 @@ def merge(shard_dirs: list[Path], output_dir: Path, *, stem: str) -> dict:
     )
     merged_meta.pop("shard_index", None)
     merged_meta.pop("num_shards", None)
+    merged_meta.pop("correlations", None)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(

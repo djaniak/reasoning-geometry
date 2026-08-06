@@ -5,6 +5,103 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-06: The DeepConf limit does not replicate on Llama (cross-architecture)
+
+Yesterday's entry called the DeepConf control "DeepSeek-only, and it cannot
+become a two-model result". That was wrong about the cache, and this entry both
+corrects it and reports what the second model says. `data/qwen_bestofn_full`
+stores no token arrays — true, and still blocking for Qwen — but
+`data/deepseek_llama_bestofn_full` **does**, and that collect finished
+2026-08-03. So the control runs on DeepSeek-R1-Distill-Llama-8B, which is also
+the first model in this project outside the Qwen2.5 lineage.
+
+### 1. Stages and parameterization
+
+No DVC stage — committing 259 GB of trace cache for a control run is not worth
+it, so both passes ran as plain scripts against cached data.
+
+```
+# 5 shards, one idle GPU each, ~34 GB peak of 46 GB
+CUDA_VISIBLE_DEVICES=$g PYTORCH_ALLOC_CONF=expandable_segments:True \
+python deepconf_exact.py --data_dir data/deepseek_llama_bestofn_full/math500 \
+    --model_name deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
+    --layers 8,16,24 --sample_size 500 --top_k 20 --chunk_size 64 \
+    --shard_index $i --num_shards 5
+
+python merge_deepconf_shards.py --shard_dir <5 dirs> --stem deepconf_exact_llama
+
+CUDA_VISIBLE_DEVICES="" python incremental_abstention.py \
+    --oof_csv .../math500_prompt_decomposition_oof.csv \
+    --data_dir data/deepseek_llama_bestofn_full/math500 \
+    --model_label deepseek_llama --layer 24 --n_bootstrap 1000 --seed 42 \
+    --exact_scores_npz .../deepconf_exact_llama.npz
+```
+
+Cap resolved from the pipeline record: **`12288, confirmed by dvc.lock,
+dvc.yaml/params.yaml`**. Teacher forcing reproduced the cache cleanly —
+**0 token roundtrip mismatches** across all 500 prompts, mean entropy error
+0.005083 and mean sampled-logprob error 0.006191 over 12.2M values, both
+*better* than the DeepSeek-Qwen run already on record (0.0072 / 0.0088).
+Merging was validated separately by re-merging the three existing DeepSeek-Qwen
+shards and confirming the recombined reconstruction checks match the stored
+artifact digit-for-digit, `n_error_values` included.
+
+Artifacts: `results/deepseek_llama_bestofn_full/math500/deepconf_exact_llama/`
+and `.../deepconf_controlled/`.
+
+### 2. The result (AUACC, 1000 draws, seed 42, layer 24)
+
+| population | n | B1 − B0 | B1 − (B0+DC_global) | B1 − (B0+DC_tail_q20) |
+|---|---:|---|---|---|
+| full_population | 500 | +0.047 [+0.016, +0.077] | +0.046 [+0.013, +0.078] p=0.006 | +0.050 [+0.017, +0.081] p<0.001 |
+| valid_plurality | 499 | +0.047 [+0.016, +0.077] | +0.046 [+0.014, +0.078] p=0.002 | +0.050 [+0.017, +0.084] p<0.001 |
+| **cap_free_valid_plurality** | 408 | +0.056 [+0.020, +0.094] | +0.061 [+0.019, +0.101] p=0.004 | **+0.055 [+0.011, +0.099] p=0.008** |
+| cap_free_full_population | 408 | +0.056 [+0.020, +0.094] | +0.061 [+0.019, +0.101] p=0.004 | +0.055 [+0.011, +0.099] p=0.008 |
+| all_eight_parseable | 411 | +0.055 [+0.019, +0.092] | +0.056 [+0.017, +0.101] p=0.006 | +0.053 [+0.011, +0.094] p=0.008 |
+
+Every interval excludes zero, on every population, against both DeepConf
+variants. **The p=0.078 null is a property of DeepSeek-Qwen, not of the
+comparison.** Separately and more usefully: `B1 − B0` itself replicates at
++0.056 [+0.020, +0.094] on a *third* model and the first non-Qwen architecture,
+against Qwen's +0.059 and DeepSeek-Qwen's +0.036.
+
+Standalone AUACC on `cap_free_valid_plurality` (n=408, base accuracy 0.674):
+B0 0.761, `DeepConf_global` 0.622, `DeepConf_tail_q20` 0.625,
+`B0+DeepConf_global` **0.756**, `B0+DeepConf_tail_q20` 0.762, B1 0.817,
+`B0+DeepConf_tail_q20+RMD` 0.836.
+
+### 3. Two things not to quote from this
+
+- **This was an easier control than the one DeepSeek-Qwen failed, and the
+  DeepSeek-Qwen null still stands.** DeepConf is a much weaker competitor here:
+  its tail statistic sits 0.136 below B0 (0.625 against 0.761), where on
+  DeepSeek-Qwen the gap was 0.046 (0.799 against 0.845). Added to B0 it moves
+  the readout from 0.7607 to 0.7620 — nothing — and the *global* variant added
+  to B0 is actively **negative** (0.756 against 0.761). Clearing a baseline that
+  contributes nothing is not the same test as clearing one that contributes.
+  Both results must be reported; this one does not replace 2026-08-05.
+- **There is no harness check on this run.** On DeepSeek-Qwen, `B1_minus_B0`
+  reproduced the locked stage artifact, which validated the wiring end to end.
+  Llama has no prior locked artifact, so nothing here is cross-checked against
+  an independent computation. The reconstruction errors and the merge validation
+  cover the DeepConf side only.
+
+### 4. Claims
+
+- **Ruled in.** `B1 − B0` replicates cross-architecture: three models now, and
+  Llama is outside the Qwen2.5 lineage that carried the previous two.
+- **Ruled out.** That the geometry increment is generally absorbed by DeepConf's
+  tail confidence. It is not on Llama, at p=0.008 on the headline population.
+- **Not established.** *Why* DeepConf's discriminative power differs so sharply
+  by architecture (0.799 on DeepSeek-Qwen against 0.625 on Llama, both relative
+  to a similar B0). Until that is understood, neither the 2026-08-05 null nor
+  this positive is the settled answer, and the honest report is both.
+- **Still blocked.** Qwen, by its cache format. Unchanged.
+
+**Correction to 2026-08-05, §3.** "This is not a two-model result, and cannot
+become one" overreached. The blocking fact is specific to
+`data/qwen_bestofn_full`, not to the caches in general.
+
 ## 2026-08-05: The increment does NOT clear DeepConf's tail statistic (DeepSeek)
 
 The first genuine limit on the headline claim. A primary-source literature check
@@ -59,11 +156,15 @@ from zero at n=393.
   (0.799) is well below B0 (0.845) and far below B1 (0.881). The finding is that
   once DeepConf is *added to B0*, the remaining geometry margin is not
   significant at this sample size on the clean population.
-- **This is not a two-model result, and cannot become one.** The exact DeepConf
-  statistic requires teacher-forcing cached token IDs; `data/qwen_bestofn_full`
-  stores no token arrays, so this baseline can never run on Qwen. The model where
-  the increment is *strongest* (+0.059) is structurally unable to carry this
-  control. Any write-up must state that rather than implying replication.
+- **This is not a two-model result.** The exact DeepConf statistic requires
+  teacher-forcing cached token IDs; `data/qwen_bestofn_full` stores no token
+  arrays, so this baseline can never run on Qwen. The model where the increment
+  is *strongest* (+0.059) is structurally unable to carry this control. Any
+  write-up must state that rather than implying replication.
+  *(Amended 2026-08-06: this bullet originally read "and cannot become one",
+  which was wrong — `data/deepseek_llama_bestofn_full` does store tokens, and
+  the control was run there. The null does not replicate. See the 2026-08-06
+  entry; the block is Qwen-specific, not general.)*
 
 ### 4. Claims
 

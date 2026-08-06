@@ -33,6 +33,9 @@ def _shard(root: Path, name: str, *, prompt_ids, checks, mismatches: int = 0) ->
                 "model": "m",
                 "roundtrip_token_mismatches": mismatches,
                 "reconstruction_checks": checks,
+                # Shard-local, and both would be wrong if carried through as-is.
+                "prompt_ids": list(prompt_ids),
+                "correlations": {"trace:a:b": {"n": 2 * len(prompt_ids), "pearson": 0.5}},
                 "shard_index": 0,
                 "num_shards": 2,
             }
@@ -99,6 +102,20 @@ def test_prompts_come_out_sorted_regardless_of_shard_order(tmp_path):
         assert list(data["prompt_ids"]) == [0, 1, 2, 3]
         pairs = [(int(r["prompt_id"]), int(r["trace_id"])) for r in data["trace_summaries"]]
     assert pairs == sorted(pairs)
+
+
+def test_shard_local_metadata_does_not_survive_as_if_it_were_global(tmp_path):
+    """Shard 0 seeds the merged metadata, so its subset-scoped keys must be replaced."""
+    a = _shard(tmp_path, "a", prompt_ids=[0, 2], checks=_checks(max_e=0.1, mean_e=0.0, n=10))
+    b = _shard(tmp_path, "b", prompt_ids=[1, 3], checks=_checks(max_e=0.1, mean_e=0.0, n=10))
+
+    meta = merge([a, b], tmp_path / "out", stem="merged")
+
+    assert meta["prompt_ids"] == [0, 1, 2, 3]
+    assert len(meta["prompt_ids"]) == meta["sample_size"]
+    # A pooled correlation over disjoint subsets is not computable, so it is not reported.
+    assert "correlations" not in meta
+    assert [c["trace:a:b"]["n"] for c in meta["shard_correlations"]] == [4, 4]
 
 
 def test_each_trace_confidence_stays_with_its_own_trace(tmp_path):

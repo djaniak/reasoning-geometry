@@ -65,7 +65,24 @@ pre-registered cross-model gate.*
 > statement that geometry was "detecting non-termination" overstates what was there.
 > Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
-## Current evidence (updated 2026-08-05)
+## Current evidence (updated 2026-08-06)
+
+> **The DeepConf limit is model-specific, and the increment replicates
+> cross-architecture (2026-08-06).** The control below was re-run on
+> DeepSeek-R1-Distill-Llama-8B — a third model, and the first outside the
+> Qwen2.5 lineage. There the geometry margin over `B0 + DeepConf_tail_q20` is
+> **+0.055 [+0.011, +0.099], p = 0.008** on `cap_free_valid_plurality` (n=408),
+> and every interval excludes zero on every population against both DeepConf
+> variants. `B1 − B0` itself replicates at **+0.056 [+0.020, +0.094]**, against
+> Qwen's +0.059 and DeepSeek-Qwen's +0.036. Two qualifications, both
+> load-bearing. **(i) This was the easier test.** DeepConf is a much weaker
+> competitor on Llama — its tail statistic scores 0.625 against B0's 0.761, and
+> adding it to B0 moves the readout from 0.7607 to 0.7620, i.e. nothing. On
+> DeepSeek-Qwen it scored 0.799 against B0's 0.845 and genuinely added. The
+> DeepSeek-Qwen null below remains the harder case and is reported alongside
+> this, not replaced by it. **(ii) Why DeepConf's power differs this sharply by
+> architecture is unexplained**, and until it is, neither result is the settled
+> answer. Full entry: `EXPERIMENT_LOG.md` (2026-08-06).
 
 > **Limit on the headline claim (2026-08-05): the increment does not clear
 > DeepConf's tail statistic on the clean population.** DeepConf
@@ -79,11 +96,14 @@ pre-registered cross-model gate.*
 > valid-plurality populations. Geometry and DeepConf are not redundant —
 > stacking both reaches 0.886 against 0.881 for B1 and 0.854 for
 > `B0+DeepConf_tail_q20` — but the increment over the closest published
-> competitor is not separable from zero at n=393. **This control is
-> DeepSeek-only and cannot be replicated:** the exact statistic needs cached
-> token IDs, and `data/qwen_bestofn_full` stores none, so the model with the
-> largest increment (+0.059) can never carry it. Full entry:
-> `EXPERIMENT_LOG.md` (2026-08-05).
+> competitor is not separable from zero at n=393. **This control cannot run on
+> Qwen:** the exact statistic needs cached token IDs, and
+> `data/qwen_bestofn_full` stores none, so the model with the largest increment
+> (+0.059) can never carry it. *(Amended 2026-08-06: this paragraph originally
+> said the control was "DeepSeek-only and cannot be replicated". The block is
+> specific to the Qwen cache — Llama does store tokens, and the null does not
+> replicate there. See the entry above.)* Full entry: `EXPERIMENT_LOG.md`
+> (2026-08-05).
 
 > **Incremental abstention, frozen (2026-08-03): geometry adds over a
 > four-feature output-side readout, and it is not a difficulty proxy.** The
