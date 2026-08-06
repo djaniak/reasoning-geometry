@@ -67,6 +67,28 @@ pre-registered cross-model gate.*
 
 ## Current evidence (updated 2026-08-06)
 
+> **The DeepConf control is closed: given its own within-prompt use, DeepConf
+> still adds nothing, and its filtering costs accuracy (2026-08-06).** The
+> standing objection to the entry below — that a *sibling-mean* discards the
+> within-prompt variation DeepConf exists to exploit — has been run. Rebuilding
+> B0 with its vote replaced by DeepConf's confidence-weighted vote,
+> `V(a) = Σ_t C_t · I(answer_t = a)`, leaves the increment untouched: **B1 − B0
+> = +0.036 [+0.009, +0.064] p = 0.006** (DeepSeek-Qwen) and **+0.056 [+0.019,
+> +0.090] p = 0.002** (Llama), against +0.036 and +0.056 for the frozen
+> baseline. Adding the weighted vote instead of replacing gives the same. The
+> weighted vote is not a different feature: AUROC **0.587 / 0.650**, identical
+> to plain `vote_agreement`, because the within-prompt spread of `C` over eight
+> siblings is only **~5% CV** (median max/min ratio 1.10–1.20) — the most and
+> least confident sibling of a typical prompt differ by under a fifth, so a
+> weighted vote *is* a plain vote. Confidence **filtering** does change answers,
+> and loses: keeping the top 1 of 8 traces changes 16.4% of Llama's answers and
+> gives up **7.8 accuracy points** (0.674 → 0.596), monotone in how much is
+> filtered, while DeepSeek-Qwen sits inside ±0.005 throughout. **Scope:** this
+> is N = 8; DeepConf's published setting is 256–512 traces, where a retention
+> fraction has a real confidence tail to select from. The claim is about this
+> budget, not about DeepConf at its own N. Full entry: `EXPERIMENT_LOG.md`
+> (2026-08-06, weighted vote).
+
 > **DeepConf carries no prompt-level signal on either model, and the apparent
 > asymmetry was a base-rate artifact (2026-08-06).** AUACC is not zero-based —
 > a readout that ranks at chance still integrates to the base accuracy, which is
@@ -83,11 +105,12 @@ pre-registered cross-model gate.*
 > base), the reverse of the bare-AUACC reading. **(iii)** DeepConf's own
 > headline statistic, bottom-10% group confidence, was stored but never loaded
 > into any comparison — a real gap in the control as run, checked here and found
-> to be at chance too. **The open objection:** this measures a *sibling-mean*
+> to be at chance too. ~~**The open objection:** this measures a *sibling-mean*
 > over 8 traces, which discards the within-prompt variation DeepConf is actually
-> for. Confidence-weighted voting is untested. AUACC must be reported against
-> its base rate, or as AURC. Full entry: `EXPERIMENT_LOG.md` (2026-08-06,
-> asymmetry).
+> for. Confidence-weighted voting is untested.~~ *Closed the same day by the
+> entry above: weighted voting matches plain agreement to 0.001 AUROC, and
+> filtering costs accuracy.* AUACC must be reported against its base rate, or as
+> AURC. Full entry: `EXPERIMENT_LOG.md` (2026-08-06, asymmetry).
 
 > **The DeepConf limit is model-specific, and the increment replicates
 > cross-architecture (2026-08-06).** The control below was re-run on

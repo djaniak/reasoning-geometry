@@ -5,6 +5,117 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-06: DeepConf used inside the prompt — weighting changes nothing, filtering hurts
+
+The entry below closes with "Not established: whether DeepConf helps in its own
+setting here — confidence-weighted voting within a prompt. That is the honest
+next test and the one objection this entry cannot answer." This entry runs it.
+The increment survives, and the reason is measurable rather than lucky: eight
+siblings of one prompt do not disagree enough about confidence for any
+reweighting to move the vote.
+
+### 1. Stages and parameterization
+
+No DVC stage, no GPU, no new collection. Per-trace exact confidences joined to
+the cached OOF rows on `(prompt_id, trace_id)`; frozen aggregation, folds, and
+paired bootstrap imported from `incremental_abstention`.
+
+```
+python deepconf_weighted_vote.py --output_dir results/deepconf_weighted_vote \
+  --model "DeepSeek-Qwen:<oof_csv>:data/deepseek_bestofn_full/math500:<exact_npz>" \
+  --model "Llama:<oof_csv>:data/deepseek_llama_bestofn_full/math500:<exact_npz>"
+```
+
+Populations reproduce the frozen ones exactly (n=393 at base 0.7964; n=408 at
+base 0.6740). Artifacts: `results/deepconf_weighted_vote/`.
+
+### 2. The increment is unmoved by every DeepConf-strengthened baseline
+
+Three ways of giving DeepConf the vote, `cap_free_valid_plurality`, paired
+prompt bootstrap, 1000 draws, seed 42. Weight = `bottom10_group_confidence`,
+DeepConf's own headline trace measure:
+
+| comparison | DeepSeek-Qwen | Llama |
+|---|---|---|
+| `B1 − B0` (frozen, for reference) | +0.0355 [.009, .063] p=.010 | +0.0560 [.022, .092] p=.004 |
+| `B1 − B0` with B0's vote **replaced** by the weighted vote | +0.0359 [.009, .064] p=.006 | +0.0562 [.019, .090] p=.002 |
+| `B1 − B0` with the weighted vote **added** to B0 | +0.0359 [.009, .067] p=.018 | +0.0556 [.020, .095] p=.004 |
+| frozen `B1 − (B0 + weighted vote)` | +0.0362 [.008, .066] p=.012 | +0.0558 [.020, .093] p=.002 |
+
+Repeating all four with `deepconf_tail_q20` as the weight moves nothing
+(+0.0356 / +0.0566, +0.0356 / +0.0561, …). And the strengthening does not
+strengthen: `B0_dcvote − B0` is −0.0007 [−.002, .000] p=.278 on DeepSeek-Qwen
+and −0.0001 p=.858 on Llama; adding rather than replacing gives −0.0007 p=.168
+and +0.0002 p=.786.
+
+### 3. Why: the weights are nearly uniform within a prompt
+
+Weighting can only move a vote to the extent siblings disagree about confidence.
+They barely do — median within-prompt spread of `C` over 8 traces:
+
+| statistic | DeepSeek-Qwen CV / max·min⁻¹ | Llama CV / max·min⁻¹ |
+|---|---|---|
+| `bottom10_group_confidence` | 0.054 / 1.19 | 0.056 / 1.20 |
+| `deepconf_tail_q20` | 0.041 / 1.14 | 0.051 / 1.17 |
+| `deepconf_global` | 0.031 / 1.10 | 0.033 / 1.11 |
+| `lowest_group_confidence` | 0.056 / 1.20 | 0.058 / 1.20 |
+
+The most and least confident sibling of a typical prompt differ by ~19%. A
+weighted vote over such weights *is* a plain vote: as a raw abstention feature
+the weighted share scores AUROC 0.587 / 0.650, against `vote_agreement`'s
+0.587 / 0.650. The weighted rule also selects a different answer from plurality
+on only 0.5% (DeepSeek-Qwen) and 1.2% (Llama) of prompts.
+
+### 4. Filtering does act — and it costs accuracy
+
+Confidence filtering is the half of DeepConf that changes answers. Accuracy of
+the selected answer, with the fraction of prompts where the rule departs from
+plurality:
+
+| rule | DeepSeek-Qwen acc / differs | Llama acc / differs |
+|---|---|---|
+| plurality (incumbent) | 0.7964 / — | 0.6740 / — |
+| weighted vote | 0.7939 / 0.005 | 0.6740 / 0.012 |
+| keep top 6 of 8 | 0.7939 / 0.005 | 0.6569 / 0.029 |
+| keep top 4 of 8 | 0.7964 / 0.008 | **0.6348** / 0.069 |
+| keep top 1 of 8 | 0.7990 / 0.028 | **0.5956** / 0.164 |
+
+On Llama the loss is monotone in how much is filtered, and at top-1 the rule
+changes 16.4% of answers and gives up 7.8 accuracy points. On DeepSeek-Qwen
+everything sits inside ±0.005 of plurality. The filtered *share* is also a worse
+abstention feature than plain agreement, degrading monotonically with filtering
+(0.587 → 0.574 → 0.571 → 0.537 on DeepSeek-Qwen, 0.650 → 0.647 → 0.619 → 0.557
+on Llama): discarding siblings destroys agreement information.
+
+### 5. Two things not to quote from this
+
+- **This is N=8, and DeepConf's setting is not.** Its published results use
+  256–512 traces, where a retention fraction selects a large pool from a
+  confidence distribution with a real tail. At eight siblings the reachable
+  fractions are coarse and "top 10%" is a single trace. The claim here is that
+  *at the budget this project collected*, DeepConf's aggregation adds nothing
+  and its filtering hurts — not that DeepConf fails at its own N.
+- **`top1` and `top2` are identical by construction, not by coincidence.** With
+  two survivors the heavier one wins any disagreement, so top-2 selection is
+  top-1 selection. Only the vote *share* the two produce differs. Pinned by a
+  test rather than left to be rediscovered.
+
+### 6. Claims
+
+- **Ruled out.** That the sibling-mean aggregation is what made DeepConf look
+  useless. Given its own within-prompt use, the statistic still adds nothing:
+  the weighted vote matches plain agreement to 0.001 AUROC on both models, and
+  B1 − B0 is unchanged to the third decimal against every strengthened baseline.
+- **Ruled out.** That confidence filtering improves answer selection at this
+  budget. It is flat on DeepSeek-Qwen and costs up to 7.8 points on Llama.
+- **Ruled in.** The mechanism, measured rather than assumed: within-prompt
+  confidence dispersion is ~5% CV, which caps what any reweighting can do.
+- **Not established.** Whether the picture changes at 256+ traces per prompt.
+  That needs collection this project has not run and does not plan to.
+- **The control is now closed.** DeepConf has been run as a prompt-level score,
+  as a weighted vote, and as a filter, with all four of its statistics, on two
+  architectures. No further variant is owed.
+
 ## 2026-08-06: The DeepConf asymmetry is a base-rate artifact — DeepConf is at chance on both models
 
 Written to answer the "not established" item the entry below left open: why
@@ -112,9 +223,12 @@ control was not weakened by the omission, but it was luck, not design.
 - **Ruled in.** `rmd_tail_q20` has the same standalone discriminative power on
   two architectures (AUROC 0.708 and 0.702) and is the only feature examined
   that is clearly separated from chance on both.
-- **Not established.** Whether DeepConf helps in its *own* setting here —
+- ~~**Not established.** Whether DeepConf helps in its *own* setting here —
   confidence-weighted voting within a prompt. That is the honest next test and
-  the one objection this entry cannot answer.
+  the one objection this entry cannot answer.~~ *Answered 2026-08-06 by the
+  entry above: it does not. The weighted vote matches plain agreement to 0.001
+  AUROC because within-prompt confidence dispersion is only ~5% CV, and
+  filtering costs up to 7.8 accuracy points on Llama.*
 - **Reporting consequence.** AUACC must be reported against its base rate, or
   as AURC. Bare AUACC is not comparable across models, and both entries below
   compared it across models.
