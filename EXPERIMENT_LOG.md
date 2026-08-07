@@ -5,6 +5,128 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-07: Label-efficiency curves — the crossing is real, the mechanism is not the one we claimed
+
+The last open defence of the deployment story. At the full label budget the
+supervised `probe_hidden_tail_q20` beats one-class `rmd_tail_q20` (2026-07-31),
+so the only claim geometry can still carry is that it costs fewer labels — and
+that is a claim about a *curve*, not about a point. This is the curve.
+
+### 1. Stages and parameterization
+
+No DVC stage, no GPU, no new collection. `label_efficiency.py` reads cached
+activations and the frozen OOF rows, and imports the fitting, aggregation and
+scoring helpers from `analyze`, `prompt_decomposition` and
+`incremental_abstention` rather than reimplementing them.
+
+```
+python label_efficiency.py --output_dir results/label_efficiency \
+  --model qwen:<oof_csv>:data/qwen_bestofn_full/math500 \
+  --model deepseek_qwen:<oof_csv>:data/deepseek_bestofn_full/math500 \
+  --model deepseek_llama:<oof_csv>:data/deepseek_llama_bestofn_full/math500 \
+  --budgets 25,50,100,200,400 --replicates 10 --inner_folds 3 \
+  --max_tokens_per_trace 256 --load_workers 16
+```
+
+At each budget the PCA basis, the correct-trace Gaussian, the background
+Gaussian, the LDA and the logistic readout are all refitted from that budget's
+prompts alone. Training sets are **nested** along one permutation per replicate,
+and the evaluation set is the `cap_free_valid_plurality` complement of the
+*largest* budget, held fixed across budgets — so a difference between two rows
+cannot be an evaluation-set difference. Training-side geometry is scored by
+3-fold inner cross-fitting: an in-sample fit there would flatter the
+discriminative probe far more than the one-class Gaussian and would read as a
+probe advantage the held-out evaluation never sees.
+
+`--report_from <results.json>` rebuilds the write-up from the stored
+per-replicate rows, so changing how the result is *stated* does not cost
+another 4.2 core-hours of fits.
+
+Artifacts: `results/label_efficiency/label_efficiency_{results.json,report.md,replicates.csv}`.
+
+### 2. Three deviations from the frozen pipeline
+
+All applied identically to both features and to every budget, so paired deltas
+are clean and **levels are not interchangeable with the frozen artifacts**:
+
+1. Reference fits see a fixed per-trace token subsample (256), not the whole
+   sequence. Fixed *per trace* rather than per fit, so two budgets differ only
+   in which prompts they see, never in which tokens of a shared prompt.
+2. Only the 20% tail block is retained. Lossless for these two features and for
+   nothing else — it is what makes ~200 refits against a 79 GB layer feasible.
+3. The PCA solver is pinned to `randomized`. `analyze.fit_mahalanobis_reference`
+   picks it by token count and switches to `full` below 200k pooled tokens; that
+   threshold falls *inside* this sweep, so leaving it alone put a change of
+   decomposition in the middle of the curve being measured. Caught by inverted
+   timings (budget 25 slower than budget 400) before any result was read.
+
+### 3. Primary estimates
+
+Median `B0+rmd − B0+probe` crosses zero at **60** labelled prompts
+(DeepSeek-Qwen), **123** (Llama), **226** (Qwen). Pooled over all 30 label draws
+per budget, `median · draws on that side · sign p`, negative favouring the left
+readout; `agree` counts models whose own median lands on the geometry side:
+
+| labelled prompts | `B0+rmd − B0` | `B0+probe − B0` | `B0+rmd − B0+probe` | agree | `B0+both − B0+rmd` | AUROC rmd − probe |
+|---:|---|---|---|---:|---|---|
+| 25 | **−0.014 · 23/30 · p=.005** | 0.000 · 15/30 · p=1.000 | **−0.019 · 23/30 · p=.005** | **3/3** | 0.000 · 13/30 | 0.023 · 17/30 |
+| 50 | **−0.040 · 27/30 · p<.001** | **−0.015 · 23/30 · p=.005** | −0.011 · 20/30 · p=.099 | **3/3** | −0.001 · 16/30 | −0.013 · 13/30 |
+| 100 | **−0.033 · 26/30 · p<.001** | **−0.038 · 28/30 · p<.001** | −0.000 · 15/30 · p=1.000 | 2/3 | −0.005 · 19/30 | 0.012 · 16/30 |
+| 200 | **−0.053 · 28/30 · p<.001** | **−0.055 · 28/30 · p<.001** | 0.002 · 12/30 · p=.362 | **0/3** | **−0.006 · 21/30 · p=.043** | **−0.048 · 9/30 · p=.043** |
+| 400 | **−0.052 · 28/30 · p<.001** | **−0.067 · 30/30 · p<.001** | 0.006 · 11/30 · p=.200 | **0/3** | **−0.007 · 24/30 · p=.001** | **−0.044 · 2/30 · p<.001** |
+
+The models are separate datasets so the direction pools; the ten draws inside a
+model share an evaluation set and are not independent, so the pooled `p` is a
+summary of consistency rather than a test on thirty observations. **`agree` is
+the statistic that does not lean on that assumption**, and it is unanimous at
+both ends: 3/3 for geometry at 25 and 50, 0/3 at 200 and 400.
+
+### 4. Claims ruled in and out
+
+**Ruled in.** A crossing exists, in the same direction, in all three models. It
+is bracketed between 60 and 226 labelled prompts. Geometry's increment over B0
+is already significant at 25 labels; the probe's is not.
+
+**Ruled out — "geometry beats the probe when labels are scarce" is the wrong
+reading of its own mechanism.** At 25 labels the probe adds *exactly nothing*
+over B0 (median 0.000, 15/30) while geometry adds −0.014. The small-budget lead
+is the LDA collapsing, not the Gaussian excelling. That is still a deployment
+argument — the one-class fit degrades gracefully where the discriminative fit
+falls over — but it is a different sentence and has to be written as one.
+
+**Ruled out — geometry at the full budget.** A single pilot draw had `B0+rmd`
+below `B0+probe` at 400. It was a draw: over ten it goes the other way, 11/30,
+and the probe's solo AUROC advantage is overwhelming (2/30, p<.001).
+
+**Ruled out — the probe is redundant with geometry.** `B0+both − B0+rmd` is
+−0.006 at 200 (21/30, p=.043) and −0.007 at 400 (24/30, p=.001). The probe adds
+a small consistent amount *on top of* geometry once labels are plentiful, and
+adds nothing at or below 50. So the honest framing is not substitution: geometry
+is what you get for zero labels, the probe is what labels buy, and the two are
+additive only above ~200.
+
+**Size of the surviving claim.** Geometry's increment over B0 reaches −0.040 at
+50 labels; the probe passes that value somewhere between 50 (−0.015) and 100
+(−0.038). **The label saving is about 2×, confined to the 25–100 band.** That is
+the number to quote, and it is modest.
+
+### 5. Limitations and next stage
+
+- The evaluation set is 76–82 prompts, forced by putting 400 in the ladder.
+  Every band above carries that noise inside it.
+- Fifteen model×budget cells in the per-model tables; exactly one is significant
+  uncorrected (DeepSeek-Qwen at 25, p=.021). The result is the cross-model
+  consistency, not any single cell.
+- **The comparison is not purely supervised-vs-one-class.** `rmd_tail_q20`
+  averages per-token distances over the tail; `probe_hidden_tail_q20` runs an
+  LDA on the tail *region mean*. They differ in supervision and in pooling
+  order, and this study does not separate the two.
+- Base rates differ across models (0.69 / 0.81 / 0.68), so only the deltas and
+  AUROC are comparable across models — see the 2026-08-06 entry.
+
+This closes the label-efficiency question; there is no variant of it left worth
+running. The abstention thread can be frozen on the narrow claim above.
+
 ## 2026-08-06: Freeze — AURC as the reported metric, and the vote-proxy objection answered
 
 Two unactioned items from `RELATED_WORK.md`, run together because they are both
