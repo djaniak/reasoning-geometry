@@ -272,6 +272,16 @@ reproducing bit-identically across both. Two regression tests now cover the
 directory branch, which had none: one for the row-zero read, one asserting the
 returned row owns its data (`row.base is None`).
 
+### Where the artifacts are
+
+`results/` is gitignored, so these are on disk rather than in the history:
+
+- `results/label_efficiency_token_pooling/` — step 4, report + results + per-replicate CSV.
+- `results/sprint_2026_08_08/` — the disposable scripts and their outputs:
+  `step3_prompt_conditioned/<model>/` (step 3, all three models),
+  `pseudo_positive_results.json` + `.log` (step 5),
+  `free_energy_results.json` (parallel track), `row_zero_audit.log` (step 2).
+
 ### Pipeline state
 
 `evaluate_incremental_abstention@{0,1,2}` are all locked and clean. The
