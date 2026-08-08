@@ -6,20 +6,28 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from analyze import (
+    compute_relative_mahal_distances,
+    extend_reference_with_background_safe,
+)
 from incremental_abstention import prompt_metrics
 from prompt_decomposition import region_indices, score_localized_rmd, trace_region_mean
 
+import label_efficiency as le
 from label_efficiency import (
     GEOMETRY_FEATURE,
     PROBE_FEATURE,
+    QUADRATIC_FEATURE,
     TOKEN_PROBE_FEATURE,
     chance_aurc,
     fit_correct_reference,
     crossing_budget,
     feature_matrix,
     fit_predict_logistic,
+    fit_quadratic_reference,
     fit_token_probe,
     group_views_by_prompt,
+    incorrect_side_views,
     score_token_probe,
     pooled_sign_table,
     prepare_trace_views,
@@ -61,6 +69,224 @@ def _token_probe_views(n_traces: int = 8, n_tokens: int = 40, dim: int = 4):
         centre = 1.0 if correct else -1.0
         projected[trace_id] = rng.normal(centre, 0.25, size=(n_tokens, dim))
     return views, projected
+
+
+REFERENCE_LAYER = 7
+
+
+def _synthetic_result(n_models: int = 2, budgets=(25, 50), replicates: int = 4) -> dict:
+    """A results dict shaped exactly like a finished run's.
+
+    Every column is generated from the module's own spec lists rather than
+    hard-coded, so a comparator added to ``READOUT_SPECS`` or ``PAIRED_DELTAS``
+    is automatically covered here.
+    """
+    rng = np.random.default_rng(7)
+    models = []
+    for index in range(n_models):
+        rows = []
+        for replicate in range(replicates):
+            for budget in budgets:
+                row = {
+                    "replicate": replicate,
+                    "budget": budget,
+                    "n_eval": 80,
+                    "eval_base_accuracy": 0.7,
+                    "n_train_traces": budget * 8,
+                    "n_correct_traces": budget * 5,
+                    "n_incorrect_traces": budget * 3,
+                    "n_probe_traces": budget * 8,
+                    "n_token_probe_rows": budget * 8 * 16,
+                    "train_base_accuracy": 0.7,
+                    "seconds": 1.0,
+                }
+                for name in le.GEOMETRY_FEATURES:
+                    row[f"auroc_{name}"] = float(rng.uniform(0.5, 0.9))
+                for readout in le.READOUT_SPECS:
+                    aurc = float(rng.uniform(0.1, 0.3))
+                    row[f"aurc_{readout}"] = aurc
+                    row[f"auacc_{readout}"] = 1.0 - aurc
+                    row[f"excess_aurc_{readout}"] = aurc - 0.3
+                for left, right in le.PAIRED_DELTAS:
+                    row[f"delta_aurc_{left}_minus_{right}"] = float(
+                        rng.uniform(-0.05, 0.05)
+                    )
+                rows.append(row)
+        curves = le.aggregate_curves(rows, budgets)["curves"]
+        models.append(
+            {
+                "label": f"model{index}",
+                "layer": 21,
+                "pca_dim": 128,
+                "population": "cap_free_valid_plurality",
+                "n_prompts": 500,
+                "n_eval_pool": 392,
+                "budgets": list(budgets),
+                "skipped_budgets": [],
+                "replicates": replicates,
+                "inner_folds": 3,
+                "train_side_crossfit": True,
+                "max_tokens_per_trace": 256,
+                "seed": 42,
+                "resident_gib": 1.0,
+                "replicate_rows": rows,
+                "curves": curves,
+                "crossing": le.crossing_budget(curves),
+            }
+        )
+    return {
+        "budgets": list(budgets),
+        "replicates": replicates,
+        "inner_folds": 3,
+        "seed": 42,
+        "models": models,
+    }
+
+
+def test_report_renders_every_quantity_it_references(tmp_path):
+    """The pooled table reads `quantities[...]` by name, and `pooled_sign_table`
+    only builds the names in POOLED_QUANTITIES. A comparator added to the report
+    but not registered there raises KeyError *after* the whole sweep has run and
+    the results JSON has been written -- which is exactly what happened once."""
+    path = tmp_path / "report.md"
+
+    le.write_report(_synthetic_result(), path)
+
+    text = path.read_text(encoding="utf-8")
+    assert "The supervision ladder" in text
+    assert "`B0+rmd − B0+qmd`" in text
+
+
+def test_report_renders_a_results_file_written_before_a_comparator_existed(tmp_path):
+    """`--report_from` replays finished runs. A JSON predating a comparator
+    carries none of its columns, and must still render rather than raise."""
+    result = _synthetic_result()
+    stale = f"delta_aurc_B0_rmd_minus_B0_{QUADRATIC_FEATURE}"
+    for model in result["models"]:
+        for row in model["replicate_rows"]:
+            row.pop(f"auroc_{QUADRATIC_FEATURE}", None)
+            row.pop("aurc_B0_qmd", None)
+            row.pop("delta_aurc_B0_rmd_minus_B0_qmd", None)
+            row.pop(stale, None)
+        model["curves"] = le.aggregate_curves(
+            model["replicate_rows"], result["budgets"]
+        )["curves"]
+
+    le.write_report(result, tmp_path / "report.md")
+
+    assert (tmp_path / "report.md").exists()
+
+
+def _reference_views(n_traces: int = 8, n_tokens: int = 40, dim: int = 5):
+    """Views the frozen reference fitters accept, correct at +1, incorrect at −1.
+
+    ``hiddens`` is what the Gaussians are fitted on and ``tail`` is what gets
+    scored, matching :func:`label_efficiency.prepare_trace_views`.
+    """
+    rng = np.random.default_rng(1)
+    views = []
+    for trace_id in range(n_traces):
+        correct = trace_id % 2 == 0
+        centre = 1.0 if correct else -1.0
+        views.append(
+            {
+                "trace_id": trace_id,
+                "prompt_id": trace_id // 2,
+                "is_correct": correct,
+                "predicted_answer": "42",
+                "hiddens": {
+                    REFERENCE_LAYER: rng.normal(
+                        centre, 0.3, size=(n_tokens, dim)
+                    ).astype(np.float32)
+                },
+                "tail": rng.normal(centre, 0.3, size=(n_tokens // 2, dim)).astype(
+                    np.float32
+                ),
+            }
+        )
+    return views
+
+
+def _positive_reference(views, pca_dim: int = 3):
+    return fit_correct_reference(
+        [view for view in views if view["is_correct"]], REFERENCE_LAYER, pca_dim
+    )
+
+
+def _tail_score(view, reference) -> float:
+    """``qmd_tail_q20`` as ``score_views`` computes it."""
+    return -float(
+        np.mean(compute_relative_mahal_distances(view["tail"], *reference))
+    )
+
+
+# ---------------------------------------------------------------------------
+# The quadratic discriminant: RMD's estimator with a labelled negative class
+# ---------------------------------------------------------------------------
+
+def test_incorrect_side_drops_correct_and_unparsed_traces():
+    """Unparsed traces are auto-labelled incorrect upstream. A negative class
+    that keeps them is partly a truncation class, and the score would separate
+    correct from unparsed rather than correct from wrong."""
+    views = _reference_views(n_traces=8)
+    views[1]["predicted_answer"] = ""
+    views[5]["predicted_answer"] = None
+
+    negative = incorrect_side_views(views)
+
+    assert [view["trace_id"] for view in negative] == [3, 7]
+
+
+def test_quadratic_reference_reuses_the_positive_side_unchanged():
+    """The PCA basis and the correct-trace Gaussian must be the *same* objects
+    the RMD reference uses. Refitting either would let projection noise show up
+    as a supervision effect, which is the one thing this comparison measures."""
+    views = _reference_views()
+    base = _positive_reference(views)
+
+    quadratic = fit_quadratic_reference(base, views, REFERENCE_LAYER)
+
+    assert quadratic[0] is base[0]
+    assert np.array_equal(quadratic[1], base[1])
+    assert np.array_equal(quadratic[2], base[2])
+
+
+def test_quadratic_reference_does_not_reproduce_the_rmd_background():
+    """The second Gaussian has to actually change. If the incorrect-only fit
+    coincided with the all-trace one, `qmd_tail_q20` would be a rename of
+    `rmd_tail_q20` and every delta between them would be noise."""
+    views = _reference_views()
+    base = _positive_reference(views)
+
+    background = extend_reference_with_background_safe(base, views, REFERENCE_LAYER)
+    quadratic = fit_quadratic_reference(base, views, REFERENCE_LAYER)
+
+    assert not np.allclose(quadratic[3], background[3])
+
+
+def test_quadratic_reference_scores_correct_tails_above_incorrect():
+    views = _reference_views()
+    quadratic = fit_quadratic_reference(
+        _positive_reference(views), views, REFERENCE_LAYER
+    )
+
+    correct = [_tail_score(v, quadratic) for v in views if v["is_correct"]]
+    incorrect = [_tail_score(v, quadratic) for v in views if not v["is_correct"]]
+
+    assert min(correct) > max(incorrect)
+
+
+def test_quadratic_reference_is_none_without_a_parseable_negative_class():
+    """`fit_budget` turns this into an explicit error rather than fitting a
+    degenerate second Gaussian."""
+    views = _reference_views()
+    for view in views:
+        if not view["is_correct"]:
+            view["predicted_answer"] = ""
+
+    assert fit_quadratic_reference(
+        _positive_reference(views), views, REFERENCE_LAYER
+    ) is None
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +528,18 @@ def test_prompt_geometry_averages_over_the_siblings():
         )
     )
     scores = {
-        0: {GEOMETRY_FEATURE: 1.0, PROBE_FEATURE: -2.0, TOKEN_PROBE_FEATURE: 4.0},
-        1: {GEOMETRY_FEATURE: 3.0, PROBE_FEATURE: 2.0, TOKEN_PROBE_FEATURE: 6.0},
+        0: {
+            GEOMETRY_FEATURE: 1.0,
+            PROBE_FEATURE: -2.0,
+            TOKEN_PROBE_FEATURE: 4.0,
+            QUADRATIC_FEATURE: -1.0,
+        },
+        1: {
+            GEOMETRY_FEATURE: 3.0,
+            PROBE_FEATURE: 2.0,
+            TOKEN_PROBE_FEATURE: 6.0,
+            QUADRATIC_FEATURE: -3.0,
+        },
     }
 
     aggregated = prompt_geometry(grouped, [5], scores)
@@ -311,6 +547,7 @@ def test_prompt_geometry_averages_over_the_siblings():
     assert aggregated[5][GEOMETRY_FEATURE] == pytest.approx(2.0)
     assert aggregated[5][PROBE_FEATURE] == pytest.approx(0.0)
     assert aggregated[5][TOKEN_PROBE_FEATURE] == pytest.approx(5.0)
+    assert aggregated[5][QUADRATIC_FEATURE] == pytest.approx(-2.0)
 
 
 def test_feature_matrix_takes_geometry_from_the_budget_not_the_frozen_column():

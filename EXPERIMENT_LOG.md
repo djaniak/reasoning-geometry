@@ -5,6 +5,130 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-08: Splitting the label-efficiency gap into supervision and decision-function form
+
+The matched-pooling run earlier today (section 4 below) compared `rmd_tail_q20`
+against `probe_token_tail_q20` and read the surviving gap as the supervision
+effect. That reading was too generous. Matching pooling order left *two*
+differences standing: RMD is positives-only, and RMD is a **quadratic** (a
+difference of two Mahalanobis distances with per-class covariances) while the
+LDA probe is linear. This run separates them.
+
+### The estimator
+
+`qmd_tail_q20` is RMD's own estimator with one substitution. RMD scores a token
+as `d(correct) - d(all training tokens)`; only the first Gaussian consumes
+labels, which is what makes the feature positives-only. QMD replaces the
+unconditional background with a Gaussian over *incorrect* traces, giving
+`d(correct) - d(incorrect)` -- a two-class quadratic discriminant.
+
+The PCA basis and the correct-trace Gaussian are passed through as the same
+objects the RMD reference uses (`fit_quadratic_reference` hands the identical
+`base_reference` to the same background helper), and scoring is the identical
+`compute_relative_mahal_distances` call. Against `rmd_tail_q20` the only free
+variable is therefore whether the negative class was labelled.
+
+Unparsed traces are excluded from the negative class. They are auto-labelled
+incorrect upstream, so a negative Gaussian that keeps them is partly a
+*truncation* class and QMD would win by detecting truncation rather than
+wrongness. RMD is not exposed to this -- its second Gaussian pools every
+training trace, so unparsed tokens sit in both terms and largely cancel. The
+positive side needs no filter: an unparsed trace has no answer to be right
+about, so it is never in `correct`.
+
+### The ladder
+
+Four comparators, each rung releasing one variable:
+
+| feature | negative class | decision function | pooling |
+|---|---|---|---|
+| `rmd_tail_q20` | unlabelled background | quadratic | score-then-pool |
+| `qmd_tail_q20` | labelled incorrect | quadratic | score-then-pool |
+| `probe_token_tail_q20` | labelled incorrect | linear | score-then-pool |
+| `probe_hidden_tail_q20` | labelled incorrect | linear | pool-then-score |
+
+### Result
+
+Pooled over 30 label draws (3 models x 10), `cap_free_valid_plurality`, budgets
+25/50/100, `inner_folds 3`, seed 42. Negative favours the left readout; `agree`
+counts models whose own median lands on that side.
+
+| budget | `B0+rmd − B0+qmd` (supervision) | agree | `B0+qmd − B0+token probe` (form) | agree | `B0+rmd − B0+token probe` (both) |
+|---:|---|---:|---|---:|---|
+| 25 | −0.014 · 21/30 · p=0.043 | 2/3 | −0.006 · 19/30 · p=0.200 | 2/3 | −0.012 · 20/30 · p=0.099 |
+| 50 | −0.011 · 24/30 · p=0.001 | 3/3 | −0.018 · 23/30 · p=0.005 | 3/3 | −0.033 · 26/30 · p=0.000 |
+| 100 | +0.000 · 15/30 · p=1.000 | 1/3 | +0.000 · 14/30 · p=0.856 | 1/3 | −0.002 · 17/30 · p=0.585 |
+
+Solo feature AUROC, `rmd − qmd`: +0.018 (24/30, p=0.001) at 25, +0.014 at 50,
+−0.004 at 100.
+
+Per model, `B0+rmd − B0+qmd`:
+
+| budget | qwen | deepseek | deepseek_llama |
+|---:|---|---|---|
+| 25 | −0.0088 (0.50) | −0.0142 (0.90) | −0.0147 (0.70) |
+| 50 | −0.0092 (0.80) | −0.0205 (0.80) | −0.0090 (0.80) |
+| 100 | −0.0031 (0.60) | +0.0080 (0.40) | −0.0007 (0.50) |
+
+Three things follow.
+
+**Supervision alone is worth something, and it is real but small.** All three
+models put their median on the geometry side at both 25 and 50 labels, and the
+pooled sign test resolves at 50 (24/30, p=0.001, 3/3 agree). The positives-only
+fit genuinely needs fewer labels than the identical estimator with a labelled
+negative class.
+
+**It is a minority of the matched-pooling gap.** At 50 labels the −0.033 against
+`probe_token_tail_q20` splits into roughly −0.011 supervision and −0.018
+decision-function form. The earlier reading of that −0.033 as the supervision
+effect was wrong: about two thirds of it is the quadratic, which the token probe
+also lacked. Any write-up claiming the one-class inductive bias is what buys the
+label efficiency must quote −0.011, not −0.033.
+
+**The advantage crosses by 100 labels.** At the largest budget the supervision
+rung is exactly zero (15/30, `agree` 1/3) and the solo AUROC gap has reversed.
+This is the crossing the label-efficiency curve was meant to establish and could
+not, because it moved supervision, form, and pooling together. QMD is not a
+strawman on the way there: `B0+qmd − B0` reaches −0.039 at 50 and −0.058 at 100
+(28/30), so it is a strong feature that simply needs more labels than RMD.
+
+Standing caveat, unchanged from section 4: budgets cap at 100, so the evaluation
+sets here are ~314–328 prompts against the frozen run's ~80. The AURC *levels*
+and any crossing budget are not interchangeable with the frozen artifacts. Only
+the paired within-run deltas transfer.
+
+### Verification
+
+- `rmd`, `probe`, and `token probe` reproduce the 2026-08-08 matched-pooling run
+  exactly at every budget on qwen replicate 0 (`rmd` AUROC 0.716/0.778/0.800,
+  `+rmd` AURC 0.158/0.152/0.149). Adding the quadratic arm is inert on the
+  existing arms.
+- The frozen `results/label_efficiency/` JSON still replays through
+  `--report_from`: `aggregate_curves` now reads every column with `.get`, so a
+  results file predating a comparator reports `n_replicates: 0` for it rather
+  than raising.
+- 306 tests pass.
+
+### A defect this run produced, and the guard added
+
+The sweep finished all three models and then crashed in `write_report` with
+`KeyError: 'delta_aurc_B0_qmd_minus_B0'` -- the pooled table referenced a
+quantity that was never registered in `POOLED_QUANTITIES`, and
+`pooled_sign_table` only builds the names on that list. The results JSON is
+written before the report, so nothing was lost and `--report_from` rebuilt it,
+but the failure mode is bad: it costs a full sweep to discover a typo in a
+table. `test_report_renders_every_quantity_it_references` now renders the whole
+report from a synthetic result whose columns are generated from
+`READOUT_SPECS`/`PAIRED_DELTAS`/`GEOMETRY_FEATURES`, so a future comparator is
+covered without touching the test. Confirmed to fail on the unfixed code.
+
+### Where the artifacts live
+
+`results/label_efficiency_supervision_ladder/` (gitignored, as all of
+`results/` is): `label_efficiency_results.json`, `label_efficiency_report.md`,
+`label_efficiency_replicates.csv`. The frozen `results/label_efficiency/` and
+`results/label_efficiency_token_pooling/` were not touched.
+
 ## 2026-08-08: Locking the Llama artifact, conditioning the tail on the prompt state, and dropping the free-energy aggregator
 
 A CPU-only sprint against the existing caches. Two questions: close the

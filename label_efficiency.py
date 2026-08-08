@@ -109,9 +109,15 @@ DEFAULT_BUDGETS = (25, 50, 100, 200, 400)
 GEOMETRY_FEATURE = "rmd_tail_q20"
 PROBE_FEATURE = "probe_hidden_tail_q20"
 TOKEN_PROBE_FEATURE = "probe_token_tail_q20"
+QUADRATIC_FEATURE = "qmd_tail_q20"
 
 #: Every feature the geometry side produces per trace, in report order.
-GEOMETRY_FEATURES = (GEOMETRY_FEATURE, PROBE_FEATURE, TOKEN_PROBE_FEATURE)
+GEOMETRY_FEATURES = (
+    GEOMETRY_FEATURE,
+    PROBE_FEATURE,
+    TOKEN_PROBE_FEATURE,
+    QUADRATIC_FEATURE,
+)
 
 #: The tail block is sliced out of each trace up front, so the region argument
 #: handed to the frozen probe helpers is "full" *over that block* -- which is
@@ -123,13 +129,23 @@ READOUT_SPECS: dict[str, tuple[str, ...]] = {
     "B0_rmd": BASE_FEATURE_NAMES + (GEOMETRY_FEATURE,),
     "B0_probe": BASE_FEATURE_NAMES + (PROBE_FEATURE,),
     "B0_token_probe": BASE_FEATURE_NAMES + (TOKEN_PROBE_FEATURE,),
+    "B0_qmd": BASE_FEATURE_NAMES + (QUADRATIC_FEATURE,),
     "B0_both": BASE_FEATURE_NAMES + (GEOMETRY_FEATURE, PROBE_FEATURE),
 }
 
-#: ``(left, right)`` pairs reported as ``left - right``. The third is the study:
-#: where it crosses zero is the label budget at which the probe overtakes the
-#: one-class statistic.  The fifth is the same question against the *pooling-
-#: matched* probe, which is the only one of the two that isolates supervision.
+#: ``(left, right)`` pairs reported as ``left - right``.
+#:
+#: The four comparators form a ladder in which each rung releases one variable:
+#:
+#:   ``rmd``         positives-only contrast, quadratic, score-then-pool
+#:   ``qmd``         both classes,            quadratic, score-then-pool
+#:   ``token_probe`` both classes,            linear,    score-then-pool
+#:   ``probe``       both classes,            linear,    pool-then-score
+#:
+#: so ``B0_rmd - B0_qmd`` isolates the use of negative labels, ``B0_qmd -
+#: B0_token_probe`` isolates the decision function's functional form, and
+#: ``B0_token_probe - B0_probe`` isolates pooling order.  ``B0_rmd - B0_probe``
+#: is the original comparison, which moves all three at once.
 PAIRED_DELTAS = (
     ("B0_rmd", "B0"),
     ("B0_probe", "B0"),
@@ -137,6 +153,9 @@ PAIRED_DELTAS = (
     ("B0_both", "B0_rmd"),
     ("B0_token_probe", "B0"),
     ("B0_rmd", "B0_token_probe"),
+    ("B0_qmd", "B0"),
+    ("B0_rmd", "B0_qmd"),
+    ("B0_qmd", "B0_token_probe"),
 )
 
 HEADLINE_POPULATION = "cap_free_valid_plurality"
@@ -258,6 +277,46 @@ def fit_correct_reference(correct_traces: Sequence[Mapping], layer: int, pca_dim
     projected = pca.transform(correct_hiddens)
     mu = projected.mean(axis=0)
     return pca, mu, _fit_lw_precision(projected - mu)
+
+
+def incorrect_side_views(train_views: Sequence[Mapping]) -> list[Mapping]:
+    """The negative class for :func:`fit_quadratic_reference`.
+
+    Unparsed traces are dropped.  They are auto-labelled incorrect upstream, so
+    a negative class that keeps them is partly a *truncation* class, and the
+    resulting score would separate correct from unparsed rather than correct
+    from wrong.  RMD is not exposed to that: its second Gaussian pools every
+    training trace, so unparsed tokens sit in both terms of the difference and
+    largely cancel.  The positive side needs no such filter -- an unparsed trace
+    has no answer to be right about, so it is never in ``correct``.
+    """
+    return [
+        view for view in train_views if not view["is_correct"] and not is_unparsed(view)
+    ]
+
+
+def fit_quadratic_reference(base_reference, train_views: Sequence[Mapping], layer: int):
+    """RMD's estimator with a *discriminative* second Gaussian.
+
+    ``rmd_tail_q20`` scores a token as ``d(correct) - d(all training tokens)``.
+    Only the first Gaussian consumes correctness labels; the second is an
+    unconditional background, which is what makes the feature positives-only.
+    This replaces that background with a Gaussian over *incorrect* traces, so
+    the score becomes ``d(correct) - d(incorrect)`` -- a two-class quadratic
+    discriminant with per-class covariances.
+
+    Everything else is shared with the RMD reference by construction: the same
+    ``base_reference`` supplies the PCA basis and the correct-trace Gaussian
+    unchanged, and the projection helper is the one the background uses.  The
+    only free variable against ``rmd_tail_q20`` is therefore whether the
+    negative class was labelled, which is what the comparison is for.
+
+    Returns ``None`` on a negative class too small or too degenerate to fit,
+    matching :func:`analyze.extend_reference_with_background_safe`.
+    """
+    return extend_reference_with_background_safe(
+        base_reference, incorrect_side_views(train_views), layer
+    )
 
 
 def fit_token_probe(
@@ -389,14 +448,23 @@ def fit_budget(
     )
     if token_probe["classifier"] is None:
         raise RuntimeError(f"no usable token-level probe ({token_probe['skipped']})")
+    incorrect = incorrect_side_views(train)
+    qmd_reference = fit_quadratic_reference(reference, train, layer)
+    if qmd_reference is None:
+        raise RuntimeError(
+            f"could not fit the quadratic negative class on {len(incorrect)} "
+            f"parseable incorrect traces"
+        )
     return {
         "pca": pca,
         "rmd_reference": rmd_reference,
+        "qmd_reference": qmd_reference,
         "probe": probe,
         "token_probe": token_probe,
         "n_train_prompts": int(len(train_ids)),
         "n_train_traces": int(len(train)),
         "n_correct_traces": int(len(correct)),
+        "n_incorrect_traces": int(len(incorrect)),
         "n_probe_traces": int(probe["n_train"]),
         "n_token_probe_rows": int(token_probe["n_train"]),
     }
@@ -419,6 +487,11 @@ def score_views(views: Sequence[Mapping], fit: Mapping) -> dict[int, dict[str, f
             # Scored over the whole tail, not the fit subsample: RMD is too, so
             # the two features see identical token sets at evaluation time.
             TOKEN_PROBE_FEATURE: score_token_probe(projected, fit["token_probe"]),
+            # Same call as the RMD line above, against a reference whose second
+            # Gaussian saw only incorrect traces.
+            QUADRATIC_FEATURE: -float(
+                np.mean(compute_relative_mahal_distances(tail, *fit["qmd_reference"]))
+            ),
         }
     return scores
 
@@ -628,20 +701,32 @@ POOLED_QUANTITIES: tuple[tuple[str, bool], ...] = (
     # for a quantity no replicate carries, so an old JSON still reads.
     ("delta_aurc_B0_rmd_minus_B0_token_probe", True),
     ("auroc_rmd_minus_token_probe", False),
+    # The negative-label pair. ``qmd_tail_q20`` is RMD's own estimator with the
+    # unconditional background swapped for an incorrect-trace Gaussian, so this
+    # is the one comparison in which supervision moves alone.
+    ("delta_aurc_B0_rmd_minus_B0_qmd", True),
+    ("delta_aurc_B0_qmd_minus_B0_token_probe", True),
+    ("delta_aurc_B0_qmd_minus_B0", True),
+    ("auroc_rmd_minus_qmd", False),
 )
+
+#: Pooled AUROC gaps derived from the per-feature columns rather than stored.
+_AUROC_DELTA_AGAINST: dict[str, str] = {
+    "auroc_rmd_minus_probe": PROBE_FEATURE,
+    "auroc_rmd_minus_token_probe": TOKEN_PROBE_FEATURE,
+    "auroc_rmd_minus_qmd": QUADRATIC_FEATURE,
+}
 
 
 def _pooled_value(row: Mapping, key: str) -> float | None:
     """One replicate's value for a pooled quantity, or None if it is missing.
 
-    ``auroc_rmd_minus_probe`` is derived rather than stored: the per-replicate row
-    carries each feature's AUROC, and the difference is the base-rate-free view of
-    the same comparison the AURC deltas make.
+    The ``auroc_rmd_minus_*`` gaps are derived rather than stored: the
+    per-replicate row carries each feature's AUROC, and the difference is the
+    base-rate-free view of the same comparison the AURC deltas make.
     """
-    if key in ("auroc_rmd_minus_probe", "auroc_rmd_minus_token_probe"):
-        against = (
-            PROBE_FEATURE if key == "auroc_rmd_minus_probe" else TOKEN_PROBE_FEATURE
-        )
+    against = _AUROC_DELTA_AGAINST.get(key)
+    if against is not None:
         rmd = row.get(f"auroc_{GEOMETRY_FEATURE}")
         probe = row.get(f"auroc_{against}")
         if rmd is None or probe is None:
@@ -783,6 +868,7 @@ def run_replicate(
             "eval_base_accuracy": base_accuracy,
             "n_train_traces": fit["n_train_traces"],
             "n_correct_traces": fit["n_correct_traces"],
+            "n_incorrect_traces": fit["n_incorrect_traces"],
             "n_probe_traces": fit["n_probe_traces"],
             "n_token_probe_rows": fit["n_token_probe_rows"],
             "train_base_accuracy": float(np.mean(train_outcomes)),
@@ -823,9 +909,11 @@ def run_replicate(
             f"AUROC rmd={_fmt(row[f'auroc_{GEOMETRY_FEATURE}'])} "
             f"probe={_fmt(row[f'auroc_{PROBE_FEATURE}'])} "
             f"tokprobe={_fmt(row[f'auroc_{TOKEN_PROBE_FEATURE}'])} "
+            f"qmd={_fmt(row[f'auroc_{QUADRATIC_FEATURE}'])} "
             f"AURC B0={_fmt(row['aurc_B0'])} "
             f"+rmd={_fmt(row['aurc_B0_rmd'])} +probe={_fmt(row['aurc_B0_probe'])} "
             f"+tokprobe={_fmt(row['aurc_B0_token_probe'])} "
+            f"+qmd={_fmt(row['aurc_B0_qmd'])} "
             f"[{row['seconds']:.0f}s]"
         )
         rows.append(row)
@@ -835,7 +923,27 @@ def run_replicate(
 
 
 def aggregate_curves(rows: Sequence[Mapping], budgets: Sequence[int]) -> dict:
-    """Collapse per-replicate rows into one entry per budget."""
+    """Collapse per-replicate rows into one entry per budget.
+
+    Every column is read with ``.get``.  Rows come either from this run or from
+    a finished results JSON replayed through ``--report_from``, and a JSON
+    written before a comparator existed carries none of its columns; missing
+    means "no replicate measured this", which is what ``summarize_replicates``
+    already reports for an all-``None`` list.
+    """
+
+    def auroc_gap(at_budget: Sequence[Mapping], against: str) -> dict:
+        """``rmd_tail_q20``'s solo AUROC minus one comparator's, per replicate."""
+        return summarize_replicates(
+            [
+                None
+                if row.get(f"auroc_{GEOMETRY_FEATURE}") is None
+                or row.get(f"auroc_{against}") is None
+                else row[f"auroc_{GEOMETRY_FEATURE}"] - row[f"auroc_{against}"]
+                for row in at_budget
+            ]
+        )
+
     curves = []
     for budget in budgets:
         at_budget = [row for row in rows if int(row["budget"]) == int(budget)]
@@ -850,45 +958,35 @@ def aggregate_curves(rows: Sequence[Mapping], budgets: Sequence[int]) -> dict:
                 [row["n_train_traces"] for row in at_budget]
             ),
             "feature_auroc": {
-                name: summarize_replicates([row[f"auroc_{name}"] for row in at_budget])
+                name: summarize_replicates(
+                    [row.get(f"auroc_{name}") for row in at_budget]
+                )
                 for name in GEOMETRY_FEATURES
             },
             "aurc": {
-                readout: summarize_replicates([row[f"aurc_{readout}"] for row in at_budget])
+                readout: summarize_replicates(
+                    [row.get(f"aurc_{readout}") for row in at_budget]
+                )
                 for readout in READOUT_SPECS
             },
             "excess_aurc": {
                 readout: summarize_replicates(
-                    [row[f"excess_aurc_{readout}"] for row in at_budget]
+                    [row.get(f"excess_aurc_{readout}") for row in at_budget]
                 )
                 for readout in READOUT_SPECS
             },
             "delta_aurc": {},
-            "feature_auroc_delta": summarize_replicates(
-                [
-                    None
-                    if row[f"auroc_{GEOMETRY_FEATURE}"] is None
-                    or row[f"auroc_{PROBE_FEATURE}"] is None
-                    else row[f"auroc_{GEOMETRY_FEATURE}"] - row[f"auroc_{PROBE_FEATURE}"]
-                    for row in at_budget
-                ]
-            ),
+            "feature_auroc_delta": auroc_gap(at_budget, PROBE_FEATURE),
             # The same gap against the pooling-matched probe. Where the two
             # deltas disagree, the difference is pooling order, not supervision.
-            "feature_auroc_delta_token": summarize_replicates(
-                [
-                    None
-                    if row[f"auroc_{GEOMETRY_FEATURE}"] is None
-                    or row[f"auroc_{TOKEN_PROBE_FEATURE}"] is None
-                    else row[f"auroc_{GEOMETRY_FEATURE}"]
-                    - row[f"auroc_{TOKEN_PROBE_FEATURE}"]
-                    for row in at_budget
-                ]
-            ),
+            "feature_auroc_delta_token": auroc_gap(at_budget, TOKEN_PROBE_FEATURE),
+            # And against the quadratic discriminant, where only supervision
+            # differs -- the gap that is left once pooling and form are matched.
+            "feature_auroc_delta_qmd": auroc_gap(at_budget, QUADRATIC_FEATURE),
         }
         for left, right in PAIRED_DELTAS:
             key = f"{left}_minus_{right}"
-            values = [row[f"delta_aurc_{key}"] for row in at_budget]
+            values = [row.get(f"delta_aurc_{key}") for row in at_budget]
             entry["delta_aurc"][key] = {
                 **summarize_replicates(values),
                 **sign_summary(values, negative_is_better=True),
@@ -1112,12 +1210,15 @@ def _model_section(result: Mapping) -> list[str]:
         "",
         "`probe_token_tail_q20` is the pooling-matched probe: LDA per tail "
         "token, token scores averaged, which is the order `rmd_tail_q20` uses. "
-        "The last column is therefore the supervision effect with pooling held "
-        "fixed; the one before it confounds the two.",
+        "`qmd_tail_q20` goes one step further and matches the decision "
+        "function too -- it is RMD's own quadratic with the unconditional "
+        "background replaced by an incorrect-trace Gaussian, so `rmd − qmd` is "
+        "the gap left when only supervision differs.",
         "",
         "| labelled prompts | `rmd_tail_q20` | `probe_hidden_tail_q20` | "
-        "`probe_token_tail_q20` | rmd − probe | rmd − token probe |",
-        "|---:|---|---|---|---|---|",
+        "`probe_token_tail_q20` | `qmd_tail_q20` | rmd − probe | "
+        "rmd − token probe | rmd − qmd |",
+        "|---:|---|---|---|---|---|---|---|",
     ]
     for entry in result["curves"]:
         lines.append(
@@ -1125,8 +1226,10 @@ def _model_section(result: Mapping) -> list[str]:
             f"| {_band(entry['feature_auroc'][GEOMETRY_FEATURE])} "
             f"| {_band(entry['feature_auroc'][PROBE_FEATURE])} "
             f"| {_band(entry['feature_auroc'][TOKEN_PROBE_FEATURE])} "
+            f"| {_band(entry['feature_auroc'][QUADRATIC_FEATURE])} "
             f"| {_band(entry['feature_auroc_delta'])} "
-            f"| {_band(entry['feature_auroc_delta_token'])} |"
+            f"| {_band(entry['feature_auroc_delta_token'])} "
+            f"| {_band(entry['feature_auroc_delta_qmd'])} |"
         )
 
     lines += [
@@ -1137,8 +1240,8 @@ def _model_section(result: Mapping) -> list[str]:
         "`(1 − 1/n) − base`, which is what makes a level comparable at all.",
         "",
         "| labelled prompts | eval n | base acc | B0 | B0+rmd | B0+probe | "
-        "B0+token probe | excess B0+rmd | excess B0+probe |",
-        "|---:|---:|---|---|---|---|---|---|---|",
+        "B0+token probe | B0+qmd | excess B0+rmd | excess B0+probe |",
+        "|---:|---:|---|---|---|---|---|---|---|---|",
     ]
     for entry in result["curves"]:
         lines.append(
@@ -1149,6 +1252,7 @@ def _model_section(result: Mapping) -> list[str]:
             f"| {_band(entry['aurc']['B0_rmd'])} "
             f"| {_band(entry['aurc']['B0_probe'])} "
             f"| {_band(entry['aurc']['B0_token_probe'])} "
+            f"| {_band(entry['aurc']['B0_qmd'])} "
             f"| {_band(entry['excess_aurc']['B0_rmd'])} "
             f"| {_band(entry['excess_aurc']['B0_probe'])} |"
         )
@@ -1179,6 +1283,38 @@ def _model_section(result: Mapping) -> list[str]:
             f"| {_band(matched)} "
             f"| {_fmt(matched['win_rate'], 2)} "
             f"| {_fmt(matched['p_sign'], 3)} |"
+        )
+
+    lines += [
+        "",
+        "### The supervision ladder",
+        "",
+        "Each rung releases one variable, so a gap that survives every rung is "
+        "the one attributable to that rung alone. Negative favours the left "
+        "readout.",
+        "",
+        "| rung | what it releases |",
+        "|---|---|",
+        "| `B0+rmd − B0+qmd` | whether the negative class was labelled |",
+        "| `B0+qmd − B0+token probe` | quadratic against linear decision function |",
+        "| `B0+token probe − B0+probe` | score-then-pool against pool-then-score |",
+        "",
+        "| labelled prompts | rmd − qmd | wins | sign p | qmd − token probe | "
+        "wins | sign p | qmd − B0 |",
+        "|---:|---|---:|---:|---|---:|---:|---|",
+    ]
+    for entry in result["curves"]:
+        supervision = entry["delta_aurc"]["B0_rmd_minus_B0_qmd"]
+        form = entry["delta_aurc"]["B0_qmd_minus_B0_token_probe"]
+        lines.append(
+            f"| {entry['budget']} "
+            f"| {_band(supervision)} "
+            f"| {_fmt(supervision['win_rate'], 2)} "
+            f"| {_fmt(supervision['p_sign'], 3)} "
+            f"| {_band(form)} "
+            f"| {_fmt(form['win_rate'], 2)} "
+            f"| {_fmt(form['p_sign'], 3)} "
+            f"| {_band(entry['delta_aurc']['B0_qmd_minus_B0'])} |"
         )
 
     crossing = result["crossing"]
@@ -1247,6 +1383,30 @@ def _pooled_section(result: Mapping) -> list[str]:
             f"| {versus_token['models_agreeing']}/{versus_token['n_models']} "
             f"| {_pooled_cell(quantities['delta_aurc_B0_both_minus_B0_rmd'])} "
             f"| {_pooled_cell(quantities['auroc_rmd_minus_probe'])} |"
+        )
+
+    lines += [
+        "",
+        "Pooled supervision ladder. `rmd − qmd` holds pooling order *and* the "
+        "decision function fixed, so it is the only column in this report where "
+        "supervision moves alone.",
+        "",
+        "| labelled prompts | `B0+rmd − B0+qmd` | agree | "
+        "`B0+qmd − B0+token probe` | agree | `B0+qmd − B0` | AUROC rmd − qmd |",
+        "|---:|---|---:|---|---:|---|---|",
+    ]
+    for row in table:
+        quantities = row["quantities"]
+        supervision = quantities["delta_aurc_B0_rmd_minus_B0_qmd"]
+        form = quantities["delta_aurc_B0_qmd_minus_B0_token_probe"]
+        lines.append(
+            f"| {row['budget']} "
+            f"| {_pooled_cell(supervision)} "
+            f"| {supervision['models_agreeing']}/{supervision['n_models']} "
+            f"| {_pooled_cell(form)} "
+            f"| {form['models_agreeing']}/{form['n_models']} "
+            f"| {_pooled_cell(quantities['delta_aurc_B0_qmd_minus_B0'])} "
+            f"| {_pooled_cell(quantities['auroc_rmd_minus_qmd'])} |"
         )
     lines.append("")
     return lines
