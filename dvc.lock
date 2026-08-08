@@ -821,8 +821,8 @@ stages:
       nfiles: 80
     - path: incremental_abstention.py
       hash: md5
-      md5: 1edac56e3e93ec12f17af3656a26f385
-      size: 32304
+      md5: 3d9e3793474d87b33fad0073e6b3f667
+      size: 34167
     - path: 
         results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
@@ -864,8 +864,8 @@ stages:
       nfiles: 81
     - path: incremental_abstention.py
       hash: md5
-      md5: 1edac56e3e93ec12f17af3656a26f385
-      size: 32304
+      md5: 3d9e3793474d87b33fad0073e6b3f667
+      size: 34167
     - path: 
         results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv
       hash: md5
@@ -1028,3 +1028,47 @@ stages:
       md5: c30a08b33755baa40b9d7b77e3b6ceb1.dir
       size: 278093353059
       nfiles: 80
+  evaluate_incremental_abstention@2:
+    cmd: CUDA_VISIBLE_DEVICES="" uv run python incremental_abstention.py 
+      --oof_csv 
+      results/deepseek_llama_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      --output_dir results/deepseek_llama_bestofn_full/math500 --data_dir 
+      data/deepseek_llama_bestofn_full/math500 --dataset_label math500 
+      --model_label deepseek_llama --layer 24 --expected_traces 8 --n_bootstrap 
+      1000 --seed 42
+    deps:
+    - path: data/deepseek_llama_bestofn_full/math500
+      hash: md5
+      md5: c30a08b33755baa40b9d7b77e3b6ceb1.dir
+      size: 278093353059
+      nfiles: 80
+    - path: incremental_abstention.py
+      hash: md5
+      md5: 3d9e3793474d87b33fad0073e6b3f667
+      size: 34167
+    - path: 
+        results/deepseek_llama_bestofn_full/math500/math500_prompt_decomposition_oof.csv
+      hash: md5
+      md5: ebdebaaac9029a122db0b5ebdb1f3f12
+      size: 6933855
+    - path: trace_caps.py
+      hash: md5
+      md5: ee3bae49f1666d254bbb9957276eaaba
+      size: 9509
+    params:
+      params.yaml:
+        incremental_abstention:
+          n_bootstrap: 1000
+          seed: 42
+          expected_traces: 8
+    outs:
+    - path: 
+        results/deepseek_llama_bestofn_full/math500/math500_incremental_abstention_report.md
+      hash: md5
+      md5: 43a4763f5eb3a723705a6919100c65b2
+      size: 3467
+    - path: 
+        results/deepseek_llama_bestofn_full/math500/math500_incremental_abstention_results.json
+      hash: md5
+      md5: 3cd7b95b34f9b7ca4457b13230ff4e1b
+      size: 13087

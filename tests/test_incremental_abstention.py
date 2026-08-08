@@ -108,6 +108,46 @@ def test_prompt_state_loader_averages_exact_pilot_trace_states(tmp_path):
     assert np.allclose(states[4], [2.0, 4.0])
 
 
+def _write_trace_batch(path, prompt_id, n_traces, n_tokens, layer, hidden=4):
+    """One batch file shaped like `collect_data.py` writes them."""
+    arrays = {}
+    metadata = []
+    for trace_id in range(n_traces):
+        block = np.zeros((n_tokens, hidden), dtype=np.float32)
+        # Row zero is the last prompt token, so it is identical across siblings;
+        # the rest of the trace diverges. Only row zero should survive the load.
+        block[0] = np.arange(hidden, dtype=np.float32)
+        block[1:] = float(trace_id + 1)
+        arrays[f"hidden_L{layer}_{trace_id}"] = block
+        metadata.append({"trace_id": trace_id, "idx": prompt_id, "sample_id": trace_id})
+    np.savez(path, metadata=np.asarray(metadata, dtype=object), **arrays)
+
+
+def test_prompt_state_loader_reads_row_zero_from_a_trace_directory(tmp_path):
+    _write_trace_batch(tmp_path / "batch_0000.npz", prompt_id=7, n_traces=8,
+                       n_tokens=32, layer=21)
+
+    states = _load_prompt_states(tmp_path, 21)
+
+    # Row zero is identical across the eight siblings, so the mean is a no-op.
+    assert np.allclose(states[7], np.arange(4, dtype=np.float32))
+
+
+def test_prompt_state_loader_does_not_retain_whole_traces(tmp_path):
+    """The cached blocks are already float32, so `np.asarray` on row zero hands
+    back a *view* and the returned dict pins every trace the loader ever read --
+    104 GiB on DeepSeek against the ~50 MiB the rows themselves need. Owning the
+    data is what the docstring's "without retaining tokens" actually requires."""
+    _write_trace_batch(tmp_path / "batch_0000.npz", prompt_id=3, n_traces=2,
+                       n_tokens=4096, layer=21)
+
+    states = _load_prompt_states(tmp_path, 21)
+
+    row = states[3]
+    assert row.base is None, "row zero is a view onto the full trace block"
+    assert row.nbytes < 4096 * 4 * np.dtype(np.float32).itemsize
+
+
 def test_exact_scores_are_aggregated_and_exposed_as_incremental_models(tmp_path):
     path = tmp_path / "exact.npz"
     rows = np.asarray(

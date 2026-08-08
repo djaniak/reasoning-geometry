@@ -12,12 +12,15 @@ from prompt_decomposition import region_indices, score_localized_rmd, trace_regi
 from label_efficiency import (
     GEOMETRY_FEATURE,
     PROBE_FEATURE,
+    TOKEN_PROBE_FEATURE,
     chance_aurc,
     fit_correct_reference,
     crossing_budget,
     feature_matrix,
     fit_predict_logistic,
+    fit_token_probe,
     group_views_by_prompt,
+    score_token_probe,
     pooled_sign_table,
     prepare_trace_views,
     prompt_geometry,
@@ -39,6 +42,99 @@ def _trace(trace_id: int, prompt_id: int, n_tokens: int, *, correct: bool = True
         "entropies": rng.random(n_tokens).astype(np.float32),
         "hiddens": {7: rng.random((n_tokens, 5)).astype(np.float16)},
     }
+
+
+def _token_probe_views(n_traces: int = 8, n_tokens: int = 40, dim: int = 4):
+    """Separable tail tokens: correct traces sit at +1, incorrect at -1."""
+    rng = np.random.default_rng(0)
+    views, projected = [], {}
+    for trace_id in range(n_traces):
+        correct = trace_id % 2 == 0
+        views.append(
+            {
+                "trace_id": trace_id,
+                "prompt_id": trace_id // 2,
+                "is_correct": correct,
+                "predicted_answer": "42",
+            }
+        )
+        centre = 1.0 if correct else -1.0
+        projected[trace_id] = rng.normal(centre, 0.25, size=(n_tokens, dim))
+    return views, projected
+
+
+# ---------------------------------------------------------------------------
+# The pooling-matched token probe
+# ---------------------------------------------------------------------------
+
+def test_token_probe_trains_on_tokens_not_traces():
+    """The row unit is the token. That is the whole point of this estimator --
+    it is what puts it in RMD's pooling order rather than the region-mean
+    probe's, so a fit that collapsed each trace to one row would silently
+    reintroduce the confound the feature exists to remove."""
+    views, projected = _token_probe_views(n_traces=8, n_tokens=40)
+
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=None)
+
+    assert fit["skipped"] is None
+    assert fit["n_train_traces"] == 8
+    assert fit["n_train"] == 8 * 40
+
+
+def test_token_probe_honours_the_per_trace_token_cap():
+    views, projected = _token_probe_views(n_traces=4, n_tokens=100)
+
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=10)
+
+    assert fit["n_train"] == 4 * 10
+
+
+def test_token_probe_excludes_unparsed_traces():
+    """Unparsed traces are auto-labelled incorrect upstream, so keeping them
+    would let the probe win by detecting truncation -- the same exclusion
+    `fit_hidden_state_probe` makes."""
+    views, projected = _token_probe_views(n_traces=8, n_tokens=20)
+    views[1]["predicted_answer"] = ""
+    views[3]["predicted_answer"] = None
+
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=None)
+
+    assert fit["n_train_traces"] == 6
+    assert fit["n_train"] == 6 * 20
+
+
+def test_token_probe_scores_separable_tails_in_the_right_direction():
+    views, projected = _token_probe_views(n_traces=8, n_tokens=40)
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=None)
+
+    correct = score_token_probe(projected[0], fit)
+    incorrect = score_token_probe(projected[1], fit)
+
+    assert correct > incorrect
+
+
+def test_token_probe_score_is_the_mean_of_the_token_scores():
+    """Scoring must average *after* classifying. Averaging the tokens first and
+    classifying once is the other probe; if this collapsed to that, the two
+    features would be the same estimator under two names."""
+    views, projected = _token_probe_views(n_traces=8, n_tokens=30)
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=None)
+    tail = projected[2]
+
+    per_token = fit["classifier"].decision_function(fit["scaler"].transform(tail))
+
+    assert score_token_probe(tail, fit) == pytest.approx(float(np.mean(per_token)))
+
+
+def test_token_probe_reports_a_single_class_instead_of_fitting_one():
+    views, projected = _token_probe_views(n_traces=4, n_tokens=10)
+    for view in views:
+        view["is_correct"] = True
+
+    fit = fit_token_probe(views, projected, max_tokens_per_trace=None)
+
+    assert fit["classifier"] is None
+    assert fit["skipped"] == "single_class"
 
 
 # ---------------------------------------------------------------------------
@@ -206,14 +302,15 @@ def test_prompt_geometry_averages_over_the_siblings():
         )
     )
     scores = {
-        0: {GEOMETRY_FEATURE: 1.0, PROBE_FEATURE: -2.0},
-        1: {GEOMETRY_FEATURE: 3.0, PROBE_FEATURE: 2.0},
+        0: {GEOMETRY_FEATURE: 1.0, PROBE_FEATURE: -2.0, TOKEN_PROBE_FEATURE: 4.0},
+        1: {GEOMETRY_FEATURE: 3.0, PROBE_FEATURE: 2.0, TOKEN_PROBE_FEATURE: 6.0},
     }
 
     aggregated = prompt_geometry(grouped, [5], scores)
 
     assert aggregated[5][GEOMETRY_FEATURE] == pytest.approx(2.0)
     assert aggregated[5][PROBE_FEATURE] == pytest.approx(0.0)
+    assert aggregated[5][TOKEN_PROBE_FEATURE] == pytest.approx(5.0)
 
 
 def test_feature_matrix_takes_geometry_from_the_budget_not_the_frozen_column():

@@ -425,7 +425,13 @@ def _load_prompt_states(data_dir: str | Path, layer: int) -> dict[int, np.ndarra
                     key = f"hidden_L{layer}_{int(metadata.get('idx', 0))}"
                 if key not in available or data[key].ndim != 2 or not len(data[key]):
                     continue
-                states[prompt_id].append(np.asarray(data[key][0], dtype=np.float32))
+                # `np.array`, not `np.asarray`: the cached blocks are already
+                # float32, so asarray hands back a *view* onto the whole
+                # [n_tokens, hidden] array and the row-zero dict pins every
+                # trace it ever read -- 138 GiB on DeepSeek, against the ~50 MiB
+                # the rows themselves need. The copy is what makes the
+                # docstring's "without retaining tokens" true.
+                states[prompt_id].append(np.array(data[key][0], dtype=np.float32))
     return {
         prompt_id: np.mean(np.stack(values, axis=0), axis=0)
         for prompt_id, values in states.items()
@@ -670,6 +676,13 @@ def run_incremental_analysis(
             for left, right in (
                 ("B0_prompt_only_geometry", "B0"),
                 ("B1_prompt_only_geometry", "B1"),
+                # The tail increment *after* conditioning on the prompt state.
+                # The two pairs above ask what the prompt state adds; this one
+                # asks whether rmd_tail survives once the prompt state is
+                # already in the readout, which is what separates "the tail
+                # carries post-prompt information" from "the tail is a proxy
+                # for how solvable the prompt was".
+                ("B1_prompt_only_geometry", "B0_prompt_only_geometry"),
             ):
                 for metric in METRIC_NAMES:
                     entry["paired_deltas"][f"{left}_minus_{right}_{metric}"] = paired_bootstrap_delta(
@@ -737,6 +750,7 @@ def write_report(result: Mapping, path: str | Path) -> None:
             "B1_minus_B0_plus_DeepConf_tail_q20",
             "B0_prompt_only_geometry_minus_B0",
             "B1_prompt_only_geometry_minus_B1",
+            "B1_prompt_only_geometry_minus_B0_prompt_only_geometry",
         ):
             if not any(key.startswith(prefix + "_") for key in entry["paired_deltas"]):
                 continue

@@ -8,7 +8,7 @@ literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 
 ## 1. Revised thesis (defensible)
 
-> **Relative hidden-state geometry (RMD) is a calibrated *between-prompt solvability*
+> **Relative hidden-state geometry (RMD) is a selective-prediction *between-prompt solvability*
 > signal that beats both trace-length and entropy baselines — and beats them on a
 > component length cannot supply, which a supervised probe on the same activations does
 > not reliably improve on. It is useful for abstention / compute allocation / routing —

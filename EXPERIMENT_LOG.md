@@ -5,6 +5,292 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-08: Locking the Llama artifact, conditioning the tail on the prompt state, and dropping the free-energy aggregator
+
+A CPU-only sprint against the existing caches. Two questions: close the
+verification gap this log flagged on 2026-07-31 (the Llama increment had no
+locked artifact behind it), and settle whether prompt-state information explains
+the RMD tail effect. No new collection, no GPU, no new DVC stage.
+
+### 0. What the caches actually hold
+
+All three trace directories are present and complete:
+
+| model | files | traces | prompts | layers stored | hidden dim |
+|---|---:|---:|---:|---|---:|
+| `qwen` | 80 | 4000 | 500 | 7, 14, 21 | 3584 |
+| `deepseek` | 81 | 4000 | 500 | 7, 14, 21 | 3584 |
+| `deepseek_llama` | 80 | 4000 | 500 | 8, 16, 24 | 4096 |
+
+Every prompt has exactly eight siblings and every id in `0..499` is present in
+all three. The frozen layer is stored in each. The prompt-state question is
+therefore closed without a GPU: `_load_prompt_states` takes its directory
+branch and reads row zero out of the ordinary trace caches. `prompt_states.py`,
+which needs CUDA, stays unused. Raw DeepConf shards also survive under
+`results/*/math500/deepconf_exact_*_shard*/`, but they were not needed.
+
+### 1. `evaluate_incremental_abstention@2` — created and checked (PASS)
+
+`dvc.lock` carried `@0` and `@1` only, so the Llama row had never been
+materialized: the `+0.056` in the 2026-07-31 entry came from an ad-hoc run with
+no independent computation behind it. Materialized single-item, so DVC could
+not walk upstream into a collection stage:
+
+```
+dvc repro --single-item evaluate_incremental_abstention@2
+```
+
+Cap resolved to 12288, `confirmed by dvc.lock, dvc.yaml/params.yaml`, layer 24.
+
+| population | n | B1−B0 AUACC | p |
+|---|---:|---|---:|
+| full_population | 500 | 0.047 [0.016, 0.077] | 0.000 |
+| valid_plurality | 499 | 0.047 [0.016, 0.077] | 0.002 |
+| **cap_free_valid_plurality** | **408** | **0.056 [0.019, 0.094]** | **0.000** |
+| cap_free_full_population | 408 | 0.056 [0.019, 0.094] | 0.000 |
+| all_eight_parseable | 411 | 0.055 [0.019, 0.092] | 0.006 |
+
+On the headline population, AURC `−0.05605 [−0.09100, −0.02318]`, the exact
+mirror of the AUACC delta. `B0` AURC 0.23688 / AUACC 0.76067; `B1` AURC 0.18083
+/ AUACC 0.81672. n=408 and base rate 0.674 match the frozen model table.
+
+**The locked artifact reproduces the ad-hoc `+0.056`.** The stage command omits
+`--exact_scores_npz`, which the ad-hoc run passed, but that flag only populates
+the `deepconf_*` columns and those feed separate model specs — `B0` and `B1` are
+untouched by it, so the comparison is clean rather than approximate.
+
+### 2. Row zero is prompt-side (PASS, all five checks)
+
+Disposable script, no stage. Per model:
+
+1. **Layer.** 21 stored for `qwen` and `deepseek`, 24 for `deepseek_llama`.
+2. **Prompt.** The system prompt is one string shared by all three collects
+   (`DATASETS["math500"]`, `collect_data.py:28`). The chat template is each
+   model's own `tokenizer.apply_chat_template`, which is correct and also
+   unavoidable — Qwen and Llama formats differ, and the hidden widths differ too
+   (3584 vs 4096). Prompt states are never compared across models in a shared
+   space; each model's prompt geometry is fitted within that model.
+3. **Sibling identity.** Row-zero vectors are **bit-identical across all eight
+   siblings** for every prompt checked (18 per model, 54 total), while the
+   sibling trace lengths inside those same prompts span e.g. 3258 → 12288. Equal
+   rows under unequal lengths is positive evidence the index is prompt-side, not
+   generation-side. The mean over siblings at `incremental_abstention.py:429` is
+   a no-op, as designed.
+4. **Alignment.** `collect_data.py:243` states it directly: "hidden_states[k] is
+   the representation of the input at step k (the last prompt token for k=0,
+   generated token k-1 otherwise)". Row zero is the vector that predicts
+   generated token zero.
+5. **Coverage.** All 500 prompt ids present per model, eight siblings each.
+
+Cap provenance was not investigated: a cap cannot reach row zero.
+
+### Parallel track: the free-energy aggregator is dropped (FALSIFIED)
+
+Per trace over the generated tokens, `W_i = Σ_t (−log p(x_t|x_<t) − H_t)`, and
+per prompt `F = −log(mean_i exp(−W_i))` over the eight siblings, computed as
+`log(N) − logsumexp(−W)` because W runs to thousands of nats. Pure numpy over
+the cached `entropies_*` and `token_logprobs_*` members; no hidden state is
+touched. Tested inside `B0` on the headline population with the frozen protocol
+— same accounting, same populations, same out-of-fold logistic, same
+prompt-clustered paired bootstrap at 1000 draws and seed 42.
+
+**The premise does not hold on these caches.** `W` was expected to have mean
+zero by construction, since the surprisal of a drawn token should average to the
+entropy at that position. It does not: median `W̄` per token is −14.7 (qwen),
+−214.4 (deepseek), −198.1 (llama). The cause is at `collect_data.py:294-296` —
+entropy and the chosen-token log-probability are both recorded from the
+**untempered** `log_softmax(logits)`, while the token is drawn from the
+**T=0.6** tempered distribution (`params.yaml:48`). So `E[−log p(x)]` is the
+cross-entropy `H(q,p)`, not `H(p)`, and for `T<1` that is systematically
+smaller. Every token contributes a negative constant, and the sum becomes a
+length proxy: `corr(F, mean trace length)` is −0.61 / −0.86 / −0.88.
+
+| model | n | AUROC `vote_agreement` | AUROC `F` | AUROC `length` |
+|---|---:|---:|---:|---:|
+| `qwen` | 392 | 0.634 | 0.631 | 0.635 |
+| `deepseek` | 393 | 0.587 | 0.583 | 0.584 |
+| `deepseek_llama` | 408 | 0.650 | 0.508 | 0.526 |
+
+On qwen and deepseek `F` tracks `length` to within 0.004 AUROC; on Llama it is
+at chance while the vote is at 0.650. AURC deltas (positive = worse):
+
+| model | `B0_swap_F − B0` | `B0_plus_F − B0` |
+|---|---|---|
+| `qwen` | +0.0134 [+0.0013, +0.0269] p=0.036 | +0.0046 [+0.0002, +0.0097] p=0.030 |
+| `deepseek` | +0.0250 [−0.0055, +0.0528] p=0.100 | +0.0048 [−0.0073, +0.0160] p=0.462 |
+| `deepseek_llama` | +0.1097 [+0.0530, +0.1671] p=0.000 | −0.0019 [−0.0294, +0.0266] p=0.870 |
+
+Replacing `vote_agreement` with `F` is worse on all three models and decisively
+so on Llama. Adding `F` on top of `B0` is worse on qwen (significantly), worse
+on deepseek, and indistinguishable on Llama. **`F` does not beat
+`vote_agreement`.** Per the pre-registered rule this direction is dropped, and
+no variants were tried. Recording the mechanism because it is reusable: any
+statistic built from these caches that differences a drawn-token log-probability
+against a stored entropy inherits the same T=1-vs-T=0.6 mismatch and will come
+out as a length feature.
+
+### 3. The tail survives conditioning on the prompt state (the geometry claim stands)
+
+One code change: `incremental_abstention.py` already fitted all four models but
+only ever bootstrapped each prompt-state model against its non-prompt
+counterpart. The pair that answers the question — `B1_prompt_only_geometry`
+against `B0_prompt_only_geometry`, i.e. what `rmd_tail_q20` adds *once the
+prompt state is already in the readout* — was missing. Added there and to the
+report list. Both models were already fitted, so the cost is one bootstrap.
+
+Run on all three models with `--prompt_states_dir` pointing at the trace caches,
+outputs written outside `results/` so the locked artifacts are untouched.
+Headline population, AURC (negative favours the left model):
+
+| model | n | `B1 − B0` | `B0_prompt − B0` | `B1_prompt − B0_prompt` |
+|---|---:|---|---|---|
+| `qwen` | 392 | −0.0585 [−0.1026, −0.0182] p=0.004 | +0.0044 [−0.0076, +0.0162] p=0.536 | **−0.0618 [−0.1008, −0.0238] p=0.000** |
+| `deepseek` | 393 | −0.0355 [−0.0642, −0.0097] p=0.004 | +0.0093 [+0.0018, +0.0171] p=0.006 | **−0.0402 [−0.0687, −0.0099] p=0.000** |
+| `deepseek_llama` | 408 | −0.0560 [−0.0910, −0.0232] p=0.000 | −0.0105 [−0.0485, +0.0241] p=0.548 | **−0.0439 [−0.0754, −0.0107] p=0.012** |
+
+**The tail delta survives on all three models, and on two of them it is larger
+after conditioning than before.** The pre-registered reading applies: the RMD
+tail carries information generated *after* the prompt, and the paper's central
+claim stands unchanged. The middle column is the reason — the prompt state adds
+nothing on its own (n.s. on qwen and Llama, and *harmful* on deepseek), so there
+is no prompt-solvability signal for the tail to have been proxying.
+
+Two internal checks fell out of this run. The Llama `B1 − B0` here is
+`0.056 [0.019, 0.094]` at n=408, matching the artifact locked in step 1 to the
+digit even though this run additionally fits two prompt-state models. And the
+`B1_prompt − B1` column is ~0 everywhere, which is the expected shape if the
+prompt state is redundant once the tail is present.
+
+
+### 4. Matched token-level pooling: the confound was not the explanation
+
+`probe_hidden_tail_q20` differs from `rmd_tail_q20` in two ways at once —
+supervision *and* pooling order. It averages the tail tokens and classifies
+once; RMD scores every tail token and averages the scores. The 2026-08-07 entry
+records this as an open limitation. `probe_token_tail_q20` closes it: an LDA
+fitted on individual tail tokens (same `lsqr` solver, same automatic shrinkage,
+same PCA basis, same per-trace token cap, unparsed traces excluded the same
+way), with a trace scored by the mean of its per-token decision values. Pooling
+order now matches RMD exactly, so supervision is the only remaining difference.
+
+Budgets 25/50/100, 10 replicates, all three models,
+`results/label_efficiency_token_pooling/`. Pooled over all 30 label draws,
+AURC, negative favours geometry:
+
+| labelled prompts | `B0+rmd − B0+probe` | agree | `B0+rmd − B0+token probe` | agree |
+|---:|---|---:|---|---:|
+| 25 | −0.018 · 22/30 · p=0.016 | 3/3 | −0.012 · 20/30 · p=0.099 | 1/3 |
+| 50 | −0.017 · 23/30 · p=0.005 | 3/3 | **−0.033 · 26/30 · p=0.000** | **3/3** |
+| 100 | +0.004 · 12/30 · p=0.362 | 1/3 | −0.002 · 17/30 · p=0.585 | 2/3 |
+
+**Matching the pooling order does not remove geometry's low-budget advantage —
+at 50 labels it roughly doubles it** (−0.033 against −0.017), on 26 of 30 draws
+with all three models agreeing. At 100 labels both comparisons are a wash. The
+token probe is not a broken estimator: its own feature AUROC tracks the
+region-mean probe closely (e.g. qwen 0.789 vs 0.786 at 100 labels), so it is
+losing on the readout, not failing to fit.
+
+So the limitation the last entry flagged is answered, and the answer favours the
+claim rather than deflating it: the ≤50-label advantage is a supervision effect,
+not an artifact of averaging before versus after classification. If anything the
+region-mean probe's average-first pooling was *helping* it at low budgets, which
+made the original comparison conservative in the probe's favour.
+
+**Not comparable to the frozen five-budget artifact.** Capping the sweep at 100
+labels leaves ~314--328 evaluation prompts instead of the frozen run's ~80,
+because the evaluation set is the complement of the largest budget. That is a
+better-resolved but different evaluation set, so AURC *levels* and the fitted
+crossing budgets here (qwen: ahead at every budget tested; deepseek 63; Llama
+95) are not interchangeable with the frozen 226/60/123. The within-run paired
+deltas, which is what step 4 was for, are unaffected.
+
+### 5. Pseudo-positive foreground: the last label cannot go (NEGATIVE)
+
+The one-class fit needs positives only, but it still needs *gold* positives.
+This asks whether they can be replaced by **pseudo-positives** — traces whose
+final answer agrees with their prompt's plurality vote, which is computable
+without touching the gold answer. Everything else is held fixed: same PCA, same
+background Gaussian, same tail region, same prompt folds, same out-of-fold
+logistic, same bootstrap. The reference is refitted inside each prompt fold, so
+no prompt is scored against a manifold fitted on it.
+
+Pseudo-positives are a high-recall, low-precision stand-in for the gold set:
+
+| model | gold traces | pseudo traces | precision | recall | corr(gold score, pseudo score) |
+|---|---:|---:|---:|---:|---:|
+| `qwen` | 2227 | 3152 | 0.693 | 0.981 | 0.842 |
+| `deepseek` | 2804 | 3533 | 0.789 | 0.994 | 0.883 |
+| `deepseek_llama` | 2207 | 3133 | 0.688 | 0.976 | 0.620 |
+
+AURC against `B0`, negative favours the geometry arm:
+
+| model | `B0+rmd_gold − B0` | `B0+rmd_pseudo − B0` | `pseudo − gold` |
+|---|---|---|---|
+| `qwen` | −0.0702 [−0.1097, −0.0317] p=0.000 | −0.0193 [−0.0475, +0.0103] p=0.220 | +0.0509 [+0.0269, +0.0762] p=0.000 |
+| `deepseek` | −0.0575 [−0.0933, −0.0268] p=0.000 | +0.0012 [−0.0048, +0.0066] p=0.674 | +0.0587 [+0.0290, +0.0918] p=0.000 |
+| `deepseek_llama` | −0.0766 [−0.1140, −0.0390] p=0.000 | +0.0046 [+0.0002, +0.0102] p=0.040 | +0.0812 [+0.0407, +0.1197] p=0.000 |
+
+**The pseudo-positive foreground does not work.** On all three models the gold
+arm is a large, significant improvement over `B0` and the pseudo arm is not
+distinguishable from `B0` at all — on deepseek and Llama it is a flat null, on
+qwen it is a non-significant fraction of the gold effect. The gap between the
+two arms is significant at p<0.001 on every model.
+
+The mechanism is visible in the foreground table: pseudo-positives recall ~98%
+of the gold-correct traces but run only 69--79% precise, so the "correct"
+manifold is fitted with 21--31% incorrect traces mixed in. A one-class Gaussian
+has no way to down-weight them, and that contamination is enough to erase the
+signal entirely rather than merely blunt it. The Llama row is the clearest
+statement of the same thing from the other direction: it has the lowest
+score-level correlation between the two arms (0.620) and the largest gap.
+
+This was the one item in the sprint that could have made the contribution
+larger. It does the opposite, and the honest framing is now narrower: the fit is
+**positive-only, not label-free**. Gold labels for the foreground are load-bearing,
+and any claim about label cost has to count them.
+
+Caveat on levels: this cross-fits the reference over the five prompt folds with
+a 256-token-per-trace cap, so its `gold − B0` (−0.07/−0.06/−0.08) is a different
+estimator from the frozen `B1 − B0` (−0.059/−0.036/−0.056) and is not
+interchangeable with it. The gold-versus-pseudo contrast, which is the point, is
+paired inside this run.
+
+### A retention bug in the prompt-state loader, found by running it
+
+`_load_prompt_states` is documented as extracting row zero "without retaining
+tokens". It did the opposite. The cached blocks are already `float32`, so
+`np.asarray(data[key][0], dtype=np.float32)` returns a *view* onto the full
+`[n_tokens, hidden]` array, and the row-zero dictionary pinned every trace the
+loader ever touched. Measured on the DeepSeek pass: **138 GiB resident** for a
+structure whose contents are 500 x 8 x 3584 floats, about 50 MiB. `np.array`
+instead of `np.asarray` forces the copy; the Llama pass that followed the fix
+held **204 MiB** for the same work, on the larger of the two models.
+
+The numbers are unaffected — same values either way — and the DeepSeek arm of
+step 3 above ran before the fix, the Llama arm after, with the frozen artifacts
+reproducing bit-identically across both. Two regression tests now cover the
+directory branch, which had none: one for the row-zero read, one asserting the
+returned row owns its data (`row.base is None`).
+
+### Pipeline state
+
+`evaluate_incremental_abstention@{0,1,2}` are all locked and clean. The
+`incremental_abstention.py` change re-dirtied the code hash on all three, so all
+three were re-run: `@0` and `@1` reproduced their committed outputs
+bit-identically, and `@2` reproduced across three independent runs. That is the
+check the 2026-07-31 entry said the Llama row did not have. `dvc.yaml` was not
+extended; steps 2, 4, 5 and the parallel track are disposable scripts.
+
+### Not run, deliberately
+
+- **Step 6, outer-split stability.** Pre-submission only, 5--15 CPU hours.
+- **Calibration audit.** No Brier, ECE, or reliability curves. The
+  `PAPER_STRATEGY.md:11` headline now reads "selective-prediction" instead of
+  "calibrated", which was the actual defect; the other calibration mentions in
+  that document are about different technical points and are correct as written.
+- **Free-energy variants.** `F` failed its pre-registered test once; per the
+  rule, no second version was tried.
+
 ## 2026-08-07: Label-efficiency curves — the crossing is real, the mechanism is not the one we claimed
 
 The last open defence of the deployment story. At the full label budget the

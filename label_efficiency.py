@@ -15,7 +15,16 @@ budget's prompts only:
   * PCA(128) and the correct-trace Gaussian   -- the RMD reference
   * the background Gaussian                   -- the RMD denominator
   * the LDA on projected tail means           -- ``probe_hidden_tail_q20``
+  * the LDA on individual tail tokens         -- ``probe_token_tail_q20``
   * the logistic abstention readout           -- B0, B0+rmd, B0+probe
+
+**Two probes, because one of them confounds two things at once.**  RMD scores a
+trace by computing a distance *per tail token* and averaging the token scores.
+``probe_hidden_tail_q20`` averages first and classifies once, so it differs from
+RMD in supervision *and* in pooling order simultaneously, and a gap between them
+cannot be attributed to either.  ``probe_token_tail_q20`` closes that: it fits
+the LDA on individual tail tokens and averages the token scores, matching RMD's
+pooling order exactly, so supervision is the only remaining difference.
 
 Nothing else downstream consumes a label, so this is the whole cost of both.
 
@@ -63,6 +72,8 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 
 from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.preprocessing import StandardScaler
 
 from analyze import (
     _concatenate_hidden_tokens,  # applies the pooled reference-token cap and dtype
@@ -85,6 +96,7 @@ from incremental_abstention import (
 )
 from prompt_decomposition import (
     fit_hidden_state_probe,
+    is_unparsed,
     region_indices,
     score_hidden_state_probe,
 )
@@ -96,6 +108,10 @@ DEFAULT_BUDGETS = (25, 50, 100, 200, 400)
 
 GEOMETRY_FEATURE = "rmd_tail_q20"
 PROBE_FEATURE = "probe_hidden_tail_q20"
+TOKEN_PROBE_FEATURE = "probe_token_tail_q20"
+
+#: Every feature the geometry side produces per trace, in report order.
+GEOMETRY_FEATURES = (GEOMETRY_FEATURE, PROBE_FEATURE, TOKEN_PROBE_FEATURE)
 
 #: The tail block is sliced out of each trace up front, so the region argument
 #: handed to the frozen probe helpers is "full" *over that block* -- which is
@@ -106,17 +122,21 @@ READOUT_SPECS: dict[str, tuple[str, ...]] = {
     "B0": BASE_FEATURE_NAMES,
     "B0_rmd": BASE_FEATURE_NAMES + (GEOMETRY_FEATURE,),
     "B0_probe": BASE_FEATURE_NAMES + (PROBE_FEATURE,),
+    "B0_token_probe": BASE_FEATURE_NAMES + (TOKEN_PROBE_FEATURE,),
     "B0_both": BASE_FEATURE_NAMES + (GEOMETRY_FEATURE, PROBE_FEATURE),
 }
 
 #: ``(left, right)`` pairs reported as ``left - right``. The third is the study:
 #: where it crosses zero is the label budget at which the probe overtakes the
-#: one-class statistic.
+#: one-class statistic.  The fifth is the same question against the *pooling-
+#: matched* probe, which is the only one of the two that isolates supervision.
 PAIRED_DELTAS = (
     ("B0_rmd", "B0"),
     ("B0_probe", "B0"),
     ("B0_rmd", "B0_probe"),
     ("B0_both", "B0_rmd"),
+    ("B0_token_probe", "B0"),
+    ("B0_rmd", "B0_token_probe"),
 )
 
 HEADLINE_POPULATION = "cap_free_valid_plurality"
@@ -240,11 +260,99 @@ def fit_correct_reference(correct_traces: Sequence[Mapping], layer: int, pca_dim
     return pca, mu, _fit_lw_precision(projected - mu)
 
 
+def fit_token_probe(
+    train_views: Sequence[Mapping],
+    projected_tails: Mapping[int, np.ndarray],
+    *,
+    max_tokens_per_trace: int | None,
+    seed: int = 42,
+) -> dict:
+    """Supervised LDA over *individual* tail tokens, pooled across traces.
+
+    The pooling-order match to RMD.  Each tail token becomes one training row
+    carrying its trace's label, and a trace is later scored by averaging the
+    per-token decision values -- the same "score every token, then average"
+    order that ``compute_relative_mahal_distances`` plus a mean produces for
+    ``rmd_tail_q20``.  ``probe_hidden_tail_q20`` instead averages the tokens
+    first and classifies once, so against RMD it varies supervision and pooling
+    order together; this estimator varies only supervision.
+
+    Labels are per *trace*, so every token of a correct trace is labelled
+    correct.  That is the honest reading of the supervision actually available
+    at this budget -- nothing labels individual tokens -- and it is also what
+    makes the comparison fair, since the one-class reference pools tokens from
+    correct traces on exactly the same basis.
+
+    Unparsed traces are excluded, matching :func:`fit_hidden_state_probe`: they
+    are auto-labelled incorrect upstream, so keeping them would let the probe
+    win by detecting truncation.  The per-trace token subsample is the same
+    device the reference fits use, so both sides of the comparison consume a
+    comparable number of tokens at a given label budget.
+    """
+    blocks, labels = [], []
+    n_traces = 0
+    for view in train_views:
+        if is_unparsed(view):
+            continue
+        trace_id = int(view["trace_id"])
+        projected = np.asarray(projected_tails[trace_id], dtype=float)
+        if projected.ndim != 2 or not len(projected):
+            continue
+        index = reference_subsample_indices(
+            int(projected.shape[0]),
+            max_tokens_per_trace,
+            seed=seed,
+            trace_id=trace_id,
+        )
+        block = projected[index]
+        blocks.append(block)
+        labels.append(np.full(len(block), int(bool(view["is_correct"])), dtype=int))
+        n_traces += 1
+
+    if not blocks:
+        return {"scaler": None, "classifier": None, "n_train": 0,
+                "n_train_traces": 0, "skipped": "no_parseable_traces"}
+    matrix = np.concatenate(blocks, axis=0)
+    y = np.concatenate(labels, axis=0)
+    if len(np.unique(y)) < 2:
+        return {"scaler": None, "classifier": None, "n_train": int(len(y)),
+                "n_train_traces": n_traces, "skipped": "single_class"}
+
+    scaler = StandardScaler().fit(matrix)
+    # Same solver and shrinkage as the frozen region-mean probe, so the two
+    # differ in what a row *is* and in nothing else.
+    classifier = LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto").fit(
+        scaler.transform(matrix), y
+    )
+    return {
+        "scaler": scaler,
+        "classifier": classifier,
+        "n_train": int(len(y)),
+        "n_train_traces": n_traces,
+        "skipped": None,
+    }
+
+
+def score_token_probe(projected: np.ndarray, fit: Mapping) -> float:
+    """Mean per-token decision value over a trace's tail (higher = more correct)."""
+    classifier, scaler = fit.get("classifier"), fit.get("scaler")
+    if classifier is None or scaler is None:
+        raise ValueError("no usable token-level probe was fitted")
+    projected = np.asarray(projected, dtype=float)
+    if projected.ndim != 2 or not len(projected):
+        return float("nan")
+    # classes_ is [0, 1], so decision_function points toward is_correct=1.
+    return float(np.mean(classifier.decision_function(scaler.transform(projected))))
+
+
 def fit_budget(
     views_by_prompt: Mapping[int, list[dict]],
     train_ids: Sequence[int],
     layer: int,
     pca_dim: int,
+    *,
+    max_tokens_per_trace: int | None = None,
+    seed: int = 42,
 ) -> dict:
     """Fit every label-consuming geometry object on one budget's prompts."""
     train = [view for prompt_id in train_ids for view in views_by_prompt[int(prompt_id)]]
@@ -276,14 +384,21 @@ def fit_budget(
     )
     if probe["classifier"] is None:
         raise RuntimeError(f"no usable hidden-state probe ({probe['skipped']})")
+    token_probe = fit_token_probe(
+        train, projected_tails, max_tokens_per_trace=max_tokens_per_trace, seed=seed
+    )
+    if token_probe["classifier"] is None:
+        raise RuntimeError(f"no usable token-level probe ({token_probe['skipped']})")
     return {
         "pca": pca,
         "rmd_reference": rmd_reference,
         "probe": probe,
+        "token_probe": token_probe,
         "n_train_prompts": int(len(train_ids)),
         "n_train_traces": int(len(train)),
         "n_correct_traces": int(len(correct)),
         "n_probe_traces": int(probe["n_train"]),
+        "n_token_probe_rows": int(token_probe["n_train"]),
     }
 
 
@@ -301,6 +416,9 @@ def score_views(views: Sequence[Mapping], fit: Mapping) -> dict[int, dict[str, f
             PROBE_FEATURE: score_hidden_state_probe(
                 projected, view["entropies"], fit["probe"], "full"
             ),
+            # Scored over the whole tail, not the fit subsample: RMD is too, so
+            # the two features see identical token sets at evaluation time.
+            TOKEN_PROBE_FEATURE: score_token_probe(projected, fit["token_probe"]),
         }
     return scores
 
@@ -318,7 +436,7 @@ def prompt_geometry(
             name: float(
                 np.mean([trace_scores[int(view["trace_id"])][name] for view in group])
             )
-            for name in (GEOMETRY_FEATURE, PROBE_FEATURE)
+            for name in GEOMETRY_FEATURES
         }
     return aggregated
 
@@ -331,6 +449,7 @@ def crossfit_train_geometry(
     *,
     inner_folds: int,
     seed: int,
+    max_tokens_per_trace: int | None = None,
     in_sample_fit: Mapping | None = None,
 ) -> dict[int, dict[str, float]]:
     """Held-out geometry scores for the *training* prompts.
@@ -365,7 +484,10 @@ def crossfit_train_geometry(
         ]
         if not held_out or not inner_train:
             continue
-        fit = fit_budget(views_by_prompt, inner_train, layer, pca_dim)
+        fit = fit_budget(
+            views_by_prompt, inner_train, layer, pca_dim,
+            max_tokens_per_trace=max_tokens_per_trace, seed=seed,
+        )
         views = [view for prompt_id in held_out for view in views_by_prompt[prompt_id]]
         geometry.update(prompt_geometry(views_by_prompt, held_out, score_views(views, fit)))
         del fit
@@ -501,6 +623,11 @@ POOLED_QUANTITIES: tuple[tuple[str, bool], ...] = (
     ("delta_aurc_B0_rmd_minus_B0_probe", True),
     ("delta_aurc_B0_both_minus_B0_rmd", True),
     ("auroc_rmd_minus_probe", False),
+    # The pooling-matched pair. Absent from results files written before
+    # ``probe_token_tail_q20`` existed; the summarizers return an empty entry
+    # for a quantity no replicate carries, so an old JSON still reads.
+    ("delta_aurc_B0_rmd_minus_B0_token_probe", True),
+    ("auroc_rmd_minus_token_probe", False),
 )
 
 
@@ -511,9 +638,12 @@ def _pooled_value(row: Mapping, key: str) -> float | None:
     carries each feature's AUROC, and the difference is the base-rate-free view of
     the same comparison the AURC deltas make.
     """
-    if key == "auroc_rmd_minus_probe":
+    if key in ("auroc_rmd_minus_probe", "auroc_rmd_minus_token_probe"):
+        against = (
+            PROBE_FEATURE if key == "auroc_rmd_minus_probe" else TOKEN_PROBE_FEATURE
+        )
         rmd = row.get(f"auroc_{GEOMETRY_FEATURE}")
-        probe = row.get(f"auroc_{PROBE_FEATURE}")
+        probe = row.get(f"auroc_{against}")
         if rmd is None or probe is None:
             return None
         return float(rmd) - float(probe)
@@ -611,6 +741,7 @@ def run_replicate(
     pca_dim: int,
     inner_folds: int,
     seed: int,
+    max_tokens_per_trace: int | None = None,
 ) -> list[dict]:
     eval_views = [view for prompt_id in eval_ids for view in views_by_prompt[int(prompt_id)]]
     outcomes = np.asarray(
@@ -623,7 +754,10 @@ def run_replicate(
     for budget in budgets:
         started = time.time()
         train_ids = [int(prompt_id) for prompt_id in permutation[:budget]]
-        fit = fit_budget(views_by_prompt, train_ids, layer, pca_dim)
+        fit = fit_budget(
+            views_by_prompt, train_ids, layer, pca_dim,
+            max_tokens_per_trace=max_tokens_per_trace, seed=seed,
+        )
         eval_geometry = prompt_geometry(
             views_by_prompt, eval_ids, score_views(eval_views, fit)
         )
@@ -634,6 +768,7 @@ def run_replicate(
             pca_dim,
             inner_folds=inner_folds,
             seed=seed + 7919 * replicate + budget,
+            max_tokens_per_trace=max_tokens_per_trace,
             in_sample_fit=fit,
         )
         train_outcomes = np.asarray(
@@ -649,10 +784,11 @@ def run_replicate(
             "n_train_traces": fit["n_train_traces"],
             "n_correct_traces": fit["n_correct_traces"],
             "n_probe_traces": fit["n_probe_traces"],
+            "n_token_probe_rows": fit["n_token_probe_rows"],
             "train_base_accuracy": float(np.mean(train_outcomes)),
         }
 
-        for name in (GEOMETRY_FEATURE, PROBE_FEATURE):
+        for name in GEOMETRY_FEATURES:
             row[f"auroc_{name}"] = safe_auroc(
                 outcomes,
                 np.asarray([eval_geometry[int(pid)][name] for pid in eval_ids], dtype=float),
@@ -686,8 +822,10 @@ def run_replicate(
             f"  replicate {replicate} budget {budget:>3}: "
             f"AUROC rmd={_fmt(row[f'auroc_{GEOMETRY_FEATURE}'])} "
             f"probe={_fmt(row[f'auroc_{PROBE_FEATURE}'])} "
+            f"tokprobe={_fmt(row[f'auroc_{TOKEN_PROBE_FEATURE}'])} "
             f"AURC B0={_fmt(row['aurc_B0'])} "
             f"+rmd={_fmt(row['aurc_B0_rmd'])} +probe={_fmt(row['aurc_B0_probe'])} "
+            f"+tokprobe={_fmt(row['aurc_B0_token_probe'])} "
             f"[{row['seconds']:.0f}s]"
         )
         rows.append(row)
@@ -713,7 +851,7 @@ def aggregate_curves(rows: Sequence[Mapping], budgets: Sequence[int]) -> dict:
             ),
             "feature_auroc": {
                 name: summarize_replicates([row[f"auroc_{name}"] for row in at_budget])
-                for name in (GEOMETRY_FEATURE, PROBE_FEATURE)
+                for name in GEOMETRY_FEATURES
             },
             "aurc": {
                 readout: summarize_replicates([row[f"aurc_{readout}"] for row in at_budget])
@@ -732,6 +870,18 @@ def aggregate_curves(rows: Sequence[Mapping], budgets: Sequence[int]) -> dict:
                     if row[f"auroc_{GEOMETRY_FEATURE}"] is None
                     or row[f"auroc_{PROBE_FEATURE}"] is None
                     else row[f"auroc_{GEOMETRY_FEATURE}"] - row[f"auroc_{PROBE_FEATURE}"]
+                    for row in at_budget
+                ]
+            ),
+            # The same gap against the pooling-matched probe. Where the two
+            # deltas disagree, the difference is pooling order, not supervision.
+            "feature_auroc_delta_token": summarize_replicates(
+                [
+                    None
+                    if row[f"auroc_{GEOMETRY_FEATURE}"] is None
+                    or row[f"auroc_{TOKEN_PROBE_FEATURE}"] is None
+                    else row[f"auroc_{GEOMETRY_FEATURE}"]
+                    - row[f"auroc_{TOKEN_PROBE_FEATURE}"]
                     for row in at_budget
                 ]
             ),
@@ -881,6 +1031,7 @@ def analyze_model(
                 pca_dim=pca_dim,
                 inner_folds=inner_folds,
                 seed=seed,
+                max_tokens_per_trace=max_tokens_per_trace,
             )
         )
 
@@ -959,15 +1110,23 @@ def _model_section(result: Mapping) -> list[str]:
         "Prompt-level AUROC of each feature alone, the base-rate-free view. "
         "Median over label draws, 10--90 band.",
         "",
-        "| labelled prompts | `rmd_tail_q20` | `probe_hidden_tail_q20` | rmd − probe |",
-        "|---:|---|---|---|",
+        "`probe_token_tail_q20` is the pooling-matched probe: LDA per tail "
+        "token, token scores averaged, which is the order `rmd_tail_q20` uses. "
+        "The last column is therefore the supervision effect with pooling held "
+        "fixed; the one before it confounds the two.",
+        "",
+        "| labelled prompts | `rmd_tail_q20` | `probe_hidden_tail_q20` | "
+        "`probe_token_tail_q20` | rmd − probe | rmd − token probe |",
+        "|---:|---|---|---|---|---|",
     ]
     for entry in result["curves"]:
         lines.append(
             f"| {entry['budget']} "
             f"| {_band(entry['feature_auroc'][GEOMETRY_FEATURE])} "
             f"| {_band(entry['feature_auroc'][PROBE_FEATURE])} "
-            f"| {_band(entry['feature_auroc_delta'])} |"
+            f"| {_band(entry['feature_auroc'][TOKEN_PROBE_FEATURE])} "
+            f"| {_band(entry['feature_auroc_delta'])} "
+            f"| {_band(entry['feature_auroc_delta_token'])} |"
         )
 
     lines += [
@@ -978,8 +1137,8 @@ def _model_section(result: Mapping) -> list[str]:
         "`(1 − 1/n) − base`, which is what makes a level comparable at all.",
         "",
         "| labelled prompts | eval n | base acc | B0 | B0+rmd | B0+probe | "
-        "excess B0+rmd | excess B0+probe |",
-        "|---:|---:|---|---|---|---|---|---|",
+        "B0+token probe | excess B0+rmd | excess B0+probe |",
+        "|---:|---:|---|---|---|---|---|---|---|",
     ]
     for entry in result["curves"]:
         lines.append(
@@ -989,6 +1148,7 @@ def _model_section(result: Mapping) -> list[str]:
             f"| {_band(entry['aurc']['B0'])} "
             f"| {_band(entry['aurc']['B0_rmd'])} "
             f"| {_band(entry['aurc']['B0_probe'])} "
+            f"| {_band(entry['aurc']['B0_token_probe'])} "
             f"| {_band(entry['excess_aurc']['B0_rmd'])} "
             f"| {_band(entry['excess_aurc']['B0_probe'])} |"
         )
@@ -1001,18 +1161,24 @@ def _model_section(result: Mapping) -> list[str]:
         "labelled prompts, one logistic each. Negative favours the left readout. "
         "`wins` is the share of label draws landing on that side.",
         "",
-        "| labelled prompts | B0+rmd − B0 | B0+probe − B0 | B0+rmd − B0+probe | wins | sign p |",
-        "|---:|---|---|---|---:|---:|",
+        "| labelled prompts | B0+rmd − B0 | B0+probe − B0 | B0+token probe − B0 | "
+        "B0+rmd − B0+probe | wins | sign p | B0+rmd − B0+token probe | wins | sign p |",
+        "|---:|---|---|---|---|---:|---:|---|---:|---:|",
     ]
     for entry in result["curves"]:
         head_to_head = entry["delta_aurc"]["B0_rmd_minus_B0_probe"]
+        matched = entry["delta_aurc"]["B0_rmd_minus_B0_token_probe"]
         lines.append(
             f"| {entry['budget']} "
             f"| {_band(entry['delta_aurc']['B0_rmd_minus_B0'])} "
             f"| {_band(entry['delta_aurc']['B0_probe_minus_B0'])} "
+            f"| {_band(entry['delta_aurc']['B0_token_probe_minus_B0'])} "
             f"| {_band(head_to_head)} "
             f"| {_fmt(head_to_head['win_rate'], 2)} "
-            f"| {_fmt(head_to_head['p_sign'], 3)} |"
+            f"| {_fmt(head_to_head['p_sign'], 3)} "
+            f"| {_band(matched)} "
+            f"| {_fmt(matched['win_rate'], 2)} "
+            f"| {_fmt(matched['p_sign'], 3)} |"
         )
 
     crossing = result["crossing"]
@@ -1063,18 +1229,22 @@ def _pooled_section(result: Mapping) -> list[str]:
         "of consistency and not a test on independent observations. `agree` is "
         "the statistic that does not depend on that assumption.",
         "",
-        "| labelled prompts | `B0+rmd − B0` | `B0+probe − B0` | `B0+rmd − B0+probe` | agree | `B0+both − B0+rmd` | AUROC rmd − probe |",
-        "|---:|---|---|---|---:|---|---|",
+        "| labelled prompts | `B0+rmd − B0` | `B0+probe − B0` | `B0+rmd − B0+probe` | agree | "
+        "`B0+rmd − B0+token probe` | agree | `B0+both − B0+rmd` | AUROC rmd − probe |",
+        "|---:|---|---|---|---:|---|---:|---|---|",
     ]
     for row in table:
         quantities = row["quantities"]
         versus_probe = quantities["delta_aurc_B0_rmd_minus_B0_probe"]
+        versus_token = quantities["delta_aurc_B0_rmd_minus_B0_token_probe"]
         lines.append(
             f"| {row['budget']} "
             f"| {_pooled_cell(quantities['delta_aurc_B0_rmd_minus_B0'])} "
             f"| {_pooled_cell(quantities['delta_aurc_B0_probe_minus_B0'])} "
             f"| {_pooled_cell(versus_probe)} "
             f"| {versus_probe['models_agreeing']}/{versus_probe['n_models']} "
+            f"| {_pooled_cell(versus_token)} "
+            f"| {versus_token['models_agreeing']}/{versus_token['n_models']} "
             f"| {_pooled_cell(quantities['delta_aurc_B0_both_minus_B0_rmd'])} "
             f"| {_pooled_cell(quantities['auroc_rmd_minus_probe'])} |"
         )
