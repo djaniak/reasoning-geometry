@@ -97,6 +97,53 @@ sets here are ~314–328 prompts against the frozen run's ~80. The AURC *levels*
 and any crossing budget are not interchangeable with the frozen artifacts. Only
 the paired within-run deltas transfer.
 
+### The geometry behind the split
+
+`rmd_qmd_geometry.py` draws the two score fields on one plane through
+`mu_correct` in PCA(128), on qwen layer 21 at the budget-100 replicate-0 split
+the sweep itself used. Every object is the sweep's own: the PCA basis, all three
+Gaussians and the token probe come straight out of `fit_budget`, and the
+contours are the real 128-D functions restricted to the plane. The plane's first
+axis is the class-mean contrast — the only direction the linear probe can use —
+and the second is the direction of extremal variance *ratio* inside the
+complement of the first, so it carries pure shape and no mean shift.
+
+Three measurements from that split explain the two rungs.
+
+**RMD's second Gaussian is not a rival class; it is a mixture that contains the
+positives.** In the correct class's own metric the background mean sits 0.439
+from `mu_correct` while the incorrect mean sits 0.900 — the background lands
+roughly halfway along the same line, which is what a mixture mean does when 455
+of the 734 parseable training traces are correct. So RMD already points in the
+contrast direction with the magnitude damped, and labelling the negative class
+undilutes an existing signal rather than revealing a new one. Score range over
+the token cloud (1st–99th percentile) is 1.997 for RMD against 4.745 for QMD:
+2.4x the dynamic range, same orientation. A ranking readout is largely
+insensitive to that rescaling, which is the geometric reason the supervision rung
+is worth only −0.011 and expires by 100 labels.
+
+**The form rung is a capacity limit, not an estimation limit.** QMD's decision
+boundary is a conic because the two Gaussians carry separate covariances; the
+token probe's is a hyperplane. Along the shape axis the correct class is 2.9x
+wider than the incorrect one with no mean shift at all, and no linear boundary
+can encode "too wide". That gap does not close with more labels, which is why it
+is the larger of the two rungs at 50 and the one that survives.
+
+**`RMD − QMD = d_incorrect − d_background`, exactly.** Both features share
+`d_correct`, so it cancels and the difference between them *is* the supervision
+term in isolation — a useful identity when writing the ladder up, because it
+means the −0.011 rung has a closed form rather than being a difference of two
+separately-fitted readouts.
+
+Held-out on this split: trace AUROC 0.781 (rmd), 0.785 (qmd), 0.800 (token LDA),
+consistent with the ladder having flattened by 100 labels.
+
+**This is explanation, not evidence.** One model, one layer, one label draw, one
+plane, and panels A–D are scored in-sample. Nothing here should be quoted as a
+number; the pooled 30-draw table above is the authority for both rungs.
+Artifacts: `results/rmd_qmd_geometry/` (gitignored) —
+`rmd_qmd_geometry.png`, `rmd_qmd_stats.json`.
+
 ### Verification
 
 - `rmd`, `probe`, and `token probe` reproduce the 2026-08-08 matched-pooling run
@@ -128,6 +175,9 @@ covered without touching the test. Confirmed to fail on the unfixed code.
 `results/` is): `label_efficiency_results.json`, `label_efficiency_report.md`,
 `label_efficiency_replicates.csv`. The frozen `results/label_efficiency/` and
 `results/label_efficiency_token_pooling/` were not touched.
+`results/rmd_qmd_geometry/` holds the mechanism figure and its stats, rebuildable
+on CPU from the cached qwen data by the command in `rmd_qmd_geometry.py`'s
+docstring; it is not an input to anything.
 
 ## 2026-08-08: Locking the Llama artifact, conditioning the tail on the prompt state, and dropping the free-energy aggregator
 
