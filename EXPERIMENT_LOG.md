@@ -122,12 +122,15 @@ the token cloud (1st–99th percentile) is 1.997 for RMD against 4.745 for QMD:
 insensitive to that rescaling, which is the geometric reason the supervision rung
 is worth only −0.011 and expires by 100 labels.
 
-**The form rung is a capacity limit, not an estimation limit.** QMD's decision
+**What the form rung has that the probe cannot express.** QMD's decision
 boundary is a conic because the two Gaussians carry separate covariances; the
 token probe's is a hyperplane. Along the shape axis the correct class is 2.9x
 wider than the incorrect one with no mean shift at all, and no linear boundary
-can encode "too wide". That gap does not close with more labels, which is why it
-is the larger of the two rungs at 50 and the one that survives.
+can encode "too wide" at any budget. This says what the linear probe is missing;
+it does *not* predict that the rung persists, and measured, it does not — the
+form rung is +0.000 at 100 labels, exactly like the supervision rung. Whatever
+the hyperplane cannot express stops mattering for AURC once the probe has enough
+labels to fit its own direction well. Both rungs are small-budget effects.
 
 **`RMD − QMD = d_incorrect − d_background`, exactly.** Both features share
 `d_correct`, so it cancels and the difference between them *is* the supervision
