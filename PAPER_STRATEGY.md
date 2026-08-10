@@ -30,6 +30,19 @@ routing, adaptive compute allocation, or within-prompt reranking. The next test 
 whether geometry available after the first `k` traces predicts the marginal value of
 another sample and improves accuracy at matched compute.
 
+**[Amendment, 2026-08-10 — that test ran at k = 1, and it failed.]** The allocation
+precheck (`allocation_precheck.py`; `EXPERIMENT_LOG.md`, 2026-08-10) asked exactly
+the question in the paragraph above and got a no. Against `g(p) = a(p,8) − a(p,1)`,
+computed exhaustively over all `C(8,k)` sibling subsets, single-trace geometry ranks
+the gain backwards on all three models (Spearman −0.042 / −0.057 / −0.074) while
+correlating +0.51 / +0.24 / +0.37 with the pass rate. The gate passed 1 of 3, on
+R² = +0.0005. **Geometry reads difficulty but not marginal gain**, and no policy
+was written. Do not list adaptive compute allocation as a pending direction; list it
+as closed. Nothing else here predicts `g` either, so this is not a defeat relative
+to cheap baselines — the target is mostly zero (79% / 90% / 68% of prompts) and
+barely ordered by difficulty (ρ −0.09 / −0.16 / −0.04). Prior art for the direction,
+recorded before the run, is `RELATED_WORK.md` §6.
+
 The label-efficiency result is limited to a small budget. At 50 labelled prompts,
 geometry leads a pooling-matched linear probe by −0.033 AURC. The gap disappears at
 100 prompts, and the probe leads at larger budgets. Do not claim general sample
@@ -120,7 +133,10 @@ continuation study is the answer. Ledger: `EXPERIMENT_LOG.md` (2026-08-03).
    solvability application beating length, competitive with a trained probe at full
    labels and ahead of it below ~100 (§7f). Every claim we can support; avoids the
    fight (beating trained probes at raw correctness) we'd lose.
-2. **Between-prompt difficulty for test-time compute allocation / routing** (constructive).
+2. **Between-prompt difficulty for ~~test-time compute allocation~~ / routing** (constructive).
+   **[Narrowed 2026-08-10.]** The allocation half is closed — see the amendment in §1.
+   What survives is routing/abstention by predicted difficulty, which the same
+   precheck supports at one trace (AUROC 0.790 / 0.674 / 0.688).
 3. **Single-trace label-efficient RMD beating length+entropy** (riskiest — primitive
    precedented, and §7f bounds the label-efficiency edge to ≤50 labelled prompts).
 

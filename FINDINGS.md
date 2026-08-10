@@ -67,6 +67,32 @@ pre-registered cross-model gate.*
 
 ## Current evidence (updated 2026-08-10)
 
+> **Sample allocation is ruled out: geometry reads difficulty but not marginal
+> gain (2026-08-10).** Step 2 of the allocation direction, a pre-declared gate on
+> whether an allocation policy was worth writing. Full entry:
+> `EXPERIMENT_LOG.md` (2026-08-10, "The allocation gate fails"). An allocator must
+> rank prompts by the *gain from another sample*, `g(p) = a(p,8) − a(p,1)`, where
+> `a(p,k)` is the expected plurality-vote correctness over all `C(8,k)` sibling
+> subsets. That target is non-monotone in difficulty by construction — 0/8 and 8/8
+> both gain nothing — and empirically it is mostly zero (**79% / 90% / 68%** of
+> prompts) and barely ordered by the pass rate at all (ρ **−0.090 / −0.161 /
+> −0.035**). Single-trace geometry ranks it **backwards** (Spearman −0.042 /
+> −0.057 / −0.074) while correlating **+0.512 / +0.235 / +0.366** with the pass
+> rate. The gate fails 1 of 3, and that one pass is R² = +0.0005, positive on 5 of
+> 8 stage-1 draws — **do not read 1/3 as partial support**. `allocation.py` is not
+> written.
+>
+> **This is not a sample-size failure and it does not touch abstention.** At
+> n = 1 the feature is within 0.02 AUROC of its eight-sibling figure (**0.790 /
+> 0.674 / 0.688** against 0.806 / 0.686 / 0.709), so it survives the drop to one
+> trace intact — it is aimed at the wrong axis, not starved of data. Nothing else
+> predicts `g` either (output features reach +0.073 / +0.032 / −0.031), so no
+> "cheap features do this, geometry does not" claim is available. What is ruled out
+> is ranking prompts by predicted gain from more samples. Ranking them by
+> difficulty — for abstention, or for routing a hard prompt elsewhere — is
+> untouched and is what the AUROC row above measures. Wherever these documents say
+> "compute allocation", read the routing/abstention sense.
+
 > **Most of the increment is prompt difficulty; a smaller residual survives
 > (2026-08-10).** Experiment 2, pre-declared, on cached OOF columns. Full entry:
 > `EXPERIMENT_LOG.md` (2026-08-10, "A difficulty control that actually works").

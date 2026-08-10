@@ -5,6 +5,148 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-10: The allocation gate fails — geometry reads difficulty but not marginal gain
+
+North star: does the between-prompt signal buy anything downstream, or only a
+better abstention curve? Sub-goal: before writing an allocation policy, check that
+single-trace geometry predicts the thing an allocator has to rank by. Objective:
+one pre-declared gate, no policy, no sweep.
+
+This is step 2 of the allocation direction, and it is a **gate on whether step 3
+gets written at all**. Every rung above it asks whether geometry predicts
+*correctness*. An allocator needs something else — the **marginal value of another
+sample** — and that target is non-monotone in difficulty by construction: a prompt
+solved 0/8 and a prompt solved 8/8 both gain exactly nothing from more sampling.
+A feature can therefore be an excellent difficulty signal and a useless allocation
+signal, and the peer control entry below makes that the *expected* outcome rather
+than a remote one, since it found ~80% of the increment is prompt difficulty.
+
+### Stage and parameterization
+
+Not a DVC stage. `allocation_precheck.py` re-reads cached OOF rows and imports the
+frozen aggregation, folds, populations and majority-vote convention rather than
+restating any of them. One CPU pass, 32 seconds:
+
+```
+python allocation_precheck.py \
+  --model {qwen,deepseek,deepseek_llama}:results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/{model}_bestofn_full/math500
+```
+
+Artifacts: `results/allocation_precheck/allocation_precheck_{results.json,report.md}`
+(gitignored). Layer 21/21/24, `cap_free_valid_plurality` (n=392/393/408).
+
+The target is built **exhaustively, not estimated**. `a(p,k)` is the expected
+plurality-vote correctness when `k` of the eight cached siblings are drawn without
+replacement, computed over all `C(8,k)` subsets — 8, 28, 70 and 1 for k = 1, 2, 4,
+8, so 107 majority votes per prompt. Gain target `g(p) = a(p,8) − a(p,1)`.
+
+Stage-1 features are the four that exist at one sample: `rmd_tail_q20`, `length`,
+`entropy`, `logprob`. **No `vote_agreement`** — a single sample has no siblings to
+agree with, and carrying it would smuggle the eight-sample world into a one-sample
+readout. Readout is cross-fitted ridge on the frozen prompt folds; the constant
+baseline `R²` is scored against is the **training-fold mean**, held out exactly as
+the readouts are.
+
+Which trace is stage 1 is a random variable, so it is not fixed at `sample_id == 0`.
+The whole precheck runs eight times, once per choice; every number below is the
+median over those draws with the full range in brackets.
+
+Harness check: `a(p,8)` must equal the frozen prompt outcome — C(8,8) is the one
+subset containing every sibling — and it is asserted at run time, not reported.
+It holds on all three models, and `a(p,1)` matches the cached `is_correct` column
+on 0/392, 0/393, 0/408 prompts differing.
+
+Pre-declared before the run: **pass** if geometry alone beats the cross-fitted
+constant (R² > 0) *and* adding geometry to the output features raises out-of-fold
+Spearman, on at least two of three models. **Fail** means step 3 is not run and
+that is the finding.
+
+### Result — the gate fails, 1 of 3, and the one pass is noise
+
+| model | Spearman geometry | Spearman output | Spearman both | R² geometry | passes |
+|---|---|---|---|---|---|
+| qwen | −0.042 [−0.064, +0.011] | +0.073 | +0.102 | −0.004 [−0.005, −0.002] | no |
+| deepseek | −0.057 [−0.138, +0.009] | +0.032 | +0.015 | −0.006 [−0.023, +0.000] | no |
+| deepseek_llama | −0.074 [−0.123, −0.055] | −0.031 | −0.009 | +0.001 [−0.004, +0.003] | *yes* |
+
+Geometry alone ranks the gain **backwards** on all three models, and is worse than
+predicting the training-fold mean on Qwen (0/8 draws positive) and DeepSeek (1/8).
+DeepSeek-R1-Distill-Llama-8B's "pass" is R² = +0.0005, positive on 5 of 8 draws —
+a coin flip, quoted here only because the rule was fixed in advance and it is the
+rule's answer. **Do not report 1/3 as partial support.**
+
+The paired leg is the only one with any life in it: `both − output` in Spearman is
++0.033 [−0.002, +0.070] on Qwen (7/8 draws positive) and +0.026 on Llama. So
+geometry does add a little *rank* information on top of cheap output features. It
+adds it to a readout that explains under 1% of the variance in `g`.
+
+### Why: the target is mostly zero, and geometry is aimed at the wrong axis
+
+| model | mean g | share g = 0 | share g < 0 | ρ(pass rate, g) |
+|---|---:|---:|---:|---:|
+| qwen | 0.034 | 79% | 4.6% | −0.090 |
+| deepseek | 0.012 | 90% | 2.8% | −0.161 |
+| deepseek_llama | 0.070 | 68% | 6.4% | −0.035 |
+
+`ρ(pass rate, g)` near zero is the non-monotonicity, measured rather than
+asserted: difficulty barely orders gain at all. That is fatal for a difficulty
+feature, and the diagnostics say the feature is exactly that and nothing more:
+
+| model | AUROC vs prompt outcome, n=1 | (8-sibling, for scale) | ρ(geometry, pass rate) | ρ(geometry, g) |
+|---|---|---|---:|---:|
+| qwen | 0.790 [0.782, 0.799] | 0.806 | +0.512 | −0.021 |
+| deepseek | 0.674 [0.629, 0.697] | 0.686 | +0.235 | +0.035 |
+| deepseek_llama | 0.688 [0.680, 0.718] | 0.709 | +0.366 | −0.006 |
+
+**The feature barely degrades at n = 1** — 0.790 against 0.806, 0.674 against
+0.686, 0.688 against 0.709, holding the target fixed at the eight-sibling outcome
+so only the feature varies. So this is not a sample-size failure. Single-trace
+geometry correlates +0.24 to +0.51 with the pass rate and −0.02 to +0.04 with the
+gain, on all three models: **geometry reads difficulty but not marginal gain**.
+That is the specific failure mode the precheck was built to catch, and it is
+consistent with the peer control below — difficulty is precisely the thing that
+does *not* order prompts by how much another sample would help.
+
+### Limitations and what not to quote
+
+- **This kills sample allocation, not routing.** The precheck rules out ranking
+  prompts by predicted *gain from more samples*. It says nothing against ranking
+  by difficulty for abstention or for routing a hard prompt to a different system;
+  the same table shows single-trace geometry does that at AUROC 0.79/0.67/0.69.
+  Anywhere the docs said "compute allocation", the supported reading is the
+  routing/abstention one.
+- **The gate is conjunctive and the R² leg is the harsh one.** Qwen fails only on
+  it. A rule reading the paired Spearman alone would have passed Qwen and Llama and
+  opened step 3. The rule was fixed in advance and is reported as it stands, but
+  the disagreement between its two legs is real and is why "geometry adds a little
+  rank information" appears above rather than being buried.
+- **Nothing else predicts `g` either.** Output features reach Spearman +0.073 /
+  +0.032 / −0.031. This is not a geometry-specific defeat, and no claim of the form
+  "cheap features do this and geometry does not" is available.
+- **The ceiling is 8 cached siblings**, `g(p)` rests on eight Bernoulli draws per
+  prompt, and it is one dataset. A gain target estimated from more samples would be
+  less noisy; it would not become monotone in difficulty.
+- **DeepSeek-R1-Distill-Llama-8B's `a(p,2)` = 0.594 sits *below* its `a(p,1)` =
+  0.604.** Two samples are worse than one under the frozen convention, because a
+  split pair has no majority and is decided by log-probability rather than by the
+  vote. Worth knowing before anyone reads a `k̄ = 2` budget as free.
+
+### Claims ruled in and out
+
+- **Ruled out.** Single-trace hidden-state geometry as an input to test-time
+  *sample* allocation. `allocation.py` (step 3) is not written; the pre-declared
+  consequence of a failing gate is that the direction stops here.
+- **Ruled in (weakly, descriptive).** Single-trace `rmd_tail_q20` retains most of
+  its difficulty signal at n = 1 — AUROC within 0.02 of the eight-sibling figure on
+  all three models. That is a fact about the feature, not a downstream application.
+- **Unchanged.** The abstention/risk-ranking result. The precheck tests a different
+  target and does not touch it.
+- **Prior art recorded before the run**, in `RELATED_WORK.md` §6: Adaptive-Consistency
+  (arXiv:2305.11860), ESC (arXiv:2401.10480), Damani et al. (arXiv:2410.04707) and
+  ReASC (arXiv:2601.02970) already own adaptive allocation and confidence-aware
+  stopping. Had the gate passed, the only available contribution would have been
+  geometry's increment over count-based stopping at one-to-two samples per prompt.
+
 ## 2026-08-10: A difficulty control that actually works — and most of the increment is difficulty
 
 North star: is the between-prompt increment real, or is it a prompt-difficulty

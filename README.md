@@ -80,6 +80,18 @@ pre-declared family of three passes DeepSeek-R1-Distill-Llama-8B alone (0.012;
 Qwen 0.072). Note that peer pass rates do not exist at decision time, so this is
 a control on the mechanism, not a baseline the method has to beat.
 
+**It does not extend to sample allocation (2026-08-10).** A pre-declared gate
+asked whether single-trace geometry predicts the *gain from buying more samples*,
+`g(p) = a(p,8) − a(p,1)`, with `a(p,k)` the expected plurality-vote correctness
+over all `C(8,k)` sibling subsets. It does not: geometry ranks the gain backwards
+(Spearman −0.042 / −0.057 / −0.074) while correlating +0.51 / +0.24 / +0.37 with
+the pass rate, and the gate fails on 1 of 3 models with the one pass sitting at
+R² = +0.0005. That is the expected shape — gain is non-monotone in difficulty, and
+a prompt at 0/8 and one at 8/8 both gain nothing. It is not a sample-size problem:
+at one trace the feature holds AUROC 0.790 / 0.674 / 0.688 against its 0.806 /
+0.686 / 0.709 at eight. **Ruled out: ranking prompts by predicted gain from more
+samples. Untouched: ranking them by difficulty, for abstention or routing.**
+
 **The tail window is a Qwen-specific localization, not part of the method.**
 The untailed whole-trace mean `rmd_full` — Vazhentsev et al.'s ATRMD — recovers
 almost the entire increment by itself on both reasoning-distilled models
