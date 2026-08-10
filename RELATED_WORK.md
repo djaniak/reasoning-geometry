@@ -25,16 +25,30 @@ Where a claim is my inference rather than something a paper states, it is labell
   (arXiv:2106.09022) own RMD; Vazhentsev et al. (NAACL 2025, arXiv:2502.14427) already compute
   **token-level RMD over generated tokens** with foreground = tokens from correct responses and
   background = all generated tokens, aggregate it over the trace, and feed it to a supervised
-  regressor alongside sequence probability. That is the same construction. What is left as
-  ours is the *aggregator* (20th-percentile over the tail region rather than the mean) and the
-  *evaluation* (prompt-level, over siblings, against a vote-agreement baseline). Frame the
-  contribution there, not on the feature.
-- **The tail-quantile aggregator has a very close cousin that must be cited and beaten:
-  DeepConf** (arXiv:2508.15260) uses exactly this move — bottom-10% group confidence and tail
+  regressor alongside sequence probability. That is the same construction. **The aggregator is
+  not ours either**: `rmd_tail_q20` is the *mean* of per-token RMD over the final 20% of tokens
+  (`prompt_decomposition.py::score_localized_rmd`), which is Vazhentsev's trace mean restricted
+  to a tail window. The `q20` in the name is the window size, not a quantile of the distances.
+  What is left as ours is the *evaluation* (prompt-level, over siblings, against a
+  vote-agreement baseline). Frame the contribution there, not on the feature and not on the
+  aggregator.
+- **The data now says the same thing, independently (2026-08-10).** The untailed whole-trace
+  mean `rmd_full` — which *is* Vazhentsev's ATRMD — was run against `B0` directly. On both
+  reasoning-distilled models it recovers essentially the whole increment on its own
+  (DeepSeek-R1-Distill-Qwen-7B −0.0335 of −0.0355, p=0.034; DeepSeek-R1-Distill-Llama-8B
+  −0.0509 of −0.0560, p=0.004), and adding the tail restriction on top adds nothing separable
+  from zero. Only on Qwen2.5-7B-Instruct is the tail load-bearing: there `rmd_full` alone does
+  not beat `B0` (−0.0137, p=0.428) while the tail does. So the aggregator leg is dead twice —
+  once on the code description, once on the numbers. Cite ATRMD as the statistic and report
+  the tail as a **model-dependent localization**, not as the method.
+- **The tail window is DeepConf's move, and must be cited rather than claimed:
+  DeepConf** (arXiv:2508.15260) uses exactly it — bottom-10% group confidence and tail
   confidence over the last 2048 tokens — on the *output* side. `rmd_tail_q20` is the same
   aggregation shape applied to geometry instead of token confidence. The repo already has
   `deepconf_exact.py` and `B0_plus_DeepConf_tail_q20` specs; those must be in the paper, because
   a reviewer will ask whether the geometry increment is just a worse-instrumented DeepConf.
+  Note that the borrowed move only pays off on one of the three models (see above), so do not
+  present the tail window as a design choice that transfers.
 - **"AUACC" is a real, citable name but it is the minority convention.** Its clearest primary
   use is Chen et al. (arXiv:2310.11689, EMNLP Findings 2023), which states outright that AUACC
   is "the common metric used for evaluating selective prediction performance". But the
@@ -221,15 +235,31 @@ EigenScore, SAPLMA, SAR and Factoscope; their metric is PRR (Prediction Rejectio
 Malinin & Gales); their tasks are QA / summarisation / fact-checking, not math with sibling
 traces.
 
-**What is left unprecedented, as far as I could find:** (a) the *aggregator* — a low quantile
-over a tail region rather than a mean over the whole trace; (b) aggregation from trace to
-*prompt* over sibling samples; (c) evaluation against a vote-agreement baseline under difficulty
-controls. Claim (a)–(c), not "we apply RMD to trace hidden states". **[inference]** — the papers
+**What is left unprecedented, as far as I could find:** (a) aggregation from trace to *prompt*
+over sibling samples; (b) evaluation against a vote-agreement baseline under difficulty
+controls. Claim (a)–(b), not "we apply RMD to trace hidden states". **[inference]** — the papers
 do not say they omit these; I simply found no paper doing them.
 
+**Withdrawn (2026-08-10):** a third leg previously claimed here — "the *aggregator*, a low
+quantile over a tail region rather than a mean over the whole trace" — was based on a wrong
+description of the code. `rmd_tail_q20` computes a *mean* over the final 20% of tokens, so the
+aggregator is Vazhentsev's trace mean under DeepConf's tail windowing: the composition of two
+published moves, with nothing added. Do not claim it.
+
+The same day, the numbers withdrew it a second time. `rmd_full` — the untailed trace mean,
+i.e. ATRMD itself — was scored against `B0` on all three models. It recovers the whole
+increment on both reasoning-distilled models, where the tail restriction then adds nothing.
+The tail only earns its place on Qwen2.5-7B-Instruct. A window-size explanation was tested
+and falsified (see the 2026-08-10 log entry): inside Qwen the tail advantage *grows* with
+window size rather than shrinking, and DeepSeek-R1-Distill-Llama-8B's short stratum — matched
+to Qwen on both window median (110 vs 87) and base accuracy (0.688 vs 0.693) — still shows no
+tail effect (−0.0088 [−0.0214, +0.0026]) against Qwen's −0.0633 [−0.1009, −0.0274]. So the
+split follows reasoning distillation, not window length. It rests on one non-distilled model,
+and training data, trace style, budget and base accuracy remain collinear with distillation.
+
 Two differences from Ren's original worth stating in a footnote so a reviewer does not think
-they were missed: the repo has no class labels, so its foreground is *correct traces* rather
-than a per-class Gaussian and there is no `min_k`; and it fits both Gaussians on a PCA
+they were missed: the repo has binary correctness labels rather than Ren's semantic class labels,
+so its foreground is *correct traces* and there is no `min_k`; and it fits both Gaussians on a PCA
 projection with Ledoit-Wolf shrinkage (`analyze.py::fit_relative_mahalanobis_reference`),
 whereas Ren et al. use raw penultimate features with an empirical covariance.
 
@@ -396,16 +426,21 @@ so nobody has to guess the direction.
 Ordered roughly by closeness. "Differs" is the one-line honest statement.
 
 1. **Vazhentsev et al., NAACL 2025 — Token-level density-based UQ**
-   ([arXiv:2502.14427](https://arxiv.org/abs/2502.14427)). *The closest work, and a partial
-   scoop of the feature.* Token-level RMD inside generated traces, correct-response foreground,
+   ([arXiv:2502.14427](https://arxiv.org/abs/2502.14427)). *The closest work, and a scoop of
+   the feature.* Token-level RMD inside generated traces, correct-response foreground,
    all-token background, multi-layer, stacked with sequence probability in a supervised readout.
-   **Differs:** mean aggregation over the whole trace (not a tail quantile), single-generation
-   QA/summarisation/fact-checking (no sibling traces, no plurality vote), PRR not AUACC, and no
-   consistency feature in the combined readout.
+   Their ATRMD *aggregator* — the same trace mean, computed here on our own reference at a
+   single layer, as `rmd_full`; we do not reproduce their multi-layer supervised SATRMD
+   pipeline — **recovers our entire increment on
+   two of the three models** (2026-08-10); the tail window we add on top of it is load-bearing
+   only on Qwen2.5-7B-Instruct. Treat the statistic as theirs.
+   **Differs:** single-generation QA/summarisation/fact-checking (no sibling traces, no
+   plurality vote), no prompt-level aggregation, PRR not AUACC, and no consistency feature in
+   the combined readout. Those four are the whole distance between the papers.
 2. **Zhang et al., 2025 — Reasoning models know when they're right**
    ([arXiv:2504.05419](https://arxiv.org/abs/2504.05419)). Hidden-state probes on
    R1-Distill-Qwen-7B and friends, on MATH/GSM8K/AIME, ROC-AUC > 0.7 (up to > 0.9 on AIME).
-   **Differs:** supervised MLP probe on raw activations rather than an unsupervised density
+   **Differs:** supervised MLP probe on raw activations rather than a positive-only density
    score; **no baseline of any kind** — no length, entropy, logprob or vote agreement; per-trace
    verification for early exit, not prompt-level abstention.
 3. **Fu et al., 2025 — DeepConf** ([arXiv:2508.15260](https://arxiv.org/abs/2508.15260)).
@@ -413,7 +448,8 @@ Ordered roughly by closeness. "Differs" is the one-line honest statement.
    and filtering, on AIME/HMMT/BRUMO/GPQA. **Differs:** purely output-side (top-k logprob), and
    the goal is answer *selection and token savings*, not an abstain/answer decision — but it
    owns the "low-order statistic over the tail beats the global mean" idea that `rmd_tail_q20`
-   reuses.
+   reuses. On our data that idea only holds for Qwen2.5-7B-Instruct; on both reasoning-distilled
+   models the global mean is as good, so we borrow the move without confirming it.
 4. **Chen et al., ICLR 2024 — INSIDE / EigenScore**
    ([arXiv:2402.03744](https://arxiv.org/abs/2402.03744)). Covariance-spectrum geometry over K
    sampled responses' embeddings, benchmarked against Lexical Similarity, LN-Entropy and
@@ -464,9 +500,12 @@ Ordered roughly by closeness. "Differs" is the one-line honest statement.
   over a self-consistency or vote-agreement baseline. **Not found.**
 - No semantic-entropy paper reporting numbers on **MATH-500 or MATH**; SVAMP is the only math
   benchmark in Farquhar et al. **Not found.**
-- No prior use of a **low quantile of RMD over a trace tail region** as an uncertainty statistic.
-  **Not found** (nearest: DeepConf's bottom-10%/tail confidence on token confidence, and
-  Vazhentsev et al.'s token-RMD mean).
+- ~~No prior use of a **low quantile of RMD over a trace tail region** as an uncertainty
+  statistic.~~ **Withdrawn 2026-08-10.** The repo computes no such quantile. `rmd_tail_q20` is a
+  *mean* of per-token RMD over the final 20% of tokens, which is exactly Vazhentsev et al.'s
+  token-RMD mean under DeepConf's tail window. Both components are published; the composition is
+  not claimed as a gap. Confirmed on data the same day: the untailed mean recovers the whole
+  increment on two of three models.
 - No published selective-prediction result on MATH-500 that controls for the dataset's
   **human-annotated level 1–5** difficulty. **Not found** — though absence here is weaker
   evidence, since a difficulty control is the kind of thing buried in an appendix.

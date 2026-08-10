@@ -65,7 +65,73 @@ pre-registered cross-model gate.*
 > statement that geometry was "detecting non-termination" overstates what was there.
 > Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
-## Current evidence (updated 2026-08-06)
+## Current evidence (updated 2026-08-10)
+
+> **Most of the increment is prompt difficulty; a smaller residual survives
+> (2026-08-10).** Experiment 2, pre-declared, on cached OOF columns. Full entry:
+> `EXPERIMENT_LOG.md` (2026-08-10, "A difficulty control that actually works").
+> All three collects share MATH-500 prompt ids (gold answers agree 500/500), so
+> each model's `B0` can be handed the other two models' eight-sibling pass rates
+> — an empirical difficulty signal the target model did not produce. **This is
+> the first difficulty control in this project that beats `B0`:** it cuts AURC
+> by 28–82%, where the 2026-08-03 controls were worth zero or less. Against it
+> the increment shrinks about fivefold and survives on two of three models:
+> **−0.0108 [−0.0251, −0.0004] / −0.0004 [−0.0016, +0.0005] / −0.0125 [−0.0230,
+> −0.0026]**. The pre-declared rule (two or more intervals covering zero) is not
+> triggered.
+>
+> **Read it as an amendment, not a confirmation.** ~80% of the increment is
+> common with what two other models already know about the problem, and Holm over
+> the pre-declared family of three passes Llama alone (0.012; Qwen 0.072).
+> DeepSeek's null is a **ceiling, not redundancy** — `B0+peer` lands 0.0045 above
+> a perfect ranker's AURC, so nothing was left for any feature to remove; the
+> honest count is 2/2 where the test could answer, never "3/3". `B0+peer` is a
+> **control, not a baseline**: two other models' pass rates do not exist at
+> decision time, so the method's practical value is untouched — only the
+> mechanistic claim moves.
+
+> **The tail window is a model-dependent localization, not part of the method
+> (2026-08-09).** Two closest-baseline contrasts, both pre-declared, both on
+> cached OOF columns. Full entry: `EXPERIMENT_LOG.md` (2026-08-09, "The two
+> closest cheap baselines"). **(i) The increment survives the whole answer
+> distribution.** Adding the entropy of the exact-answer histogram to `B0` —
+> the direct generalization of `vote_agreement`, which cannot tell `5+3` from
+> `5+1+1+1` — buys nothing (**−0.0006 / −0.0035 / +0.0003**), and `rmd_tail_q20`
+> still adds on top of it on all three models (**−0.0586 / −0.0330 / −0.0557**),
+> Holm-corrected over the pre-declared family of six. This is the whole-population
+> version of the unanimous-stratum argument below, and it is the stronger form.
+> The histogram is empty because **70% / 89% / 53% of prompts are unanimous** at
+> N=8 — a limit on self-consistency baselines at this sample count, not a
+> property of this feature. **(ii) The tail restriction is load-bearing on one
+> model only.** The untailed whole-trace mean `rmd_full` — Vazhentsev et al.'s
+> ATRMD aggregator, computed on our own reference at a single layer — recovers
+> essentially the entire increment by itself on both reasoning-distilled models
+> (**−0.0335 of −0.0355**; **−0.0509 of −0.0560**), where the tail then adds
+> nothing separable from zero. Only on Qwen2.5-7B-Instruct does the tail carry
+> the result. Window size does not explain it: inside Qwen the tail advantage
+> *grows* with window size, and Llama's short stratum matched to Qwen on window
+> median (110 vs 87) and base accuracy (0.688 vs 0.693) still shows no tail
+> effect. `rmd_tail_q20` stays the frozen feature — it is the only aggregator
+> whose interval excludes zero on all three models — but the *reason* for
+> choosing it does not survive. Report the tail as a model-dependent
+> localization and cite ATRMD as the statistic.
+
+> **Entropy localization stays Qwen-specific, and the gate that says so was
+> defective (2026-08-09).** The 2026-07-28 pre-registered gate names
+> `deepseek_llama` L24 in its own layer column but was never run there, because
+> test 1 failed on DeepSeek-Qwen and the rule said stop. Run now on the frozen
+> artifacts, it **passes on Llama** (+0.0256 and +0.0252, both Holm < 0.05) — but
+> both its tests are *differences between two scores* and neither requires either
+> score to beat chance. Llama's localized score is **0.491, at chance**; test 1
+> clears only because `rmd` sits at 0.465, below it. Qwen's is 0.605 against
+> 0.547. Not a power story: Llama has 158 mixed prompts / 1,636 pairs against
+> Qwen's 117 / 1,104. So the 2026-07-29 demotion survives, B13 closes on data
+> rather than on a standing rule, and any future localization gate needs an
+> absolute-discrimination floor as a third pre-registered test. Under that floor
+> entropy localization (within-prompt) and tail localization (between-prompt)
+> divide the same three models the same way — on reasoning distillation — which
+> is real corroboration, but must never be quoted as "the pre-registered gate
+> replicated".
 
 > **Frozen reporting standard, and the vote-proxy objection answered
 > (2026-08-06).** Two changes to how the result is *stated*, neither of which
@@ -209,6 +275,14 @@ pre-registered cross-model gate.*
 > correlates −0.947 (Qwen) / −0.901 (DeepSeek) with the mean `length` already in
 > B0, so it is nearly the same feature. The exogenous level control carries the
 > argument. Full entry: `EXPERIMENT_LOG.md` (2026-08-03, difficulty proxy).
+>
+> ***[Amended 2026-08-10.] Both controls in this block were weaker than `B0`,
+> which is why nothing was absorbed — the entry says this of the endogenous one
+> but lets the exogenous one stand, and it should not have. Against a control
+> that does beat `B0` (the other two models' pass rates on the same prompts),
+> ~80% of the increment is absorbed and a smaller residual survives on two of
+> three models. The direction of this block holds; its magnitude does not. See
+> the banner at the top of this section.***
 
 > **Cap-population correction (2026-08-03): a reported Qwen population was
 > arithmetically impossible.** An ad-hoc run had been passed DeepSeek's
@@ -258,10 +332,17 @@ The load-bearing result is **prompt-level abstention, stated as an increment ove
 four-feature output-side readout that already contains self-consistency, on three
 models** — Qwen2.5-7B-Instruct, DeepSeek-R1-Distill-Qwen-7B, and
 DeepSeek-R1-Distill-Llama-8B, the last outside the Qwen2.5 lineage. In AURC (lower
-better): **−0.0585, −0.0355, −0.0560**, every interval clear of zero. It is the only
-claim that survives every control applied to it: two difficulty controls including an
-exogenous human-annotated one, a length residualization, DeepConf run three ways with
-all four of its statistics, and the vote-proxy control answering Orgad et al.
+better): **−0.0585, −0.0355, −0.0560**, every interval clear of zero. It is the claim
+that has survived the most controls: a length residualization, DeepConf run three ways
+with all four of its statistics, the vote-proxy control answering Orgad et al., the
+answer-histogram entropy baseline, and three difficulty controls.
+
+It does not survive all of them intact. The two 2026-08-03 difficulty controls were
+weaker than `B0` itself and absorbed nothing, which is close to uninformative. The
+2026-08-10 cross-model control does beat `B0`, and against it **about 80% of the
+increment is absorbed**, leaving −0.0108 / −0.0004 / −0.0125 — clear of zero on two
+models, at the readout's ceiling on the third. The increment is real and it is
+substantially a difficulty signal; both halves of that sentence are load-bearing.
 
 The Qwen Best-of-8 localization result is secondary: highest-entropy 20% RMD beats
 full-trace RMD at all three layers and beats a matched random-token control, but does

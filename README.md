@@ -34,7 +34,9 @@ Datasets: **MATH-500** (500 problems, 5 difficulty levels, 7 subjects) and **GSM
 self-consistency baseline, on three models.** The claim is an *increment*, not a
 score for the feature alone. Baseline `B0 = (length, entropy, logprob,
 vote_agreement)` aggregated over 8 sibling traces; `B1 = B0 + rmd_tail_q20`,
-the 20th percentile of relative Mahalanobis distance over the trace tail.
+the **mean** per-token relative Mahalanobis distance over the **final 20% of
+trace tokens** (`prompt_decomposition.py::score_localized_rmd`; the `q20` in
+the name is the size of the tail window, not a quantile of the distances).
 Out-of-fold logistic readouts, prompt-clustered paired bootstrap, 1000 draws.
 
 On the cap-free valid-plurality population, in **AURC** (area under the
@@ -46,12 +48,49 @@ risk-coverage curve, lower is better):
 | DeepSeek-R1-Distill-Qwen-7B | 393 | −0.0355 [−0.0642, −0.0097] |
 | DeepSeek-R1-Distill-Llama-8B | 408 | −0.0560 [−0.0910, −0.0232] |
 
-Controls it survives: two difficulty controls, one of them MATH-500's exogenous
+Controls it survives: three difficulty controls, one of them MATH-500's exogenous
 human-annotated level; a length residualization; DeepConf (arXiv:2508.15260) as
 a prompt-level score, as a confidence-weighted vote, and as a confidence filter,
 with all four of its statistics; and a vote-proxy control answering Orgad et al.
 (arXiv:2410.02707) — geometry scores AUROC 0.71–0.83 *inside* the stratum where
 the eight siblings agree unanimously and self-consistency is silent.
+
+The vote-proxy control now also holds on the **whole** population, not just that
+stratum (2026-08-10). Adding the full answer-distribution entropy to `B0` buys
+nothing (−0.0006 / −0.0035 / +0.0003, all p > 0.05), and `rmd_tail_q20` still
+adds on top of it on all three models, Holm-corrected over the pre-declared
+family of six (Holm p 0.000 / 0.048 / 0.008; DeepSeek-R1-Distill-Qwen-7B is a
+borderline pass — raw p=0.016 against a 0.0167 threshold, and the bootstrap only
+resolves p to 1/1000). The reason the histogram is empty is worth reporting:
+at 8 samples on MATH-500, **70% / 89% / 53% of prompts are unanimous**, so every
+answer-distribution statistic is constant by construction on most of the data.
+That is a limit on self-consistency baselines at this sample count, not a
+property of this feature.
+
+**Most of the increment is prompt difficulty (2026-08-10).** All three collects
+share MATH-500 prompt ids, so each model's `B0` can be handed the *other two
+models'* eight-sibling pass rates — an empirical difficulty signal the target
+model did not produce. It is the first difficulty control here that beats `B0`,
+cutting AURC by 28–82% where the earlier two were worth zero or less. Against
+it the increment shrinks about fivefold and clears zero on two of three models
+(−0.0108 / −0.0004 / −0.0125). DeepSeek-R1-Distill-Qwen-7B's null is a ceiling
+rather than redundancy: with that control its readout lands 0.0045 above a
+perfect ranker's AURC, leaving nothing for any feature to remove. Holm over the
+pre-declared family of three passes DeepSeek-R1-Distill-Llama-8B alone (0.012;
+Qwen 0.072). Note that peer pass rates do not exist at decision time, so this is
+a control on the mechanism, not a baseline the method has to beat.
+
+**The tail window is a Qwen-specific localization, not part of the method.**
+The untailed whole-trace mean `rmd_full` — Vazhentsev et al.'s ATRMD — recovers
+almost the entire increment by itself on both reasoning-distilled models
+(−0.0335 of −0.0355; −0.0509 of −0.0560), and the tail adds nothing separable
+from zero there. Only on Qwen2.5-7B-Instruct does the tail carry the result.
+Window size does not explain the split: inside Qwen the tail advantage *grows*
+with window size (−0.042 below the median window, −0.116 above it), and the
+Llama short stratum matched to Qwen on window median and base accuracy still
+shows no tail effect. The split follows reasoning distillation, on one
+non-distilled model, with trace style, budget and base accuracy still collinear
+with it. A third non-distilled model is the test that would settle it.
 
 **This is a between-prompt result, and the within-prompt one is Qwen-specific.**
 A pre-registered cross-model gate on DeepSeek-R1-Distill-Qwen-7B failed

@@ -18,6 +18,36 @@ literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 > reranking (Best-of-N is weak). Prior "trace-correctness" readings of such geometry were
 > confounded by trace length and by a truncation/auto-label-as-incorrect artifact.**
 
+**[Amendment, 2026-08-09 — the feature is not the contribution.]** The thesis above
+is unchanged in substance, but two of its load-bearing words have to go. The
+statistic is a **trace-mean relative Mahalanobis distance**, which is Vazhentsev et
+al.'s ATRMD aggregator; the *tail* restriction that `rmd_tail_q20` adds on top of it
+is load-bearing **only on Qwen2.5-7B-Instruct**, and on both reasoning-distilled
+models the untailed mean recovers essentially the whole increment on its own. A
+window-size explanation was tested and falsified. `rmd_tail_q20` stays the frozen
+feature because it is the only aggregator whose interval excludes zero on all three
+models, but the reason for choosing it does not survive, and the aggregator is not
+claimed as novel anywhere. What carries the paper is the **evaluation**:
+prompt-level, aggregated over siblings, against a vote-agreement baseline now shown
+strong on the whole population rather than only in the unanimous stratum. Frame the
+contribution there. Full detail: `EXPERIMENT_LOG.md` (2026-08-09, both entries) and
+`RELATED_WORK.md` §nearest-neighbours #1.
+
+**[Amendment, 2026-08-10 — "solvability" is more literal than intended.]** The
+thesis calls the signal a *between-prompt solvability* signal, and experiment 2 says
+it is that in a stronger sense than was meant. Handed the other two models'
+eight-sibling pass rates on the same prompts — the first difficulty control here
+that beats `B0`, cutting AURC 28–82% — the increment loses ~80% of its size and
+survives on two of three models (−0.0108 / −0.0004 / −0.0125; the third is at its
+readout's ceiling, 0.0045 above a perfect ranker). Two consequences for the write-up.
+(i) **Do not claim the increment is not a difficulty proxy**; the 2026-08-03 entry
+that said so tested it against controls weaker than `B0`. Claim that a residual
+survives a control that is not. (ii) The *right* framing is that RMD reads prompt
+solvability cheaply, from the model's own states, at decision time — which is
+exactly what a peer-model pass rate cannot do. That is the compute-allocation hook
+in §7c-check-3 arriving as a result rather than a correlation. Full detail:
+`EXPERIMENT_LOG.md` (2026-08-10).
+
 *Second clause added 2026-07-31 from the length-residualized (E1R) + supervised-probe
 runs; see §7e. Rewritten 2026-08-09 from the supervision/form ladder (§7f), which
 moved the attribution and bounded the regime. Scope: between-prompt abstention on
@@ -227,7 +257,11 @@ benchmark + cross-model breadth. Honest and contribution-bearing, not splashy.
 1. C3: `selective_prediction.py --exclude_unparsed` — does RMD abstention beat length+entropy
    parseable? (decides whether the abstention application stays). MOST IMPORTANT un-run number.
 2. RMD-vs-raw across all 4 models parseable (incl. Llama greedy data) — breadth for the mechanism.
-3. Pass-rate/difficulty correlation parseable — the compute-allocation hook.
+3. ~~Pass-rate/difficulty correlation parseable — the compute-allocation hook.~~
+   **[Done 2026-08-10, and it went further than a correlation.]** Experiment 2 puts
+   peer-model pass rates *inside* the readout as a control rather than correlating
+   them alongside: `EXPERIMENT_LOG.md` (2026-08-10). The hook survives, at ~20% of
+   the increment's original size.
 
 ## 7d. 2026-07-18 UPDATE (Qwen BoN full rerun: localization + abstention numbers land)
 
@@ -305,10 +339,26 @@ output baselines do.**
   that model. Only `rmd_tail_q20` does (+0.030 [+0.014, +0.048]). Consistent with
   §7d's failed localization gate: entropy-localization is Qwen-specific, tail
   localization is what replicates.
-- **Breadth is now the binding constraint, not rigor.** n=2 models, both Qwen-lineage.
-  Every claim in this section needs the Llama-architecture replication
-  (`deepseek_llama`, cancelled by the §7d gate) before it can be stated as a property
-  of reasoning-distilled models rather than of two checkpoints.
+  **[Updated 2026-08-09]** Both halves of that last sentence now need qualifying.
+  Entropy-localization stays Qwen-specific, but the §7d gate run on
+  `deepseek_llama` L24 — the model its own layer column names — *passes* on both
+  tests; it only stays Qwen-specific once you notice the localized score there is
+  0.491, i.e. at chance, and that the gate never required either score to beat it.
+  And "tail localization is what replicates" is now wrong as a statement about the
+  aggregator: between prompts, the untailed `rmd_full` recovers the whole increment
+  on both distilled models, and the tail is load-bearing only on Qwen. See
+  `EXPERIMENT_LOG.md` (2026-08-09, both entries).
+- **Breadth is now the binding constraint, not rigor.** ~~n=2 models, both
+  Qwen-lineage. Every claim in this section needs the Llama-architecture replication
+  (`deepseek_llama`, cancelled by the §7d gate)~~ **[Stale — corrected
+  2026-08-09.]** The `deepseek_llama` collect was restored for other reasons and
+  finished 2026-08-03, so this section's claims now rest on **three models spanning
+  two architecture families** — but two of the three are reasoning-distilled and
+  two are Qwen-lineage, all are 7–8B, and all share one task and one prompt set.
+  Breadth is still the binding constraint, and it is now **single-dataset scope**
+  rather than model count. Note also that "a property of reasoning-distilled models"
+  is exactly the axis the 2026-08-09 localization split falls along, and it rests on
+  a single non-distilled model.
 
 ## 7f. 2026-08-08 UPDATE (the supervision/form ladder — attribution moved, regime bounded)
 

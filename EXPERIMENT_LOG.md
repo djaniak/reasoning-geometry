@@ -5,6 +5,586 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-10: A difficulty control that actually works — and most of the increment is difficulty
+
+North star: is the between-prompt increment real, or is it a prompt-difficulty
+proxy? Sub-goal: re-ask the 2026-08-03 question against a control strong enough for
+the answer to mean something. Objective: one contrast, pre-declared, no new
+feature family.
+
+This is experiment 2 of the merged senior review. The 2026-08-03 entry already
+concluded "the increment is not a prompt-difficulty proxy" against two controls,
+and that conclusion needs revisiting for a reason visible in its own tables:
+**both controls were weaker than `B0`.** MATH-500's annotated level reached AUACC
+0.715/0.782 against `B0`'s 0.773/0.834, and every `control_minus_B0` point estimate
+there was zero or negative. A control that cannot beat the baseline it is added to
+cannot absorb anything from it, so "the increment survived" was close to
+uninformative. That entry said as much about the endogenous control (−0.947
+correlation with `length`) but let the exogenous one stand.
+
+All three collects ran the same 500 MATH-500 problems under the same prompt ids, so
+for each prompt there are two *other* models' eight-sibling pass rates sitting in
+cached CSVs. A problem two other 7–8B models solve 8/8 is empirically easy. That is
+a sharper difficulty signal than mean trace length and a much sharper one than five
+annotated levels, and no part of the target model produced it.
+
+### Stage and parameterization
+
+Not a DVC stage. `peer_difficulty_control.py` re-reads cached OOF rows and imports
+the frozen aggregation, folds, populations, readout, bootstrap **and seed
+convention** from `incremental_abstention`/`difficulty_control` rather than
+restating any of them. One CPU pass, 19 seconds:
+
+```
+python peer_difficulty_control.py \
+  --model {qwen,deepseek,deepseek_llama}:results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/{model}_bestofn_full/math500
+```
+
+Artifacts: `results/peer_difficulty_control/peer_difficulty_control_{results.json,report.md}`
+(gitignored). Layer 21/21/24, `cap_free_valid_plurality` headline (n=392/393/408),
+`cap_free_all_eight_parseable` sensitivity, AURC pre-declared with AUACC alongside,
+1,000-draw paired prompt bootstrap.
+
+`B1_minus_B0` recomputed here is **identical to the locked
+`incremental_abstention` artifact on all three models, both metrics, point estimate
+and interval and p and n_valid** — the seed convention is matched exactly, so this
+is the harness check rather than an agreement to three decimals.
+
+Prompt-id alignment is asserted, not assumed: gold answers agree 500/500 as exact
+strings across all three models, and the prompt folds are identical too. A
+misalignment here would look exactly like a control that does not work.
+
+Pre-declared before the run: if `B1+peer` minus `B0+peer` has an AURC interval
+overlapping zero on two or more models, the increment is reported as substantially
+a difficulty proxy. One peer definition — mean `is_correct` over all eight cached
+siblings — and no sweep of alternatives follows either way. Also pre-declared: a
+near-oracle flag at |Spearman| ≥ 0.60 against the target's own outcome, because a
+control that strong can saturate a readout on its own, and "nothing left to add" is
+a different finding from "geometry is redundant with difficulty".
+
+### The control is the first one in this project that beats B0
+
+| model | peer 1 AUROC | peer 2 AUROC | own `vote_agreement` | own `rmd_tail_q20` | `peer` over `B0` (AURC) |
+|---|---|---|---|---|---|
+| qwen | 0.908 (deepseek) | 0.839 (llama) | 0.634 | 0.806 | **−0.1095 [−0.1486, −0.0689]** p=0.000 |
+| deepseek | 0.904 (llama) | 0.961 (qwen) | 0.587 | 0.686 | **−0.1254 [−0.1679, −0.0851]** p=0.000 |
+| deepseek_llama | 0.813 (deepseek) | 0.802 (qwen) | 0.650 | 0.709 | **−0.0671 [−0.1163, −0.0160]** p=0.016 |
+
+Every prior difficulty control in this log was worth zero or less added to `B0`.
+This one cuts AURC by 28–82%. It is also correlated 0.31–0.50 (Spearman) with
+`rmd_tail_q20` itself, which is the first direct evidence that the tail feature
+carries difficulty information rather than merely coexisting with it.
+
+### Result — the increment shrinks about fivefold and survives on two models
+
+AURC, headline population; lower is better, negative favours the left readout:
+
+| model | `B1 − B0` | **`B1 − B0` given peer** | absorbed | Holm p |
+|---|---|---|---:|---:|
+| qwen | −0.0585 [−0.1026, −0.0182] | **−0.0108 [−0.0251, −0.0004]** p=0.036 | 82% | 0.072 |
+| deepseek | −0.0355 [−0.0642, −0.0097] | **−0.0004 [−0.0016, +0.0005]** p=0.544 | 99% | 0.544 |
+| deepseek_llama | −0.0560 [−0.0910, −0.0232] | **−0.0125 [−0.0230, −0.0026]** p=0.004 | 78% | 0.012 |
+
+The pre-declared rule is **not triggered** — one interval overlaps zero, not two.
+The sensitivity population gives the same three numbers to within 0.0004, and AUACC
+gives the same picture (qwen p=0.054 there, the one place the two metrics disagree
+about crossing 0.05).
+
+But the rule is not the whole reading, and two things cut against a clean pass.
+
+**First, most of the increment is difficulty.** 78–82% of it is common with what
+two other models' pass rates already know about the problem. The 2026-08-03 claim
+that the increment "is not explained by prompt difficulty" was tested against
+controls too weak to explain anything; against a control that works, difficulty
+explains about four fifths of it. What survives is a real but small residual.
+
+**Second, Holm passes only one model.** Over the pre-declared family of three,
+Llama survives at 0.012 and Qwen does not at 0.072. The interval rule and the
+multiplicity correction disagree, and both were fixed in advance.
+
+### DeepSeek's null is a ceiling, not redundancy — and the pre-declared flag was the wrong statistic
+
+The near-oracle flag fired on **all three** models (Spearman +0.76/+0.70/+0.61), so
+it does not separate them and was the wrong instrument. The statistic that does is
+headroom. AURC has a floor above zero — with base accuracy fixed, some risk is
+unrankable away — and the floor rises as accuracy falls:
+
+| model | oracle floor | `B0+peer` | headroom left | delta | share of headroom removed |
+|---|---:|---:|---:|---:|---:|
+| qwen | 0.0535 | 0.0865 | 0.0330 | −0.0108 | 33% |
+| deepseek | 0.0223 | 0.0268 | **0.0045** | −0.0004 | 8% |
+| deepseek_llama | 0.0601 | 0.1698 | 0.1097 | −0.0125 | 11% |
+
+DeepSeek is the most accurate model here (0.796) and its peer control is the
+strongest (qwen AUROC 0.961 against it). `B0+peer` lands 0.0045 above a perfect
+ranker. There is essentially nothing left for any feature to remove, so its null is
+uninformative about geometry — it is what saturation looks like. The honest count
+is 2/2 on the models where the test could answer, not 2/3.
+
+This is post-hoc arithmetic in service of a pre-declared concern, and it is
+reported that way: the flag was declared in advance, the quantification was not.
+Do not quote "3/3 once the ceiling is accounted for". Quote that DeepSeek could not
+answer.
+
+### Limitations and what not to quote
+
+- **`B0 + peer` is a control, never a baseline.** You cannot run two other
+  eight-sample models to decide whether to trust this one. Nothing here competes
+  with the headline, and the increment's practical value is untouched by how much
+  of it is difficulty — only the mechanistic claim moves.
+- **`peer` beats `B1` outright** on qwen (−0.0510 p=0.002) and deepseek (−0.0899
+  p=0.000), and ties on Llama (−0.0110 p=0.598). Descriptive only, for the reason
+  above.
+- The residual is not identified. This entry narrows what the geometry could be
+  reading; it still does not say what it is.
+- Single dataset. Peer difficulty is only available because three collects share
+  MATH-500 prompt ids; the design does not transfer without that.
+
+### Claims ruled in and out
+
+- **Ruled in.** A tail-RMD residual survives a difficulty control strong enough to
+  cut AURC by half, on both models with headroom to measure it, direction
+  consistent on all three.
+- **Amended.** The 2026-08-03 claim that the increment is not a prompt-difficulty
+  proxy stands in direction but not in magnitude: ~80% of it is shared with
+  empirical difficulty, and the controls that entry used were weaker than `B0`.
+  `FINDINGS.md` and `PAPER_STRATEGY.md` need this qualification wherever that
+  entry is quoted.
+- **Ruled out.** That the increment is *entirely* a difficulty proxy — on two
+  models the residual's interval excludes zero, and on the third the readout is at
+  its ceiling.
+- **Not established.** That the residual clears multiplicity correction. Holm
+  passes Llama alone.
+
+Next: the residual is small enough that the honest framing question is now whether
+the paper's contribution is the increment or the measurement discipline around it.
+Nothing further is queued that this entry gates.
+
+## 2026-08-09: The 2026-07-28 gate, run on the model it named — and a defect in the gate
+
+North star: is the between-prompt increment real, and is the localization story a
+property of models or of regions? Sub-goal: close B13, the one hypothesis shut by
+standing rule rather than by data. Objective: run the existing pre-registered gate
+on the third model, change nothing else.
+
+The 2026-07-28 gate names **`deepseek_llama` L24 in its own layer column**
+([:2368](#)). It was only ever evaluated on DeepSeek-R1-Distill-Qwen-7B because
+test 1 failed there and the rule said stop, which also cancelled the Llama collect.
+That collect later ran for other reasons and finished 2026-08-03, so the gate's own
+second model has been sitting on disk unevaluated ever since. This is not a new
+test: it is the pre-registered one, on the model it was written for.
+
+### Stage and parameterization
+
+No new compute. `evaluate_prompt_decomposition` already emits every quantity the
+gate consumes; this reads `parseable_only.paired_score_deltas` at the deepest layer
+from the frozen results JSONs and applies Holm across the two confirmatory tests,
+exactly as the 2026-07-28 entry specifies ("applied to the saved JSON at gate time
+— no pipeline edit needed").
+
+Layer 21 / 21 / 24, parseable-only within-prompt population, metric
+`prompt_centered_auc`, the stage's 1,000-draw paired prompt-cluster bootstrap,
+Holm over the 2 tests at family-wise alpha 0.05.
+
+DeepSeek reproduces its frozen gate row exactly — `+0.004 [−0.016, +0.027]`
+p=0.674 and `+0.001 [−0.023, +0.026]` p=0.924 — which is what confirms the right
+field is being read before anything is concluded from a new model.
+
+### Literal gate verdicts
+
+| model | test 1 `rmd_he_q20 − rmd` | test 2 `rmd_he_q20 − rmd_random_q20` | verdict |
+|---|---|---|---|
+| qwen (L21) | +0.0579 [+0.0210, +0.0981] Holm 0.004 | +0.0572 [+0.0234, +0.0973] Holm 0.004 | both pass |
+| deepseek (L21) | +0.0044 [−0.0163, +0.0267] Holm 1.000 | +0.0010 [−0.0228, +0.0260] Holm 1.000 | both fail |
+| **deepseek_llama (L24)** | **+0.0256 [+0.0091, +0.0449] Holm 0.000** | **+0.0252 [+0.0060, +0.0459] Holm 0.004** | **both pass** |
+
+Read literally, the gate says entropy localization replicates on
+DeepSeek-R1-Distill-Llama-8B, and the 2026-07-29 demotion to "Qwen-specific" was
+premature on n=1 other model.
+
+### The gate is defective, and the absolute numbers say so
+
+Both confirmatory tests are **differences between two scores**. Neither requires
+either score to beat chance. The absolute within-prompt AUCs at the gate layer:
+
+| method | qwen L21 | deepseek L21 | deepseek_llama L24 |
+|---|---:|---:|---:|
+| `rmd` | 0.547 | 0.447 | 0.465 |
+| `rmd_high_entropy_q20` | **0.605** | 0.451 | **0.491** |
+| `rmd_random_q20` | 0.548 | 0.450 | 0.465 |
+| `rmd_tail_q20` | 0.576 | 0.467 | 0.531 |
+| mixed prompts / pairs | 117 / 1,104 | 49 / 409 | 158 / 1,636 |
+
+On Llama the localized score is **0.491 — at chance**, and `within_prompt_macro`
+agrees at 0.499. Test 1 clears only because `rmd` sits at 0.465, *below* chance:
+the high-entropy region is less anti-predictive than the whole trace, not
+predictive. On Qwen the same contrast is 0.605 against 0.547, both above chance and
+the localized one clearly so.
+
+**This is not a power story.** Llama has 158 mixed prompts and 1,636 within-prompt
+pairs — more than Qwen's 117 / 1,104, and three times DeepSeek's 49 / 409. The
+2026-07-29 entry was careful to state DeepSeek's lower power; Llama has no such
+excuse and still produces a chance-level localized score.
+
+### Verdict
+
+**Entropy localization stays Qwen-specific.** The 2026-07-29 demotion survives, and
+B13 is closed with data instead of a standing rule. But it survives for a reason
+the gate could not see, and that has to be recorded rather than quietly absorbed:
+**as pre-registered, the gate would have passed a model whose localized score is at
+chance.** A difference-only criterion cannot distinguish "this region is
+informative" from "this region is less harmful than the alternative".
+
+The floor used here — the localized score must beat 0.5 — was applied *after*
+seeing the data and is therefore post-hoc. It is not a tuned threshold: 0.5 is the
+definition of no discrimination for an AUC, with no free parameter. Any future
+localization gate should carry it as a third pre-registered test.
+
+### What this does to the 1b distillation reading
+
+The earlier entry today predicted that if entropy localization divided
+Qwen2.5-7B-Instruct from both distilled models the way tail localization does, the
+split is a property of the models rather than of either region. Under the chance
+floor it does:
+
+| model | reasoning-distilled | tail localization (between-prompt) | entropy localization above chance (within-prompt) |
+|---|---|---|---|
+| Qwen2.5-7B-Instruct | no | yes | yes (0.605) |
+| DeepSeek-R1-Distill-Qwen-7B | yes | no | no (0.451) |
+| DeepSeek-R1-Distill-Llama-8B | yes | no | no (0.491) |
+
+Two regions, two different regimes — one between prompts, one within — dividing the
+same way, on the same three models. That is real corroboration for the distillation
+reading and it is the second independent line of evidence for it.
+
+It is weaker than a clean pre-registered pass would have been, and the reason is
+the paragraph above: the raw gate verdict points the other way, and only the
+post-hoc floor reconciles them. Quote it as "both localization results divide on
+distillation once an absolute-discrimination floor is applied", never as "the
+pre-registered gate replicated".
+
+### Limitations and next dependent stage
+
+The gate population is parseable-only and **not** cap-free, unlike the between-prompt
+headline population, so capped traces are in it; the gate was pre-registered that
+way and re-running it on a different population would be exactly the post-hoc move
+this entry is criticising. Within-prompt inference still rests on mixed prompts
+only. `rmd_tail_q20` is the one region above chance within-prompt on Llama (0.531 /
+macro 0.554), which is exploratory, was not in the gate, and is not claimed here.
+The distillation reading still rests on one non-distilled model.
+
+Next: experiment 2, the cross-model empirical difficulty control. Nothing in this
+entry changes its priority — it goes up, since the tail story narrowed yesterday
+and this entry adds interpretation rather than breadth.
+
+## 2026-08-09: The two closest cheap baselines, and whether the tail is a window artifact
+
+North star: is the between-prompt increment real beyond the nearest published
+alternatives? Sub-goal: close the two contrasts the 2026-08-09 direction review
+recommended and the sprint dropped without comment. Objective: two frozen
+comparisons, both pre-declared, no new feature family.
+
+These are experiments 1a and 1b of the merged senior review (dated 2026-08-10).
+Both were recommendation #1 and #2 a full review cycle ago. Neither needs a model
+call: every column is already in the frozen OOF tables. Until 1a ran, the phrase
+"beyond self-consistency" was not established.
+
+### Stage and parameterization
+
+Not a DVC stage — `closest_baselines.py` re-reads cached OOF rows and imports the
+frozen aggregation, folds, populations, readout and bootstrap from
+`incremental_abstention` rather than restating any of them.
+
+```
+CUDA_VISIBLE_DEVICES="" uv run python closest_baselines.py \
+  --model qwen:results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/qwen_bestofn_full/math500 \
+  --model deepseek:results/deepseek_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/deepseek_bestofn_full/math500 \
+  --model deepseek_llama:results/deepseek_llama_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/deepseek_llama_bestofn_full/math500
+```
+
+The 1b follow-up in section "Is the tail restriction a window-size effect?" below
+adds `--window_threshold 182` to the same command; nothing else changes.
+
+Deepest layer per model (L21/L21/L24) via `select_layer_rows`, `expected_traces 8`,
+`n_bootstrap 1000`, `seed 42`. Headline population `cap_free_valid_plurality`
+(n = 392/393/408); sensitivity `cap_free_all_eight_parseable` (391/380/408), which
+is the frozen `all_eight_parseable` intersected with cap-free — on its own that
+population is not cap-filtered and so trades one selection for another rather than
+testing the headline one.
+
+Two features added to the frozen `B0`, both negated so "higher is better" holds
+across the design matrix (the logistic is exactly invariant to the flip):
+
+| feature | definition |
+|---|---|
+| `neg_answer_entropy` (`H`) | −Shannon entropy (nats) of the normalized exact-answer histogram over *parseable* siblings, matching `vote_agreement`'s denominator; NaN when nothing parses |
+| `rmd_full` | sibling mean of `rmd_score` = −mean per-token RMD over the **whole** trace — Vazhentsev et al.'s ATRMD (arXiv:2502.14427), the untailed counterpart of `rmd_tail_q20` |
+
+A prompt with nothing parseable returns NaN rather than the zero a genuinely
+unanimous prompt earns; those two states are opposites and collapsing them would
+hand the readout a fake unanimity signal. No such prompt survives into either
+population here, so the choice does not move any number below.
+
+### Pre-declared rules, written before the run
+
+- **1a** — if `rmd_tail` over `B0+H` has an AURC interval overlapping zero on two
+  or more of three models, the "beyond self-consistency" framing stops and the
+  project reframes before spending anything else.
+- **1b** — no region or percentile sweep follows this contrast, whichever way it
+  lands. One matched comparison, then the description gets fixed.
+
+### Artifacts
+
+- `results/closest_baselines/closest_baselines_results.json` — feature and readout
+  definitions, per-model per-population marginal AUROC with intervals, redundancy,
+  readout metrics, seven paired AURC deltas, and the mechanical rule verdicts.
+- `results/closest_baselines/closest_baselines_report.md` — the same as tables.
+- `tests/test_closest_baselines.py` — 13 tests; suite now 325.
+
+### Results
+
+AURC, lower is better; a negative delta favours the left-hand readout. Headline
+population.
+
+`B1 − B0` reproduces inside this harness at −0.0585 / −0.0355 / −0.0560 — point
+estimates identical to the frozen artifact to full float precision, so the two new
+rungs are read on a harness known to restate the existing claim. The intervals here
+are *not* the frozen ones: `incremental_abstention` offsets the bootstrap seed per
+metric and label, this module does not, so the resampling draw differs and the
+frozen `[−0.1026, −0.0182]` becomes `[−0.0975, −0.0221]` on qwen. Same estimator,
+different draw; all comparisons below are internally consistent because every delta
+in this run shares the one seed.
+
+**1a — the increment survives the answer histogram, and the histogram adds nothing.**
+
+| model | `H` over `B0` | **`rmd_tail` over `B0+H`** |
+|---|---|---|
+| qwen | −0.0006 [−0.0022, +0.0009] p=0.398 | **−0.0586 [−0.0974, −0.0223] p=0.000** |
+| deepseek | −0.0035 [−0.0087, +0.0000] p=0.054 | **−0.0330 [−0.0611, −0.0046] p=0.016** |
+| deepseek_llama | +0.0003 [−0.0015, +0.0028] p=0.746 | **−0.0557 [−0.0915, −0.0176] p=0.002** |
+
+Rule 1a: 0/3 intervals overlap zero. **Not triggered.**
+
+The increment is unchanged to three decimals once the full answer histogram is in
+the baseline. The reason is visible in the feature itself: `H` and
+`vote_agreement` correlate at Spearman 0.998 / 1.000 / 0.996, and their marginal
+AUROCs are 0.631/0.634, 0.587/0.587, 0.649/0.650 — indistinguishable. `H` is *not*
+degenerate (Qwen has 19 distinct entropy values across 9 vote levels; it does
+separate `5+3` from `5+2+1`), it simply has almost nothing to separate: 69.9% /
+88.8% / 52.5% of prompts are unanimous, where both statistics are constant by
+construction. At N=8 with exact-match answers, the extra resolution the review
+worried about does not exist in the data.
+
+**1b — the tail is not what carries the increment on two of three models.**
+
+| model | `rmd_full` over `B0` | `rmd_tail` over `B0` | **`rmd_tail` over `rmd_full`** | `rmd_full` over `rmd_tail` |
+|---|---|---|---|---|
+| qwen | −0.0137 [−0.0493, +0.0213] p=0.428 | −0.0585 [−0.0975, −0.0221] p=0.000 | **−0.0583 [−0.0929, −0.0258] p=0.000** | −0.0134 [−0.0284, +0.0020] p=0.094 |
+| deepseek | −0.0335 [−0.0639, −0.0023] p=0.034 | −0.0355 [−0.0636, −0.0071] p=0.010 | **−0.0016 [−0.0091, +0.0068] p=0.750** | +0.0004 [−0.0128, +0.0142] p=0.968 |
+| deepseek_llama | −0.0509 [−0.0879, −0.0152] p=0.004 | −0.0560 [−0.0917, −0.0183] p=0.002 | **−0.0066 [−0.0159, +0.0019] p=0.154** | −0.0014 [−0.0088, +0.0050] p=0.650 |
+
+Branch: `tail_wins` on qwen only, `tie_or_full_wins` on deepseek and
+deepseek_llama. The two features correlate at Pearson 0.890 / 0.950 / 0.900.
+
+On both reasoning-distilled models the whole-trace mean recovers essentially the
+entire increment on its own (−0.0335 of −0.0355; −0.0509 of −0.0560) and the tail
+restriction adds nothing separable from zero. Qwen2.5-7B-Instruct is the opposite
+case and the only clean one: there `rmd_full` alone does *not* beat `B0`
+(p=0.428) while the tail does, and the tail beats the whole trace by the full size
+of the headline increment. Marginal AUROCs agree in ordering but understate the
+split — tail vs full is 0.806/0.715 (qwen), 0.686/0.682 (deepseek), 0.709/0.667
+(llama), so llama's marginal gap does not survive conditioning on `B0`.
+
+Both readings hold unchanged on the `cap_free_all_eight_parseable` sensitivity
+population (1a: −0.0586 / −0.0358 / −0.0557, still 0/3 overlapping; 1b: qwen
+−0.0584 p=0.000, deepseek −0.0032 p=0.510, llama −0.0066 p=0.154).
+
+**Multiplicity.** Holm-Bonferroni over the pre-declared family — the two declared
+contrasts across three models, six tests; the other five contrasts per model were
+exploratory and are deliberately not folded in, since letting them inflate the
+threshold would be generous in the wrong direction. All three 1a tests survive
+(Holm p 0.000 / 0.008 / 0.048), as does 1b on qwen (0.000). DeepSeek's 1a test
+clears at raw p=0.016 against a threshold of 0.0167, and the bootstrap only
+resolves p to 1/1000, so that one is a borderline pass and should be quoted as
+such. The two 1b nulls do not survive and were not expected to.
+
+### Is the tail restriction a window-size effect?
+
+The model-family reading of 1b has a confound that has to be cleared before it is
+written down anywhere. `rmd_tail_q20` averages over `ceil(0.20 * n_tokens)`
+trailing tokens, so "the final 20%" is a **different statistic at different trace
+lengths** — sibling-mean window 94 tokens on qwen, 439 on deepseek, 373 on llama.
+Distillation, reasoning training and window size all co-vary perfectly *between*
+these three models, so no cross-model comparison can separate them. Trace length
+varies *within* a model, which is what makes the test free.
+
+Two cuts, both on cached OOF rows, both with `rmd_tail_q20` at its frozen
+definition — no new region is opened, so rule 1b is not breached:
+
+1. **Within-model dose-response.** Window terciles, plus a median split. If small
+   windows are why the tail wins on qwen, qwen's advantage must shrink as its own
+   windows grow.
+2. **Matched-window cross-model.** Prompts whose mean window is at most 182 tokens,
+   qwen's maximum, putting another model's short prompts on qwen's token scale.
+
+A stratum is reported only with ≥25 prompts of each class (`MIN_STRATUM_CLASS`);
+below that a six-feature cross-fitted logistic cannot tell "the tail does nothing
+here" from "this stratum has almost no incorrect prompts". Qwen's short tercile
+landed at 24 and is refused rather than reported — the median split was added
+afterwards, stated as such, because a coarser cut both halves clear on their own is
+not the same move as lowering a threshold to reach a number.
+
+**`rmd_tail` over `rmd_full`, by window stratum:**
+
+| model | stratum | n | wrong | base acc | window med | delta |
+|---|---|---:|---:|---:|---:|---|
+| qwen | below median | 196 | 43 | 0.781 | 68 | −0.0419 [−0.0943, −0.0025] p=0.028 |
+| qwen | above median | 196 | 78 | 0.602 | 115 | −0.1158 [−0.1721, −0.0546] p=0.000 |
+| qwen | ≤182 (whole pop.) | 391 | 120 | 0.693 | 87 | −0.0633 [−0.1009, −0.0274] p=0.000 |
+| deepseek | below median | 197 | 33 | 0.832 | 256 | +0.0008 [−0.0125, +0.0140] p=0.990 |
+| deepseek | above median | 196 | 47 | 0.760 | 569 | −0.0070 [−0.0170, +0.0038] p=0.208 |
+| deepseek | ≤182 | 38 | 4 | 0.895 | 125 | not reported (min class 4) |
+| deepseek_llama | below median | 204 | 61 | 0.701 | 130 | −0.0031 [−0.0159, +0.0103] p=0.560 |
+| deepseek_llama | above median | 204 | 72 | 0.647 | 504 | −0.0080 [−0.0266, +0.0087] p=0.320 |
+| deepseek_llama | **≤182** | **154** | **48** | **0.688** | **110** | **−0.0088 [−0.0214, +0.0026] p=0.136** |
+
+**The window hypothesis is falsified, in both directions.**
+
+*Dose-response runs the wrong way.* On qwen the tail's advantage **grows** with
+window size — −0.0419 below the median against −0.1158 above it, and −0.0800 /
+−0.1203 across the mid and long terciles. If a ~200-token window were the reason
+the tail helps, qwen's shortest windows would show the largest advantage. They show
+the smallest. Neither distilled model shows any dose-response at all: deepseek
++0.0008 / −0.0070, llama −0.0031 / −0.0080, every interval covering zero.
+
+*Matched windows do not converge.* Llama's short stratum is an unusually clean
+match to qwen's whole population — n=154, base accuracy 0.688 against qwen's 0.693,
+window median 110 against 87 — so the base-rate objection to comparing AURC across
+populations does not apply here. At that matched token scale llama gives −0.0088
+(interval covering zero) and qwen gives −0.0633 (p=0.000). Same window, same base
+rate, a sevenfold difference in the delta.
+
+DeepSeek cannot answer this question and the counts say why: its short traces are
+its easy problems, so the qwen-matched stratum is n=38 with **4 incorrect prompts**
+and the shortest tercile is n=131 with 18. Both are refused. This is worth stating
+rather than burying — the originally proposed form of this test (shortest quintile
+of deepseek, n=79, 9 incorrect) would have produced a number, and that number would
+have been noise.
+
+**Ruled out:** the tail restriction is a token-window artifact. **Survives:** the
+split tracks reasoning-distillation, and it survives one real attempt to kill it.
+
+**On the qwen non-additivity.** `rmd_full` adds −0.0134 (p=0.096) on top of
+`rmd_tail` on qwen and nothing on the other two, so the two aggregators are
+substitutes there and complements here. Stratified, that concentrates in the same
+place as everything else: +0.0002 (p=0.928) below qwen's median window and −0.0370
+(p=0.014) above it. Same direction as the dose-response, which is mild
+corroboration and nothing more — these stratum contrasts are exploratory, not
+pre-declared, the strata are n≈196, and `rmd_full` over `B0` is p≈0.25 in every
+qwen stratum. Not a result; a consistency check that did not fail.
+
+### Interpretation — ruled in and ruled out
+
+**Ruled in.** The between-prompt increment is not a re-reading of the answer
+distribution. This is the whole-population version of the argument the unanimous
+stratum made on 2026-07-31: the increment survives a baseline carrying the full
+answer histogram, not just its plurality share, on all three models with intervals
+excluding zero. "Adds beyond self-consistency" is now established rather than
+assumed, and the strongest cheap alternative explanation is closed.
+
+**Ruled out — the tail-aggregator novelty leg, on the data as well as in the
+documentation.** The merged review's B1 shows four paper-facing sites describe
+`rmd_tail_q20` as a 20th *percentile* when the code computes a *mean over the final
+20% of tokens*; corrected, that leg reduces to "Vazhentsev's ATRMD under DeepConf's
+windowing". 1b now removes it a second time, empirically: on the two
+reasoning-distilled models the windowing is not doing the work, and the untailed
+ATRMD is the whole effect. What remains is a tail localization specific to
+Qwen2.5-7B-Instruct, and it should be reported as a property of that model rather
+than as the method.
+
+**The split is distillation, not lineage.** An earlier draft of this entry called
+"Qwen-lineage" and "absent in reasoning-distilled models" two readings the data
+could not separate. That was wrong, and the design already separates them:
+
+| model | reasoning-distilled | tail localization |
+|---|---|---|
+| Qwen2.5-7B-Instruct | no | **yes** |
+| DeepSeek-R1-Distill-Qwen-7B | yes | no |
+| DeepSeek-R1-Distill-Llama-8B | yes | no |
+
+DeepSeek-R1-Distill-Qwen-7B is Qwen lineage and sits on the *absent* side, so
+lineage puts it with Qwen2.5-Instruct and the data does not. Two different lineages
+sit on the absent side and only distillation cuts along the split. The 2026-07-28
+`rmd_high_entropy_q20` gate divides the same way *once an absolute-discrimination
+floor is applied* — see the entry above, which ran it on Llama and found that the
+gate as pre-registered says the opposite, because both of its tests are
+differences and neither requires a score to beat chance. What the design does
+*not* separate is distillation from the other things that come with it, which is
+what the window stratification above was run to address for the largest of them.
+
+The honest description of the headline feature is therefore: **a published
+token-level RMD statistic, aggregated over siblings, evaluated for its increment
+over a self-consistency baseline.** Legs (b) trace-to-prompt aggregation and (c)
+evaluation against a vote baseline survive and carry the contribution; leg (a) is
+withdrawn.
+
+Per rule 1b, no region or percentile sweep follows.
+
+### Limitations
+
+The paired bootstrap resamples fixed OOF predictions and does not refit PCA, the
+Gaussian references, or the readouts; all three models share one outer prompt
+partition (B9 — unchanged by this run and still not optional before submission).
+The two pre-declared contrasts are Holm-corrected above; the other five per model
+are exploratory and unadjusted, as is every stratified contrast in the window
+section. `H` is defined over parseable siblings only, so it says nothing about the
+unparsed-sibling channel that `unparsed_count` carries elsewhere. Everything here
+is MATH-500 Best-of-8 at N=8 — the tie between tail and whole trace is a statement
+about this regime, not about DeepConf's intended 256–512-trace one.
+
+The distillation reading rests on **one** non-distilled model. Window size is
+cleared as the mechanism, but everything else that comes with reasoning
+distillation — training data, trace style, the 1024 vs 8192/12288 budget, the
+higher base accuracy — is still perfectly collinear with it across three models,
+and a third non-distilled model would test it far better than any further slicing
+of these three. The stratified deltas are additionally limited by base accuracy
+varying across strata (qwen 0.781 vs 0.602 across its median split), which moves
+the AURC scale even though each delta is a paired within-stratum comparison.
+
+### Next dependent stage
+
+In order:
+
+1. ~~**`rmd_high_entropy_q20` on the Llama OOF** (B13).~~ **Done, same day** — see
+   the entry above. It divides on distillation as predicted, but only under an
+   absolute-discrimination floor the gate did not pre-register; read literally the
+   gate passes Llama on a chance-level score.
+2. **Correct the four `rmd_tail_q20` description sites** in `README.md` and
+   `RELATED_WORK.md` and withdraw the aggregator novelty leg. 1b makes this more
+   urgent, not less: Vazhentsev et al. moves from "closest precedent" to "recovers
+   the entire increment on two of three models", which is a stronger statement than
+   the one currently committed.
+3. **Experiment 2, the cross-model empirical difficulty control** (~1–2 CPU hours,
+   existing data). This matters *more* after 1b, not less. The tail story just
+   narrowed to one model, so the increment's remaining route to a headline larger
+   than careful measurement is showing it carries model-specific solvability that
+   two other models' pass rates on the same prompt cannot supply.
+4. **Experiment 3**, the `N = 1, 2, 4, 8` sibling sweep, still the discriminating
+   test for the B8 mechanism gap.
+
+The claim this entry leaves behind, for whoever drafts next:
+
+> A trace-mean relative Mahalanobis distance adds prompt-level selective-prediction
+> value over a self-consistency baseline on three models. On the two
+> reasoning-distilled models an unrestricted trace mean — the ATRMD statistic of
+> Vazhentsev et al. — recovers the whole effect; restricting to the final 20% of
+> tokens is load-bearing only on Qwen2.5-7B-Instruct, and not because of window
+> size. `rmd_tail_q20` stays the frozen feature because it is the only aggregator
+> whose interval excludes zero on all three models; what dies is the reason for
+> having chosen it. The contribution is the evaluation — prompt-level, aggregated
+> over siblings, against a vote-agreement baseline that 1a has now shown to be
+> genuinely strong.
+
 ## 2026-08-08: Splitting the label-efficiency gap into supervision and decision-function form
 
 The matched-pooling run earlier today (section 4 below) compared `rmd_tail_q20`
