@@ -81,6 +81,12 @@ Where a claim is my inference rather than something a paper states, it is labell
   excluding zero. Different model class (a looped 2.6B transformer), different metric, no
   self-consistency control — but it is a prior instance of "hidden states add incrementally over
   cheap output features", and it should be cited rather than discovered by a reviewer.
+- **Adaptive sample allocation is not available as a contribution (§6, added 2026-08-10).**
+  "Spend a fixed budget non-uniformly across prompts and beat uniform" is Adaptive-Consistency
+  (EMNLP 2023), ESC (ICLR 2024), Damani et al. (arXiv:2410.04707) and ReASC
+  (arXiv:2601.02970). If the allocation rung reports anything, it is geometry's increment over
+  a count-based stopping rule at one-to-two samples per prompt — the only budget where a
+  vote-based rule has nothing to count. Say that before the table, not after it.
 
 ---
 
@@ -509,3 +515,64 @@ Ordered roughly by closeness. "Differs" is the one-line honest statement.
 - No published selective-prediction result on MATH-500 that controls for the dataset's
   **human-annotated level 1–5** difficulty. **Not found** — though absence here is weaker
   evidence, since a difficulty control is the kind of thing buried in an appendix.
+
+---
+
+## 6. Adaptive sample allocation — the crowded area the allocation rung enters
+
+Added **2026-08-10, before the allocation precheck ran**, so the baselines are on record
+ahead of the numbers. The relevant claim shape is *"spend a fixed total sampling budget
+non-uniformly across prompts, and beat spending it uniformly."* That claim is not available:
+it is four papers old and the strongest versions of it are output-side and cheap. Nothing in
+the allocation rung is a contribution on adaptive allocation. **The only thing that could be
+new is geometry's increment over these policies at a budget where they are weak**, and the
+regime where they are weak is small — one or two samples per prompt, where a vote-based rule
+has nothing to count yet.
+
+- **Aggarwal, Madaan, Yang, Mausam, "Let's Sample Step by Step: Adaptive-Consistency for
+  Efficient Reasoning and Coding with LLMs"** ([arXiv:2305.11860](https://arxiv.org/abs/2305.11860),
+  EMNLP 2023). Draws samples sequentially per question and stops on a **lightweight posterior
+  over the answer counts**. Verified from the paper: it proposes Beta, Dirichlet, Chinese
+  Restaurant Process, entropy-based, majority-based and random criteria, and **Beta is the
+  recommended default** — it integrates the posterior probability that the runner-up answer
+  overtakes the leader, `∫₀^0.5 p₂^{v₂}(1−p₂)^{v₁} dp₂` over the top-two counts `v₁, v₂`, and
+  stops once that probability falls below a confidence threshold `C_thresh` (default 0.95).
+  Reports up to 7.9× budget reduction at <0.1% mean accuracy drop across 17 datasets and three
+  LLMs. **This is the baseline the allocation claim has to beat**, and its knob — one scalar
+  threshold — is what we tune out of fold to hit a matched average budget.
+- **Li, Yuan, Feng, Pan, Wang, Sun, Wang, Li, "Escape Sky-high Cost: Early-stopping
+  Self-Consistency for Multi-step Reasoning"** ([arXiv:2401.10480](https://arxiv.org/abs/2401.10480),
+  ICLR 2024). The same idea with a simpler, stricter rule: sampling is divided into windows of
+  size `w` (they use **w = 8 on MATH**, 5 elsewhere) and stops as soon as **every sample inside
+  one window agrees** — zero answer entropy in the window. They add a scheme for choosing
+  `(w, L)` from a target budget and performance level using a first window of `w₀ ≈ 5` samples.
+  Reported −33.8% samples on MATH, up to −84.2% on Coin Flip. Note the direct collision with our
+  setup: with 8 cached siblings and 70% / 89% / 53% of prompts already unanimous, ESC's MATH
+  configuration would stop most of our prompts immediately, which is exactly why the small-budget
+  end is the only regime where geometry has room.
+- **Damani, Shenfeld, Peng, Bobu, Andreas, "Learning How Hard to Think: Input-Adaptive
+  Allocation of LM Computation"** ([arXiv:2410.04707](https://arxiv.org/abs/2410.04707), Oct
+  2024). The closest work *by target*: it trains a predictor of the **reward distribution given
+  an input and a computation budget** and allocates extra computation where it is predicted to
+  help most, over programming, mathematics and dialogue. Claims ~50% compute saved at no quality
+  loss, or up to +10% quality at fixed budget. **This is the paper that owns "predict the gain
+  from more compute, then allocate"** — our `g(p) = a(p,8) − a(p,1)` target is a coarse special
+  case of their reward-vs-budget model. **Differs:** their difficulty features are output-side
+  and prompt-side, not hidden-state geometry; the allocation is over a routing/reranking
+  pipeline; no per-prompt hidden-state signal is used.
+- **Kim, Yang, Min, Jung, "Reliability-Aware Adaptive Self-Consistency for Efficient Sampling
+  in LLM Reasoning"** ([arXiv:2601.02970](https://arxiv.org/abs/2601.02970), Jan 2026; v2 Apr
+  2026). **Identifier verified against the arXiv listing** — it exists and is what the title
+  says. ReASC replaces frequency-only stopping with **response-level confidence**: a first phase
+  resolves single high-confidence responses, then a second accumulates frequency *weighted by
+  confidence*. Up to 70% cost reduction on GSM8K. This is the closest thing to "put a confidence
+  score inside the stopping rule", which is structurally what a geometry-driven allocator does —
+  the difference is only which score. Cite it as the reason the contribution cannot be
+  "confidence-aware allocation" in general.
+
+**What this means for the allocation rung.** The contribution, if any, is *not* adaptive
+allocation and *not* confidence-aware stopping. It is the narrower question of whether a
+**single-trace hidden-state feature** predicts the marginal gain from more samples well enough
+to beat count-based stopping **at budgets where counting has not started yet**. Write the
+expected-loss-at-larger-budgets result down in advance, since ESC and Adaptive-Consistency both
+get strong the moment there are votes to count.
