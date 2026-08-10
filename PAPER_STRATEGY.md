@@ -6,62 +6,42 @@ literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 
 ---
 
-## 1. Revised thesis (defensible)
+## 1. Current thesis (2026-08-10)
 
-> **Relative hidden-state geometry (RMD) is a selective-prediction *between-prompt solvability*
-> signal that beats both trace-length and entropy baselines — and beats them on a
-> component length cannot supply. Against a supervised probe on the same activations it
-> is competitive at the full label budget and ahead when labels are scarce, and the
-> scarce-label advantage is mostly the *quadratic decision function*, not the
-> positive-only fit — being positive-only is what makes the quadratic cheap. It is useful
-> for abstention / compute allocation / routing — NOT for within-prompt (per-attempt)
-> reranking (Best-of-N is weak). Prior "trace-correctness" readings of such geometry were
-> confounded by trace length and by a truncation/auto-label-as-incorrect artifact.**
+> **On MATH-500, after eight sampled reasoning traces, trace-mean relative
+> Mahalanobis distance improves prompt-level selective prediction beyond mean trace
+> length, token entropy, token log probability, and plurality agreement. The AURC
+> increment holds on three 7B/8B models from two architecture families and survives
+> the full exact-answer histogram. Most of the signal measures prompt difficulty:
+> pass rates from two peer models absorb 78–99% of the increment. A smaller residual
+> remains on Qwen2.5-7B-Instruct and DeepSeek-R1-Distill-Llama-8B, but only the Llama
+> residual survives correction across models.**
 
-**[Amendment, 2026-08-09 — the feature is not the contribution.]** The thesis above
-is unchanged in substance, but two of its load-bearing words have to go. The
-statistic is a **trace-mean relative Mahalanobis distance**, which is Vazhentsev et
-al.'s ATRMD aggregator; the *tail* restriction that `rmd_tail_q20` adds on top of it
-is load-bearing **only on Qwen2.5-7B-Instruct**, and on both reasoning-distilled
-models the untailed mean recovers essentially the whole increment on its own. A
-window-size explanation was tested and falsified. `rmd_tail_q20` stays the frozen
-feature because it is the only aggregator whose interval excludes zero on all three
-models, but the reason for choosing it does not survive, and the aggregator is not
-claimed as novel anywhere. What carries the paper is the **evaluation**:
-prompt-level, aggregated over siblings, against a vote-agreement baseline now shown
-strong on the whole population rather than only in the unanimous stratum. Frame the
-contribution there. Full detail: `EXPERIMENT_LOG.md` (2026-08-09, both entries) and
-`RELATED_WORK.md` §nearest-neighbours #1.
+The contribution is the evaluation, not a new geometry statistic. Vazhentsev et al.
+already define token-level RMD and whole-trace ATRMD. On both reasoning-distilled
+models, ATRMD recovers nearly the full increment; restricting the mean to the final
+20% of tokens matters only on Qwen2.5-7B-Instruct. The paper should present the tail
+as a model-dependent localization and foreground the controlled increment over a
+strong self-consistency baseline.
 
-**[Amendment, 2026-08-10 — "solvability" is more literal than intended.]** The
-thesis calls the signal a *between-prompt solvability* signal, and experiment 2 says
-it is that in a stronger sense than was meant. Handed the other two models'
-eight-sibling pass rates on the same prompts — the first difficulty control here
-that beats `B0`, cutting AURC 28–82% — the increment loses ~80% of its size and
-survives on two of three models (−0.0108 / −0.0004 / −0.0125; the third is at its
-readout's ceiling, 0.0045 above a perfect ranker). Two consequences for the write-up.
-(i) **Do not claim the increment is not a difficulty proxy**; the 2026-08-03 entry
-that said so tested it against controls weaker than `B0`. Claim that a residual
-survives a control that is not. (ii) The *right* framing is that RMD reads prompt
-solvability cheaply, from the model's own states, at decision time — which is
-exactly what a peer-model pass rate cannot do. That is the compute-allocation hook
-in §7c-check-3 arriving as a result rather than a correlation. Full detail:
-`EXPERIMENT_LOG.md` (2026-08-10).
+The current evidence supports post-generation abstention and risk ranking after
+eight traces. It does not yet support single-trace verification, pre-generation
+routing, adaptive compute allocation, or within-prompt reranking. The next test asks
+whether geometry available after the first `k` traces predicts the marginal value of
+another sample and improves accuracy at matched compute.
 
-*Second clause added 2026-07-31 from the length-residualized (E1R) + supervised-probe
-runs; see §7e. Rewritten 2026-08-09 from the supervision/form ladder (§7f), which
-moved the attribution and bounded the regime. Scope: between-prompt abstention on
-three models, two of them Qwen-lineage.*
+The label-efficiency result is limited to a small budget. At 50 labelled prompts,
+geometry leads a pooling-matched linear probe by −0.033 AURC. The gap disappears at
+100 prompts, and the probe leads at larger budgets. Do not claim general sample
+efficiency.
 
-Novelty rests on the **length/truncation rigor critique + the between-prompt application**,
-NOT on the RMD primitive (already precedented — see §4).
+The paper's second contribution is methodological. It shows how trace length,
+generation caps, parse failures, layer selection, weak difficulty controls, and
+fixed-prediction uncertainty can inflate claims about reasoning geometry. Prior
+trace-correctness and tail-mechanism claims shrink or fail after these controls.
 
-**The label-efficiency claim has a hard boundary — state it or a reviewer will find it.**
-The advantage is a *small-budget* effect. At 50 labelled prompts geometry leads a
-pooling-matched linear probe by −0.033 AURC; at 100 both the supervision and the
-decision-function-form components are +0.000, and by 400 the probe is ahead on solo
-AUROC (2/30, p<0.001) and earns its place as an *additional* feature (−0.007). Any
-sentence implying geometry stays ahead at scale is unsupported by our own sweeps.
+Full evidence: `EXPERIMENT_LOG.md` entries dated 2026-08-06 through 2026-08-10 and
+`RELATED_WORK.md` §nearest-neighbours.
 
 ## 2. Verified, de-confounded findings (what we can claim)
 
