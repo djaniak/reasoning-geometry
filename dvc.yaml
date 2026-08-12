@@ -247,6 +247,105 @@ stages:
       outs:
         - data/${item.model}_bestofn_${item.scale}/math500
 
+  # ── Prompt-set probe: the gate in front of any new-dataset collect ────────
+  # Cheap and greedy (one layer, 64 problems, ~1 GB) because its only job is to
+  # decide whether the expensive collect is worth running. A prompt set is only
+  # useful here if the model gets some problems right and some wrong; the
+  # summary separates a genuinely hard set from one whose answers do not parse
+  # or whose traces run past the token budget, which look identical in a bare
+  # pass rate. Not frozen -- it is meant to be re-run for each new candidate.
+  probe_dataset:
+    foreach: ${probe_matrix}
+    do:
+      cmd: >-
+        uv run python collect_data.py
+        --dataset ${item.dataset}
+        --model_name ${item.model_name}
+        --max_new_tokens ${item.max_new_tokens}
+        --layers ${item.layers}
+        --limit ${item.limit}
+        --output_dir data/probe/${item.model}_${item.dataset}
+        --summary_path results/probe/${item.model}_${item.dataset}.json
+      deps:
+        - collect_data.py
+      params:
+        - datasets.${item.dataset}
+        - collect.batch_save_size
+      outs:
+        - data/probe/${item.model}_${item.dataset}
+      metrics:
+        - results/probe/${item.model}_${item.dataset}.json:
+            cache: false
+
+  # ── Second prompt set Best-of-8 ───────────────────────────────────────────
+  # A separate block from collect_bestofn_* rather than a `dataset` field added
+  # to those: their cmds hardcode math500, and editing a live stage's cmd to
+  # parametrize it would re-run three finished decompositions for byte-identical
+  # output. Move rows to a *_collected list and freeze once the data lands.
+  collect_bestofn_olympiad:
+    foreach: ${bestofn_olympiad_pending}
+    do:
+      cmd: >-
+        uv run python collect_data.py --dataset ${item.dataset}
+        --model_name ${item.model_name} --max_new_tokens ${item.max_new_tokens}
+        --layers ${item.layers} --temperature ${best_of_n.temperature}
+        --num_samples ${best_of_n.num_samples} --limit ${item.limit}
+        --output_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --summary_path
+        results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_collect_summary.json
+      deps:
+        - collect_data.py
+      params:
+        - best_of_n.temperature
+        - best_of_n.num_samples
+        - datasets.olympiadbench
+      outs:
+        - data/${item.model}_bestofn_${item.scale}/${item.dataset}
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_collect_summary.json:
+            cache: false
+
+  # Same decomposition as evaluate_prompt_decomposition, dataset-parametrized.
+  # `expected_prompts` comes from the item because the second set is 250 rather
+  # than the 500 hardcoded in the prompt_decomposition params block.
+  evaluate_prompt_decomposition_olympiad:
+    foreach: ${bestofn_olympiad_matrix}
+    do:
+      cmd: >-
+        CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py
+        --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
+        --dataset_label ${item.dataset} --model_label ${item.model}
+        --layers ${item.layers} --pca_dim ${analyze.pca_dim}
+        --n ${prompt_decomposition.n} --expected_prompts ${item.expected_prompts}
+        --n_splits ${prompt_decomposition.n_splits} --n_bootstrap ${prompt_decomposition.n_bootstrap}
+        --seed ${prompt_decomposition.seed} --load_workers ${prompt_decomposition.load_workers}
+        --contrastive_regions ${prompt_decomposition.contrastive_regions}
+        --hidden_probe_regions ${prompt_decomposition.hidden_probe_regions}
+        --n_alignment_shuffles ${prompt_decomposition.n_alignment_shuffles}
+        --alignment_seed ${prompt_decomposition.alignment_seed}
+        --region_seed ${prompt_decomposition.region_seed}
+        --hidden_dtype ${prompt_decomposition.hidden_dtype}
+        --compute_dtype ${prompt_decomposition.compute_dtype}
+        --max_reference_tokens ${prompt_decomposition.max_reference_tokens}
+        --max_new_tokens ${item.max_new_tokens}
+      deps:
+        - prompt_decomposition.py
+        - best_of_n.py
+        - analyze.py
+        - data/${item.model}_bestofn_${item.scale}/${item.dataset}
+      params:
+        - prompt_decomposition
+        - analyze.pca_dim
+      metrics:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_results.json:
+            cache: false
+      outs:
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv:
+            cache: false
+        - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_report.md:
+            cache: false
+
   evaluate_prompt_decomposition:
     foreach: ${bestofn_matrix}
     do:

@@ -18,6 +18,13 @@ datasets:
     hf_path: HuggingFaceH4/MATH-500
     hf_name: null
     split: test
+  # Second prompt set, queued 2026-08-10. Text-only open-ended olympiad math,
+  # \boxed{} answers, so the frozen parse/vote machinery carries over. The
+  # answerability filter in collect_data.py keeps 501 of 674 rows.
+  olympiadbench:
+    hf_path: Hothan/OlympiadBench
+    hf_name: OE_TO_maths_en_COMP
+    split: train
 
 collect:
   batch_save_size: 50
@@ -68,18 +75,51 @@ best_of_n:
 bestofn_collected:
   - &bestofn_qwen {model: qwen, scale: full, limit: 500, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "7,14,21"}
   - &bestofn_deepseek {model: deepseek, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, layers: "7,14,21"}
-
-bestofn_pending:
-  # Restored 2026-07-31 (removed 2026-07-29 when the localization gate cancelled
-  # it). Purpose has changed: this is no longer a localization confirmation but
-  # the cross-ARCHITECTURE replication of the between-prompt/E1R results, which
-  # are currently n=2 and both Qwen-lineage.
+  # Retired from pending 2026-08-10: 80/80 batches on disk and every downstream
+  # result already quotes it. It had to move before collect_data.py changed --
+  # the live stage was showing `changed deps` against 259 GB that no remote can
+  # restore. Collected 2026-07-31 as the cross-ARCHITECTURE replication of the
+  # between-prompt/E1R results, which were n=2 and both Qwen-lineage.
   - &bestofn_deepseek_llama {model: deepseek_llama, scale: full, limit: 500, model_name: deepseek-ai/DeepSeek-R1-Distill-Llama-8B, max_new_tokens: 12288, layers: "8,16,24"}
 
+bestofn_pending:
+  # Queued 2026-08-10. Second NON-distilled model: the distilled/non-distilled
+  # split is currently n=1 on each side of the interesting contrast, so nothing
+  # separates "distillation" from "Qwen". Llama-3.1-8B-Instruct is Llama-arch
+  # like deepseek_llama but undistilled, at Qwen's 1024-token budget -- it
+  # crosses the two factors that are presently confounded. Layers match
+  # deepseek_llama so the two Llama-arch rows are read at the same depths.
+  - &bestofn_llama {model: llama, scale: full, limit: 500, model_name: meta-llama/Llama-3.1-8B-Instruct, max_new_tokens: 1024, layers: "8,16,24"}
+
+# Union; drives evaluate_prompt_decomposition. Append only -- an insert would
+# shift the @N stage indices of finished cells.
 bestofn_matrix:
   - *bestofn_qwen
   - *bestofn_deepseek
   - *bestofn_deepseek_llama
+  - *bestofn_llama
+
+# ── Second prompt set: olympiadbench ──────────────────────────────────────────
+# Single-dataset scope is the binding constraint on breadth (PAPER_STRATEGY §7e).
+# Kept in its own matrices rather than folded into bestofn_*: those stages
+# hardcode math500 in their paths, and rewriting their cmds would re-run three
+# finished decompositions to reproduce byte-identical output.
+#
+# Gated on a probe. A prompt set only earns a Best-of-8 collect if its pass rate
+# lands where abstention has both errors and successes to rank -- GSM8K is
+# unusable at ~0.91, and olympiad problems can just as easily floor a 7B. The
+# probe separates the three ways that can go wrong: genuinely hard, unparseable,
+# or truncated at 1024 tokens. Read results/probe/ before running the collect.
+probe_matrix:
+  - {model: qwen, dataset: olympiadbench, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "21", limit: 64}
+
+# Qwen only to start: cheapest budget, and the probe's verdict decides whether
+# the other two models are worth ~500 GB. 250 prompts x 8 samples ~= 22 GB.
+bestofn_olympiad_pending:
+  - &bestofn_olympiad_qwen {model: qwen, scale: full, dataset: olympiadbench, limit: 250, model_name: Qwen/Qwen2.5-7B-Instruct, max_new_tokens: 1024, layers: "7,14,21", expected_prompts: 250}
+
+bestofn_olympiad_matrix:
+  - *bestofn_olympiad_qwen
 
 truncation_probe_matrix:
   - {name: deepseek, model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B, max_new_tokens: 8192, limit: 24, num_samples: 1, batch_size: 8}
@@ -139,6 +179,10 @@ wave1_matrix:
   - {model: deepseek, scale: full, dataset: math500, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 8192}
   # Restored 2026-07-31 alongside the bestofn row; Llama-arch layers.
   - {model: deepseek_llama, scale: full, dataset: math500, layers: "8,16,24", abstention_layer: 24, max_new_tokens: 12288}
+  # Queued 2026-08-10 alongside bestofn_pending. Append only; these rows are
+  # @N-indexed and the three above are finished.
+  - {model: llama, scale: full, dataset: math500, layers: "8,16,24", abstention_layer: 24, max_new_tokens: 1024}
+  - {model: qwen, scale: full, dataset: olympiadbench, layers: "7,14,21", abstention_layer: 21, max_new_tokens: 1024}
 
 # Region-matched output-confidence baselines (Gate A), calibration, and decision
 # values. Seed and bootstrap count match wave1 so the shared prompt resampling is

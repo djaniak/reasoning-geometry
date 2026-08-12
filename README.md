@@ -24,9 +24,19 @@ notebooks are current evidence versus archived diagnostics.
 | Qwen2.5-7B-Instruct | Qwen2.5, 28 layers, hidden dim 3584 | Best-of-8, layer 21, 1024-token budget |
 | DeepSeek-R1-Distill-Qwen-7B | Qwen2.5 lineage, reasoning distill | Best-of-8, layer 21, 8192-token budget |
 | DeepSeek-R1-Distill-Llama-8B | Llama lineage, reasoning distill | Best-of-8, layer 24, 12288-token budget |
-| Llama-3.1-8B-Instruct | Historical diagnostic; not current evidence | — |
+| Llama-3.1-8B-Instruct | Llama lineage, no reasoning distill | **Queued**: Best-of-8, layer 24, 1024-token budget |
 
-Datasets: **MATH-500** (500 problems, 5 difficulty levels, 7 subjects) and **GSM8K** test set (~1300 problems).
+Datasets: **MATH-500** (500 problems, 5 difficulty levels, 7 subjects), **GSM8K** test set
+(~1300 problems, single greedy trace only), and **OlympiadBench** (`OE_TO_maths_en_COMP`,
+501 of 674 rows after the single-numerical-answer filter) — **queued**.
+
+Every current result rests on Best-of-8 MATH-500 alone. GSM8K was collected at one sample
+per problem, so it supports no claim that needs siblings, and its greedy pass rate (0.91 /
+0.91 / 0.63) leaves too few errors for an abstention curve to rank. The two queued collects
+address the two things that scope cannot fix on its own: OlympiadBench is a second prompt
+set, and Llama-3.1-8B-Instruct is a second *non-distilled* model, so that "distilled vs not"
+stops being confounded with "Qwen vs not". Neither has run; see `params.yaml` and the
+`probe_dataset` gate.
 
 ## Current result
 

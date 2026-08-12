@@ -5,6 +5,59 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-10: Two breadth collects queued — second prompt set, second non-distilled model
+
+North star: the surviving claim is that hidden-state geometry indicates which
+*problems* are hard. Two scope limits keep it from being testable as stated, and
+neither is fixable by more analysis of what is already collected:
+
+1. **One prompt set.** Every current number is Best-of-8 MATH-500. GSM8K exists on
+   disk but was collected at one sample per problem (`group_problems: 8` in
+   `collect_arch_matrix` is decode batching, not sampling), so it supports nothing
+   that needs siblings — which is all of it. Its greedy pass rates (qwen 1204/1319,
+   deepseek 453/500, deepseek_llama 314/500) also sit at or near ceiling on two of
+   three models, leaving too few errors for a selective-prediction curve to rank.
+2. **One non-distilled model.** Qwen2.5-7B is the only undistilled row, so
+   "distilled vs not" is perfectly confounded with "Qwen vs not" *and* with the
+   token budget (1024 vs 8192/12288). Nothing in the data can separate the three.
+
+Queued, not run. Wiring only; no result is claimed here.
+
+| Collect | Stage | What it buys | Cost |
+|---|---|---|---|
+| Qwen · OlympiadBench probe | `probe_dataset@0` | Gate: is the pass rate in a usable band, and is a low one difficulty vs parse failure vs truncation? | 64 problems, 1 layer, greedy, ~1 GB |
+| Qwen · OlympiadBench Best-of-8 | `collect_bestofn_olympiad@0` | Second prompt set | 250 × 8, 1024 tok, ~22 GB |
+| Llama-3.1-8B-Instruct · MATH-500 Best-of-8 | `collect_bestofn_pending@0` | Second non-distilled model, Llama-arch, at Qwen's budget — crosses the two confounded factors | 500 × 8, 1024 tok, ~50 GB |
+
+Dataset choice: GPQA-Diamond was the other candidate and is out on two counts — it
+is gated on the Hub (no access from this host), and as a 4-way multiple choice set
+it would replace the plurality-vote convention every frozen result depends on.
+OlympiadBench `OE_TO_maths_en_COMP` keeps MATH-500's `\boxed{}` convention, so the
+parse and vote machinery carries over untouched. `olympiadbench_answerable` keeps
+the 501 of 674 rows whose gold is a single unit-free numerical value; the rest are
+tuples, intervals, expressions, or multi-answer, and would score matcher
+limitations as model errors. Golds are stored as display strings (`$k=1$`), so
+`normalize_olympiadbench_answer` strips delimiters, a single-variable assignment
+prefix, and render-identical macros before deferring to `normalize_math_answer` —
+presentation only, no arithmetic, and verified to leave zero residue across all
+501. MATH-500 keeps the plain normalizer; its results are frozen.
+
+The probe is a gate in the same sense the allocation pre-check was: olympiad
+problems can floor a 7B as easily as GSM8K ceilings it, and a floored pass rate is
+worth exactly as little. Read `results/probe/qwen_olympiadbench.json` before
+running the Best-of-8 collect.
+
+Pipeline safety, recorded because it nearly went wrong: `collect_data.py` is a dep
+of the *live* `collect_bestofn_pending` stage, which still held the finished
+DeepSeek-R1-Distill-Llama-8B row. Editing the script marked 259 GB of collected
+traces as `changed deps` on a non-frozen stage, and there is no DVC remote. That
+row moved to `bestofn_collected` (frozen) in the same change. The pre-existing
+dirt on `evaluate_prompt_decomposition@0..2` and `evaluate_wave1_experiments@0..2`
+is unrelated and predates this change — verified by stashing it and re-running
+`dvc status`. **Do not run a bare `dvc repro`**; name the stage.
+
+Next: run the probe, then decide the Best-of-8 collect on what it says.
+
 ## 2026-08-10: The allocation gate fails — geometry reads difficulty but not marginal gain
 
 North star: does the between-prompt signal buy anything downstream, or only a

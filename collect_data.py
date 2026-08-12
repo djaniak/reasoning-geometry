@@ -5,6 +5,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 import re
 import os
+import json
 import argparse
 
 # --- Config ---
@@ -13,6 +14,25 @@ LAYERS_TO_CAPTURE = [7, 14, 21]  # early (~25%), mid (~50%), late (~75%) of 28 l
 MAX_NEW_TOKENS = 1024  # 512 is enough for GSM8K; MATH-500 needs more headroom
 OUTPUT_DIR = "collected_data"
 BATCH_SAVE_SIZE = 50
+
+def olympiadbench_answerable(example) -> bool:
+    """Keep the rows whose gold is a single unit-free numerical value.
+
+    The other 173 rows of OE_TO_maths_en_COMP carry tuples, intervals, symbolic
+    expressions, multiple accepted answers, or a unit stored outside
+    ``final_answer``. None of those compare correctly against a ``\\boxed{}``
+    extraction under string equality, so including them would score as model
+    error what is really a matcher limitation. Order-preserving, so ``--limit``
+    still selects a deterministic prefix.
+    """
+    return (
+        example["answer_type"] == "Numerical"
+        and not example["is_multiple_answer"]
+        and not example["unit"]
+        and example["final_answer"] is not None
+        and len(example["final_answer"]) == 1
+    )
+
 
 DATASETS = {
     "gsm8k": {
@@ -26,6 +46,16 @@ DATASETS = {
         "hf_name": None,
         "split": "test",
         "system_prompt": "Solve this math problem step by step. Put your final answer in \\boxed{}.",
+    },
+    # Second prompt set, added 2026-08-10. Competition-level olympiad problems,
+    # text-only and open-ended, sharing MATH-500's \boxed{} answer convention so
+    # the frozen vote/parse machinery carries over unchanged.
+    "olympiadbench": {
+        "hf_path": "Hothan/OlympiadBench",
+        "hf_name": "OE_TO_maths_en_COMP",
+        "split": "train",
+        "system_prompt": "Solve this math problem step by step. Put your final answer in \\boxed{}.",
+        "row_filter": olympiadbench_answerable,
     },
 }
 
@@ -56,6 +86,10 @@ def parse_args():
                         help="Two-phase only: positions per capture-forward chunk")
     parser.add_argument("--num_samples", type=int, default=1,
                         help="Number of traces to generate per problem")
+    parser.add_argument("--summary_path", type=str, default=None,
+                        help="Write pass/parse/truncation rates for the run to this JSON. "
+                             "Separates the three reasons a new prompt set can look hard: "
+                             "genuinely hard, unparseable, or budget-truncated.")
     return parser.parse_args()
 
 
@@ -132,6 +166,47 @@ def extract_math_answer(text: str) -> str | None:
 def normalize_math_answer(text: str) -> str:
     """Light normalization for MATH answers: strip spaces, lowercase."""
     return text.strip().lower().replace(' ', '') if text else text
+
+
+# A single (optionally subscripted) variable bound to the value, e.g. "k=1" or
+# "M_{2}=3". Deliberately narrow: answer_type is Numerical for every row that
+# survives olympiadbench_answerable, so an "=" there is presentation, never a
+# relation the model is meant to output.
+_ASSIGNMENT_PREFIX = re.compile(r"^[A-Za-z](?:_\{[^{}]*\}|_[0-9A-Za-z])?\s*=\s*")
+_PRESENTATION_MACROS = (
+    (r"\dfrac", r"\frac"),
+    (r"\tfrac", r"\frac"),
+    (r"\left", ""),
+    (r"\right", ""),
+    (r"\!", ""),
+    (r"\,", ""),
+)
+
+
+def normalize_olympiadbench_answer(text: str) -> str:
+    """Normalize an OlympiadBench answer to the form ``\\boxed{}`` yields.
+
+    OlympiadBench stores golds as display strings rather than bare values: they
+    arrive wrapped in ``$...$`` and sometimes as an assignment (``$k=1$``). This
+    undoes presentation only -- delimiters, assignment prefix, and the LaTeX
+    macros that render identically -- and then defers to the same normalization
+    MATH-500 uses. It does no arithmetic or algebraic rewriting, so it cannot
+    turn a wrong answer into a right one.
+
+    Applied to both sides so the model is judged under the gold's conventions
+    rather than penalized for not guessing them. MATH-500 keeps plain
+    `normalize_math_answer`: its golds are already bare, and its results are
+    frozen.
+    """
+    if not text:
+        return text
+    stripped = text.strip()
+    while len(stripped) > 1 and stripped.startswith("$") and stripped.endswith("$"):
+        stripped = stripped[1:-1].strip()
+    stripped = _ASSIGNMENT_PREFIX.sub("", stripped, count=1)
+    for macro, replacement in _PRESENTATION_MACROS:
+        stripped = stripped.replace(macro, replacement)
+    return normalize_math_answer(stripped)
 
 
 def generate_trace(model, tokenizer, question: str, system_prompt: str = None,
@@ -626,6 +701,13 @@ def main():
     if ds_config["hf_name"]:
         load_kwargs["name"] = ds_config["hf_name"]
     dataset = load_dataset(**load_kwargs)
+    # Filter before --limit so the prompt set is a deterministic prefix of the
+    # answerable rows rather than a prefix of the raw split with holes in it.
+    row_filter = ds_config.get("row_filter")
+    if row_filter is not None:
+        n_raw = len(dataset)
+        dataset = dataset.filter(row_filter)
+        print(f"Row filter kept {len(dataset)}/{n_raw} problems.")
     if args.limit:
         dataset = dataset.select(range(min(args.limit, len(dataset))))
 
@@ -634,6 +716,11 @@ def main():
         get_question = lambda ex: ex["question"]
         get_gold = lambda ex: extract_gsm8k_gold(ex["answer"])
         get_predicted = lambda text: extract_gsm8k_answer(text)
+        answers_match = lambda pred, gold: pred == gold
+    elif args.dataset == "olympiadbench":
+        get_question = lambda ex: ex["question"]
+        get_gold = lambda ex: normalize_olympiadbench_answer(ex["final_answer"][0])
+        get_predicted = lambda text: normalize_olympiadbench_answer(extract_math_answer(text))
         answers_match = lambda pred, gold: pred == gold
     else:  # math500
         get_question = lambda ex: ex["problem"]
@@ -645,6 +732,8 @@ def main():
     batch_results = []
     total_correct = 0
     total_traces = 0
+    total_parsed = 0
+    total_truncated = 0
     next_trace_id = 0
     # Continue numbering after any batches already on disk so a resumed run
     # never overwrites existing data.
@@ -730,6 +819,8 @@ def main():
             is_correct = answers_match(predicted_answer, gold) if (predicted_answer and gold) else False
             total_correct += int(is_correct)
             total_traces += 1
+            total_parsed += int(bool(predicted_answer))
+            total_truncated += int(len(generated_ids) >= args.max_new_tokens)
 
             result = {
                 "trace_id": next_trace_id,
@@ -763,6 +854,30 @@ def main():
 
     denom = max(total_traces, 1)
     print(f"\nDone. Total traces: {total_correct}/{denom} correct ({100*total_correct/denom:.1f}%)")
+    print(f"Parsed an answer: {total_parsed}/{denom} ({100*total_parsed/denom:.1f}%); "
+          f"hit the token budget: {total_truncated}/{denom} ({100*total_truncated/denom:.1f}%)")
+
+    if args.summary_path:
+        summary = {
+            "dataset": args.dataset,
+            "model_name": args.model_name,
+            "max_new_tokens": args.max_new_tokens,
+            "temperature": args.temperature,
+            "num_samples": args.num_samples,
+            "limit": args.limit,
+            "n_problems": len(dataset),
+            "n_traces": total_traces,
+            "n_correct": total_correct,
+            "n_parsed": total_parsed,
+            "n_truncated": total_truncated,
+            "pass_rate": total_correct / denom,
+            "parse_rate": total_parsed / denom,
+            "truncation_rate": total_truncated / denom,
+        }
+        os.makedirs(os.path.dirname(args.summary_path) or ".", exist_ok=True)
+        with open(args.summary_path, "w") as handle:
+            json.dump(summary, handle, indent=2)
+        print(f"Wrote run summary to {args.summary_path}")
 
 
 if __name__ == "__main__":
