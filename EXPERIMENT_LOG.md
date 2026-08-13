@@ -5,6 +5,116 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-13: Arithmetic DAG patching pilot finds a shallow stated-value channel
+
+North star: can residual-stream patching recover a known dependency edge before
+we use it to compare a model's internal influence pattern with a ground-truth
+causal DAG? This is a five-item feasibility pilot on synthetic, token-aligned
+arithmetic traces. It tests the intervention and readout. It does not establish
+that the model represents a causal graph.
+
+### Protocol and artifacts
+
+Standalone GPU runs, not DVC stages. None appears in `dvc.lock`, and the JSON
+artifacts remain under the gitignored `results/` tree.
+
+- Model: `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`, 28 decoder layers.
+- Data: five generated DAGs per run, seed 0, six decoy nodes, single-digit node
+  values, and equal-length clean/donor token sequences.
+- Intervention: copy donor residual states at the edited node's operand and
+  stated-result token positions into the clean run at layers 6, 13, 20, or 27.
+- Readout: change in the ten-digit distribution at the position that predicts
+  the target result. `delta_toward` measures the change in log-odds of the value
+  implied by the donor; total variation (TV) measures the full digit-distribution
+  change.
+- Controls: matched non-ancestor edits, six irrelevant-node edits, a two-token
+  surface-tag edit, digit-mass retention, and an identity patch.
+
+Code and checks:
+
+- `dag_tasks.py`: generator, exact patch positions, transitive-reduction ground
+  truth, donor conditions, depth ladder, and decoy-gap control.
+- `dag_patching.py`: residual capture/write hooks, digit readout, gates, and
+  three-way verdict (`positive`, `scientific negative`, `invalid test`).
+- `tests/test_dag_tasks.py`, `tests/test_dag_patching.py`, and
+  `tests/test_dag_patching_hooks.py`: generator, gate, and hook regression tests.
+
+Artifacts:
+
+- `results/dag_patching/feasibility.json`
+- `results/dag_patching/result_only.json`
+- `results/dag_patching/operand_only.json`
+- `results/dag_patching/depth{1,2,3}_gap0.json`
+- `results/dag_patching/depth1_gap{1,2}.json`
+
+The current CLI equivalents are `uv run python dag_patching.py` with the output
+path and the corresponding `--condition`, `--depth`, and `--gap` flags. The first
+three artifacts predate the addition of `depth`, `gap`, and distance fields to
+the JSON schema. They use depth 1 and the generator's random decoy split.
+
+### Feasibility and mechanism split
+
+The original consistent edit changes both an operand and its stated result. It
+passes the directional, fluency, and ancestor-gap gates. The identity patch
+changes no logits, and the minimum patched/clean digit-mass ratio is 0.9988.
+At layers 6/13/20, the median ancestor TV is 0.844/0.844/0.834 versus
+0.047/0.017/0.008 for the matched non-ancestor. The median directional
+log-odds change is +7.12/+7.13/+7.05; 5/5, 4/5, and 4/5 items move toward the
+donor-implied target.
+
+The donor split identifies what carries that effect:
+
+| Donor edit | Median ancestor TV, L6 / L13 / L20 | Median `delta_toward` | Gate verdict |
+|:---|:---|:---|:---|
+| Result only: change the stated result, keep operands clean | 0.838 / 0.837 / 0.836 | +6.83 / +6.83 / +6.54 | Positive |
+| Operand only: change an operand, keep the stated result clean | 0.065 / 0.078 / 0.034 | +1.25 / +1.10 / +0.81 | Scientific negative |
+
+The patched channel follows the written result far more than arithmetic
+recomputation from the changed operand. The result-only run preserves the large
+consistent-edit effect; the operand-only ancestor does not separate from the
+matched non-ancestor by more than the null spread. The result-only artifact's
+surface-tag diagnostic falls inside the itemwise null range for only 2/5, 3/5,
+and 1/5 items at layers 6/13/20. The positive verdict does not depend on that
+diagnostic, so surface selectivity remains unresolved for this five-item run.
+
+### Depth ladder and token-distance control
+
+All runs below use the consistent `both` edit. Values report median ancestor TV
+over five items. The final decoder-layer patch is zero by construction because
+no later layer can carry an upstream-position edit to the target read position,
+so the summary excludes layer 27.
+
+| Path depth | Decoy gap | Median ancestor distance (range) | L6 / L13 / L20 TV | Verdict |
+|---:|---:|:---|:---|:---|
+| 1 | 0 | 11 (11-24) tokens | 0.923 / 0.919 / 0.873 | Positive |
+| 1 | 1 | 24 (24-37) tokens | 0.820 / 0.801 / 0.744 | Positive |
+| 1 | 2 | 37 (37-50) tokens | 0.840 / 0.840 / 0.733 | Positive |
+| 2 | 0 | 36 (23-36) tokens | 0.052 / 0.044 / 0.021 | Positive |
+| 3 | 0 | 35 (35-48) tokens | 0.007 / 0.004 / 0.004 | Positive |
+
+The intervention stays directional through depth 3, but its distributional
+effect drops by more than an order of magnitude after one written intermediate
+step and again after the second. Extra decoy lines leave the depth-1 effect
+large at matched token distances. The attenuation therefore tracks intervening
+written computation in this task, not distance to the read position alone.
+
+### Current interpretation and limits
+
+The pilot supports one narrow result: early and middle residual states at a
+stated ancestor value can steer the predicted target along a known edge, and an
+irrelevant value edit cannot under the registered gate. The model propagates the
+stated intermediate result. A later written step overwrites most of the injected
+effect.
+
+Keep this out of the current geometry claim. Each cell has five synthetic items,
+one seed, one 1.5B checkpoint, and no uncertainty estimate. Clean top-digit
+accuracy ranges from 1/5 to 5/5 across generated batches, so directional movement
+does not imply successful arithmetic. The ignored artifacts also lack DVC
+provenance, and the first three use the older schema. A causal-DAG fidelity score
+needs a larger fixed item set, a non-degenerate surface control, and replication
+on the Base/Instruct/Distill checkpoints with the tokenizer-alignment gate. No
+saved tokenizer-alignment report exists for these runs.
+
 ## 2026-08-10: Two breadth collects queued — second prompt set, second non-distilled model
 
 North star: the surviving claim is that hidden-state geometry indicates which
