@@ -162,13 +162,29 @@ def test_digit_readout_normalises_over_the_ten_digits(model, tokens):
     assert 0.0 <= mass <= 1.0
 
 
+def toy_encode(text):
+    """Toy-vocabulary encoder that keeps the real space-merge rule.
+
+    A space merges with a following letter but not with a following digit, as in
+    the Qwen tokenizers. Dropping that rule here would let these tests pass on
+    traces the real checkpoints reject.
+    """
+    tokens, index = [], 0
+    while index < len(text):
+        if text[index] == " " and index + 1 < len(text) and text[index + 1].isalpha():
+            tokens.append(text[index:index + 2])
+            index += 2
+        else:
+            tokens.append(text[index])
+            index += 1
+    return [int.from_bytes(token.encode(), "big") % VOCAB for token in tokens]
+
+
 def toy_items(n_items=1):
     """Generator items encoded into the toy model's vocabulary."""
     from dag_tasks import generate_items
 
-    return generate_items(
-        lambda text: [ord(ch) % VOCAB for ch in text], n_items=n_items, seed=0
-    )
+    return generate_items(toy_encode, n_items=n_items, seed=0)
 
 
 TOY_DIGIT_IDS = [ord(str(d)) % VOCAB for d in range(10)]

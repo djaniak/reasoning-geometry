@@ -23,12 +23,29 @@ from dag_tasks import (
 
 
 def char_encode(text):
-    """Character-level stand-in for a real tokenizer.
+    """Stand-in tokenizer with the merge behaviour that actually matters.
 
-    Every single character is one token, which is exactly the property the real
-    tokenizers must also have at the patchable sites.
+    The Qwen tokenizers keep a space separate from a following digit but merge
+    it with a following letter. The generator's chunk boundaries depend on
+    exactly that, so a fake that merges nothing would accept a trace the real
+    tokenizers reject -- which is how the line tag shipped broken.
     """
-    return [ord(ch) for ch in text]
+    tokens, index = [], 0
+    while index < len(text):
+        if text[index] == " " and index + 1 < len(text) and text[index + 1].isalpha():
+            tokens.append(text[index:index + 2])
+            index += 2
+        else:
+            tokens.append(text[index])
+            index += 1
+    return [int.from_bytes(token.encode(), "big") for token in tokens]
+
+
+def char_decode(token_ids):
+    return "".join(
+        token.to_bytes((token.bit_length() + 7) // 8, "big").decode()
+        for token in token_ids
+    )
 
 
 @pytest.fixture(scope="module")
@@ -134,7 +151,9 @@ def test_ancestor_edit_recomputes_the_target_correctly(items):
     for item in items:
         edit = next(e for e in item.edits if e.kind == "ancestor")
         # The donor's stated value for the ancestor node, read back off the trace.
-        donor_ancestor = int(chr(edit.token_ids[item.value_positions[ANCESTOR]]))
+        donor_ancestor = int(
+            char_decode([edit.token_ids[item.value_positions[ANCESTOR]]])
+        )
         target = item.nodes[TARGET]
         expected = (
             donor_ancestor + int(target.rhs)
@@ -187,10 +206,38 @@ def test_no_step_uses_a_zero_operand(items):
 
 
 def test_donor_traces_also_avoid_zero_operands(items):
+    # A node value of 0 is fine; only the two operand slots must stay non-zero.
     for item in items:
         for edit in item.edits:
-            donor = "".join(chr(token) for token in edit.token_ids)
-            assert " 0 " not in donor  # both operand slots are space-delimited
+            for line in char_decode(edit.token_ids).splitlines():
+                lhs, op, rhs = line.split(" = ")[1].split(" # ")[0].split(" ")
+                assert lhs != "0" and rhs != "0", line
+
+
+def test_line_tags_sit_at_the_end_of_the_line_behind_a_space(items):
+    # The first version put the tag right after "[". Qwen merges "[o" into one
+    # token, so every candidate was rejected and the generator could not produce
+    # anything at all. Only a space may precede a tag.
+    for item in items:
+        for line in item.text.splitlines():
+            body, _, tag = line.rpartition(" # ")
+            assert body and len(tag) == 1 and tag.isalpha()
+
+
+def test_survives_a_tokenizer_that_merges_punctuation_with_a_following_letter():
+    def merging_encode(text):
+        tokens, index = [], 0
+        while index < len(text):
+            following = text[index + 1] if index + 1 < len(text) else ""
+            if not text[index].isalnum() and following.isalpha():
+                tokens.append(text[index:index + 2])
+                index += 2
+            else:
+                tokens.append(text[index])
+                index += 1
+        return [int.from_bytes(token.encode(), "big") for token in tokens]
+
+    assert len(generate_items(merging_encode, n_items=2, seed=0)) == 2
 
 
 def test_rejects_a_tokenizer_that_splits_digits():
@@ -200,5 +247,18 @@ def test_rejects_a_tokenizer_that_splits_digits():
             out.extend([ord(ch), ord(ch)] if ch.isdigit() else [ord(ch)])
         return out
 
-    with pytest.raises(RuntimeError, match="check the tokenizer"):
+    with pytest.raises(RuntimeError, match="could not sample"):
+        generate_items(splitting_encode, n_items=1, seed=0)
+
+
+def test_the_failure_message_names_the_reason():
+    # Without this the only signal is "check the tokenizer", which is what made
+    # the line-tag merge take a round trip to diagnose.
+    def splitting_encode(text):
+        out = []
+        for ch in text:
+            out.extend([ord(ch), ord(ch)] if ch.isdigit() else [ord(ch)])
+        return out
+
+    with pytest.raises(RuntimeError, match=r"\d+x site 'operand:\w+' is 2 tokens"):
         generate_items(splitting_encode, n_items=1, seed=0)

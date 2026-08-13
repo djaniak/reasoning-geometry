@@ -142,21 +142,32 @@ def ancestors(edges: set[tuple[str, str]], node: str) -> set[str]:
 
 
 def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str]):
-    """Build the trace as (text, site) chunks.
+    """Build the trace as (text, site) chunks, one line per node.
 
     ``site`` is ``None`` for structural text, or a key naming a patchable
     single-token position. Chunking is what gives exact position knowledge;
     ``encode_chunks`` verifies it against whole-string tokenization.
+
+    Chunk boundaries are not free. The Qwen tokenizers split a space from a
+    following digit but merge it with a following letter, and merge ``"["`` with
+    the letter after it. So digit sites are bare with the space left in the
+    preceding chunk, and the line tag carries its own leading space and sits at
+    the end of the line, where nothing can merge into it.
     """
     chunks: list[tuple[str, str | None]] = []
     for name in order:
         node = nodes[name]
-        chunks.append(("[", None))
-        chunks.append((tags[name], f"tag:{name}"))
-        chunks.append((f"] {node.name} = {node.lhs} {node.op} ", None))
-        chunks.append((node.rhs, f"operand:{name}"))
+        chunks.append((f"{node.name} = {node.lhs} {node.op} ", None))
+        if node.rhs.isdigit():
+            chunks.append((node.rhs, f"operand:{name}"))
+        else:
+            # The merge node's operand is a variable, never edited, so it needs
+            # no site of its own -- and a name must keep its leading space.
+            chunks[-1] = (chunks[-1][0].rstrip() + f" {node.rhs}", None)
         chunks.append((" = ", None))
         chunks.append((str(node.value), f"result:{name}"))
+        chunks.append((" #", None))
+        chunks.append((f" {tags[name]}", f"tag:{name}"))
         chunks.append(("\n", None))
     return chunks
 
@@ -168,16 +179,26 @@ def encode_chunks(chunks, encode):
     tokenization disagrees with tokenizing the whole string. Both would silently
     misplace every patch.
     """
+    # Coalesce runs of structural text. Only boundaries at patchable sites can
+    # then disagree with whole-string tokenization, which is the smallest
+    # surface the position bookkeeping can be exposed to.
+    merged: list[tuple[str, str | None]] = []
+    for text, site in chunks:
+        if site is None and merged and merged[-1][1] is None:
+            merged[-1] = (merged[-1][0] + text, None)
+        else:
+            merged.append((text, site))
+
     ids: list[int] = []
     sites: dict[str, int] = {}
-    for text, site in chunks:
+    for text, site in merged:
         piece = list(encode(text))
         if site is not None:
             if len(piece) != 1:
                 raise Reject(f"site {site!r} is {len(piece)} tokens, not 1")
             sites[site] = len(ids)
         ids.extend(piece)
-    whole = list(encode("".join(text for text, _ in chunks)))
+    whole = list(encode("".join(text for text, _ in merged)))
     if whole != ids:
         raise Reject("chunk-wise tokenization disagrees with whole-string")
     return ids, sites
@@ -338,15 +359,20 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids."""
     rng = random.Random(seed)
     items = []
+    reasons: dict[str, int] = {}
     while len(items) < n_items:
         for _ in range(2000):
             try:
                 items.append(_build(rng, encode, n_decoys))
                 break
-            except Reject:
-                continue
+            except Reject as reject:
+                reasons[str(reject)] = reasons.get(str(reject), 0) + 1
         else:
-            raise RuntimeError("could not sample a valid DAG item; check the tokenizer")
+            ranked = sorted(reasons.items(), key=lambda pair: -pair[1])
+            detail = "; ".join(f"{count}x {reason}" for reason, count in ranked[:5])
+            raise RuntimeError(
+                f"could not sample a valid DAG item after 2000 tries: {detail}"
+            )
     return items
 
 
