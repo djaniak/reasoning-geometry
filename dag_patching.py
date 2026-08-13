@@ -1,0 +1,406 @@
+"""Five-item residual-stream patching feasibility check on ground-truth DAGs.
+
+Prototype 1 of the causal-DAG fidelity direction. For each item we run the clean
+trace, run each donor trace, then re-run the clean trace with the donor's
+residual state written in at the edited token positions. We read the model's
+ten-way digit distribution at the position that predicts the target's result.
+
+The question this script answers is *not* "does the model have a causal graph".
+It is the prior question: **is this intervention selective enough to support that
+experiment at all**. It therefore reports three separate verdicts — positive,
+scientific negative, and invalid test — and never reports "no causal graph" when
+the intervention itself failed.
+
+Layer indexing note: unlike ``collect_data.py``, which reads
+``outputs.hidden_states[i]``, this script both reads and writes at the output of
+``model.model.layers[j]``. Using one mechanism for both directions makes the
+off-by-one between the two conventions impossible rather than merely tested.
+``hidden_states[n_layers]`` is also post-final-norm, so it is not a valid patch
+site at all.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+from pathlib import Path
+
+from dag_tasks import CHECKPOINTS, generate_items
+
+LAYER_FRACTIONS = (0.25, 0.50, 0.75, 1.00)
+DIGITS = tuple(str(d) for d in range(10))
+
+
+def layer_bins(n_layers: int, fractions=LAYER_FRACTIONS) -> list[int]:
+    """Four relative-depth decoder-layer indices, fixed once per checkpoint.
+
+    Frozen before the first run and reused for every checkpoint and prototype,
+    per the pre-registered measurement conditions.
+    """
+    return sorted({max(0, round(fraction * n_layers) - 1) for fraction in fractions})
+
+
+def decoder_layers(model):
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        raise TypeError(f"{type(model).__name__} has no model.layers to hook")
+    return layers
+
+
+def _residual(output):
+    return output[0] if isinstance(output, tuple) else output
+
+
+def _rewrap(output, residual):
+    if isinstance(output, tuple):
+        return (residual,) + tuple(output[1:])
+    return residual
+
+
+def capture_states(model, token_ids, bins, positions):
+    """Residual states at ``positions``, one tensor per layer bin, plus logits."""
+    import torch
+
+    store = {}
+    handles = []
+    for layer in bins:
+        def hook(module, args, output, layer=layer):
+            store[layer] = _residual(output)[:, positions, :].detach().clone()
+        handles.append(decoder_layers(model)[layer].register_forward_hook(hook))
+    try:
+        with torch.no_grad():
+            input_ids = torch.as_tensor([list(token_ids)], device=model.device)
+            logits = model(input_ids, use_cache=False).logits
+    finally:
+        for handle in handles:
+            handle.remove()
+    return store, logits
+
+
+def run_patched(model, token_ids, layer, positions, donor):
+    """Run ``token_ids`` with ``donor`` written into layer ``layer`` at ``positions``."""
+    import torch
+
+    def hook(module, args, output):
+        residual = _residual(output).clone()
+        residual[:, positions, :] = donor.to(residual.device, residual.dtype)
+        return _rewrap(output, residual)
+
+    handle = decoder_layers(model)[layer].register_forward_hook(hook)
+    try:
+        with torch.no_grad():
+            input_ids = torch.as_tensor([list(token_ids)], device=model.device)
+            return model(input_ids, use_cache=False).logits
+    finally:
+        handle.remove()
+
+
+def digit_readout(logits, read_position, digit_ids):
+    """(probabilities over the ten digits, log-odds, total digit mass)."""
+    import torch
+
+    row = logits[0, read_position].detach().float()
+    selected = row[list(digit_ids)]
+    full = torch.softmax(row, dim=-1)
+    return (
+        torch.softmax(selected, dim=-1).cpu().numpy(),
+        torch.log_softmax(selected, dim=-1).cpu().numpy(),
+        float(full[list(digit_ids)].sum()),
+    )
+
+
+def digit_token_ids(tokenizer) -> list[int]:
+    ids = []
+    for digit in DIGITS:
+        encoded = tokenizer.encode(digit, add_special_tokens=False)
+        if len(encoded) != 1:
+            raise ValueError(f"digit {digit!r} is {len(encoded)} tokens, not 1")
+        ids.append(encoded[0])
+    if len(set(ids)) != 10:
+        raise ValueError("digit token ids are not distinct")
+    return ids
+
+
+# --------------------------------------------------------------------------
+# measurement
+# --------------------------------------------------------------------------
+
+
+def measure_item(model, item, bins, digit_ids) -> list[dict]:
+    """One row per (layer bin, edit)."""
+    _, clean_logits = capture_states(model, item.token_ids, bins, [item.read_position])
+    probs, logodds, mass = digit_readout(clean_logits, item.read_position, digit_ids)
+
+    rows = []
+    for edit in item.edits:
+        if max(edit.positions) >= item.read_position:
+            raise ValueError("edit is not upstream of the read position")
+        if len(edit.token_ids) != len(item.token_ids):
+            raise ValueError("donor and clean traces differ in length")
+        donor_states, _ = capture_states(
+            model, edit.token_ids, bins, list(edit.positions)
+        )
+        for layer in bins:
+            patched_logits = run_patched(
+                model, item.token_ids, layer, list(edit.positions), donor_states[layer]
+            )
+            p_probs, p_logodds, p_mass = digit_readout(
+                patched_logits, item.read_position, digit_ids
+            )
+            rows.append({
+                "kind": edit.kind,
+                "node": edit.node,
+                "layer": layer,
+                "distance_to_read": edit.distance_to_read,
+                "tv": float(0.5 * abs(p_probs - probs).sum()),
+                "delta_toward": float(
+                    p_logodds[edit.implied_target_value]
+                    - logodds[edit.implied_target_value]
+                ),
+                "delta_away": float(
+                    p_logodds[item.target_value] - logodds[item.target_value]
+                ),
+                "digit_mass_clean": mass,
+                "digit_mass_patched": p_mass,
+            })
+    return rows, {
+        "target_value": item.target_value,
+        "clean_top_digit": int(probs.argmax()),
+        "clean_target_logodds": float(logodds[item.target_value]),
+        "clean_digit_mass": mass,
+    }
+
+
+def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
+    """The four continue-rules from the prototype specification."""
+    gates = {}
+
+    # 1. Directional positive control. An ancestor patch must move the target
+    #    toward the value implied by the donor, not merely away from the clean
+    #    answer -- a patch that only corrupts the model also does the latter.
+    directional = {}
+    for layer in bins:
+        toward = [
+            row["delta_toward"]
+            for rows in per_item
+            for row in rows
+            if row["kind"] == "ancestor" and row["layer"] == layer
+        ]
+        directional[layer] = {
+            "n_positive": sum(value > 0 for value in toward),
+            "n_items": len(toward),
+            "median_delta_toward": statistics.median(toward) if toward else 0.0,
+        }
+    gates["directional_control"] = {
+        "per_layer": directional,
+        "passes": any(
+            stats["n_positive"] >= max(1, stats["n_items"] - 1)
+            and stats["median_delta_toward"] > 0
+            for stats in directional.values()
+        ),
+    }
+
+    # 2. Fluency. The answer distribution must stay on digits at all.
+    ratios = [
+        row["digit_mass_patched"] / row["digit_mass_clean"]
+        for rows in per_item
+        for row in rows
+        if row["kind"] == "ancestor" and row["digit_mass_clean"] > 0
+    ]
+    gates["fluency"] = {
+        "min_digit_mass_ratio": min(ratios) if ratios else 0.0,
+        "passes": bool(ratios) and min(ratios) >= 0.5,
+    }
+
+    # 3. The ancestor-minus-non-ancestor gap must exceed the per-item null spread.
+    # 4. The surface edit must sit inside that spread.
+    gap_pass, surface_pass, detail = [], [], []
+    for rows in per_item:
+        for layer in bins:
+            at_layer = [row for row in rows if row["layer"] == layer]
+            nulls = [row["tv"] for row in at_layer if row["kind"] == "null"]
+            ancestor = next(r["tv"] for r in at_layer if r["kind"] == "ancestor")
+            non_ancestor = next(r["tv"] for r in at_layer if r["kind"] == "non_ancestor")
+            surface = next(r["tv"] for r in at_layer if r["kind"] == "surface_null")
+            spread = max(nulls) - min(nulls)
+            gap_pass.append((layer, (ancestor - non_ancestor) > spread))
+            surface_pass.append((layer, min(nulls) <= surface <= max(nulls)))
+            detail.append({
+                "layer": layer,
+                "tv_ancestor": ancestor,
+                "tv_non_ancestor": non_ancestor,
+                "tv_surface_null": surface,
+                "tv_null_min": min(nulls),
+                "tv_null_max": max(nulls),
+                "ancestor_above_all_nulls": ancestor > max(nulls),
+            })
+    by_layer = {
+        layer: {
+            "gap_items": sum(ok for lay, ok in gap_pass if lay == layer),
+            "surface_items": sum(ok for lay, ok in surface_pass if lay == layer),
+            "n_items": sum(lay == layer for lay, _ in gap_pass),
+        }
+        for layer in bins
+    }
+    gates["ancestor_gap"] = {
+        "per_layer": by_layer,
+        "passes": any(
+            stats["gap_items"] >= max(1, stats["n_items"] - 1)
+            for stats in by_layer.values()
+        ),
+    }
+    gates["surface_inside_null_spread"] = {
+        "per_layer": by_layer,
+        "passes": any(
+            stats["surface_items"] >= max(1, stats["n_items"] - 1)
+            for stats in by_layer.values()
+        ),
+    }
+    gates["detail"] = detail
+    return gates
+
+
+def verdict(gates: dict) -> str:
+    """Positive, scientific negative, or invalid test -- kept strictly separate.
+
+    An invalid test is not evidence about the model. Reporting one as a null is
+    the specific failure the feasibility stage exists to catch.
+    """
+    if not gates["directional_control"]["passes"] or not gates["fluency"]["passes"]:
+        return "invalid test"
+    if gates["ancestor_gap"]["passes"]:
+        return "positive"
+    return "scientific negative"
+
+
+# --------------------------------------------------------------------------
+# self-check
+# --------------------------------------------------------------------------
+
+
+def identity_patch_check(model, token_ids, bins, positions) -> dict:
+    """Patch the clean run's own state back into itself; logits must not move.
+
+    This is the one cheap check that pins the read and write sites to the same
+    place. A silent mismatch there produces a plausible-looking null.
+    """
+    import torch
+
+    states, clean_logits = capture_states(model, token_ids, bins, positions)
+    worst = 0.0
+    for layer in bins:
+        patched = run_patched(model, token_ids, layer, positions, states[layer])
+        worst = max(worst, float((patched - clean_logits).abs().max()))
+    return {"max_abs_logit_change": worst, "passes": worst < 1e-3}
+
+
+# --------------------------------------------------------------------------
+# entry point
+# --------------------------------------------------------------------------
+
+
+def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
+        output_path: str | None, self_test_only: bool) -> dict:
+    from transformers import AutoTokenizer
+
+    from collect_data import load_model
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    items = generate_items(
+        lambda text: tokenizer.encode(text, add_special_tokens=False),
+        n_items=n_items,
+        n_decoys=n_decoys,
+        seed=seed,
+    )
+    digit_ids = digit_token_ids(tokenizer)
+
+    model, _ = load_model(False, model_name=model_name)
+    bins = layer_bins(model.config.num_hidden_layers)
+
+    identity = identity_patch_check(
+        model, items[0].token_ids, bins, list(items[0].edits[0].positions)
+    )
+    report = {
+        "model": model_name,
+        "n_items": len(items),
+        "seed": seed,
+        "layer_bins": bins,
+        "n_layers": model.config.num_hidden_layers,
+        "n_tokens": [len(item.token_ids) for item in items],
+        "identity_patch": identity,
+    }
+    if not identity["passes"]:
+        report["verdict"] = "invalid test"
+        report["reason"] = "identity patch changed the logits; read and write sites differ"
+        return report
+    if self_test_only:
+        report["verdict"] = "self test only"
+        return report
+
+    per_item, summaries = [], []
+    for item in items:
+        rows, summary = measure_item(model, item, bins, digit_ids)
+        per_item.append(rows)
+        summaries.append(summary)
+
+    report["items"] = summaries
+    report["rows"] = [row for rows in per_item for row in rows]
+    report["gates"] = evaluate_gates(per_item, bins)
+    report["verdict"] = verdict(report["gates"])
+
+    if output_path:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2))
+    return report
+
+
+def print_gate_table(report: dict) -> None:
+    gates = report.get("gates")
+    print(f"model          {report['model']}")
+    print(f"layer bins     {report['layer_bins']} of {report['n_layers']} layers")
+    print(f"identity patch max |dlogit| = "
+          f"{report['identity_patch']['max_abs_logit_change']:.2e} "
+          f"({'pass' if report['identity_patch']['passes'] else 'FAIL'})")
+    if not gates:
+        print(f"verdict        {report['verdict']}")
+        return
+    print()
+    print(f"{'gate':<32}{'passes':<10}detail")
+    for name in ("directional_control", "fluency", "ancestor_gap",
+                 "surface_inside_null_spread"):
+        gate = gates[name]
+        detail = {k: v for k, v in gate.items() if k != "passes"}
+        print(f"{name:<32}{str(gate['passes']):<10}{json.dumps(detail)[:110]}")
+    print()
+    print(f"verdict        {report['verdict']}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model_name", default=CHECKPOINTS[2])
+    parser.add_argument("--n_items", type=int, default=5)
+    parser.add_argument("--n_decoys", type=int, default=6)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--output", default=None)
+    parser.add_argument("--self_test", action="store_true",
+                        help="run the identity patch and stop, no science")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    report = run(
+        model_name=args.model_name,
+        n_items=args.n_items,
+        n_decoys=args.n_decoys,
+        seed=args.seed,
+        output_path=args.output,
+        self_test_only=args.self_test,
+    )
+    print_gate_table(report)
+
+
+if __name__ == "__main__":
+    main()
