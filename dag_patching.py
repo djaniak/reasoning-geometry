@@ -26,7 +26,7 @@ import json
 import statistics
 from pathlib import Path
 
-from dag_tasks import CHECKPOINTS, generate_items
+from dag_tasks import CHECKPOINTS, DONOR_CONDITIONS, generate_items
 
 LAYER_FRACTIONS = (0.25, 0.50, 0.75, 1.00)
 DIGITS = tuple(str(d) for d in range(10))
@@ -301,7 +301,8 @@ def identity_patch_check(model, token_ids, bins, positions) -> dict:
 
 
 def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
-        output_path: str | None, self_test_only: bool) -> dict:
+        output_path: str | None, self_test_only: bool,
+        condition: str = "both") -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -312,6 +313,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         n_items=n_items,
         n_decoys=n_decoys,
         seed=seed,
+        condition=condition,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -323,6 +325,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
     )
     report = {
         "model": model_name,
+        "condition": condition,
         "n_items": len(items),
         "seed": seed,
         "layer_bins": bins,
@@ -383,6 +386,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_items", type=int, default=5)
     parser.add_argument("--n_decoys", type=int, default=6)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--condition", choices=DONOR_CONDITIONS, default="both",
+                        help="which part of the edited line the donor rewrites")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -396,6 +401,7 @@ def main() -> None:
         n_items=args.n_items,
         n_decoys=args.n_decoys,
         seed=args.seed,
+        condition=args.condition,
         output_path=args.output,
         self_test_only=args.self_test,
     )

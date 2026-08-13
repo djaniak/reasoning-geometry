@@ -12,10 +12,24 @@ Every node value is a single digit. That is not cosmetic:
   clean run;
 * the read-out is a log-odds over a fixed ten-way answer set.
 
-Donor traces stay arithmetically consistent: an edit changes both the operand
-and the stated result of one node. Editing only the stated result would be one
-token cheaper but adds an arithmetic-surprise confound, so the propagated signal
-could be "something is wrong here" rather than "the value is v'".
+A value edit rewrites one node's line. Which part of the line it rewrites is the
+donor condition, and it decides what the measurement can mean:
+
+* ``both`` -- ``a = 3 + 4 = 7`` becomes ``a = 3 + 5 = 8``. Consistent, but the
+  two mechanisms are stuck together.
+* ``result_only`` -- ``a = 3 + 4 = 8``. Only a model that reads the stated value
+  moves.
+* ``operand_only`` -- ``a = 3 + 5 = 7``. Only a model that recomputes from the
+  operands moves.
+
+The last two are arithmetically inconsistent on purpose. That is not the old
+arithmetic-surprise confound, because all three conditions carry the same implied
+target value, and the reported statistic is directional: a signal that only says
+"something is wrong here" does not move the answer toward that value.
+
+Every condition patches the same two token positions -- the operand digit and the
+result digit of the edited node -- so the conditions differ in what the donor text
+says, never in how many residual states are written.
 
 This module holds no torch and no transformers import. It runs, and is tested,
 on CPU with a fake character-level encoder.
@@ -44,6 +58,9 @@ CHECKPOINTS = (
     "Qwen/Qwen2.5-Math-1.5B-Instruct",
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
 )
+
+# Which part of the edited line the donor rewrites. See the module docstring.
+DONOR_CONDITIONS = ("both", "result_only", "operand_only")
 
 
 class Reject(Exception):
@@ -87,7 +104,9 @@ class DagItem:
     text: str
     token_ids: tuple[int, ...]
     value_positions: dict[str, int]  # node -> token index of its result digit
+    operand_positions: dict[str, int]  # node -> token index of its rhs digit
     read_position: int
+    condition: str = "both"
     edits: tuple[Edit, ...] = field(default_factory=tuple)
 
     @property
@@ -231,8 +250,18 @@ def _sample_root(rng: random.Random, name: str) -> Node:
     return Node(name, str(left), op, str(right), value)
 
 
-def _reroll_root(rng: random.Random, node: Node) -> Node:
-    """Same node with a different rhs digit, so its value changes and stays 0..9."""
+def _reroll_root(rng: random.Random, node: Node, condition: str) -> tuple[Node, int]:
+    """Donor version of one root line, plus the value the reroll implies.
+
+    The new operand and the value it computes to are sampled identically in every
+    condition; the condition only decides which of the two the donor line shows.
+    ``result_only`` and ``operand_only`` therefore state something arithmetically
+    false, which is the point: each leaves exactly one of the two mechanisms able
+    to move the answer.
+
+    The implied value is returned separately because under ``operand_only`` the
+    rendered ``node.value`` is still the clean one.
+    """
     left = int(node.lhs)
     options = [
         right for right in range(1, 10)
@@ -242,10 +271,15 @@ def _reroll_root(rng: random.Random, node: Node) -> Node:
     if not options:
         raise Reject("no alternative root value")
     right = rng.choice(options)
-    return Node(node.name, node.lhs, node.op, str(right), _apply(node.op, left, right))
+    value = _apply(node.op, left, right)
+    if condition == "result_only":
+        return dataclasses.replace(node, value=value), value
+    if condition == "operand_only":
+        return dataclasses.replace(node, rhs=str(right)), value
+    return dataclasses.replace(node, rhs=str(right), value=value), value
 
 
-def _build(rng: random.Random, encode, n_decoys: int) -> DagItem:
+def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem:
     nodes: dict[str, Node] = {}
     nodes[ANCESTOR] = _sample_root(rng, ANCESTOR)
     nodes[NON_ANCESTOR] = _sample_root(rng, NON_ANCESTOR)
@@ -293,26 +327,41 @@ def _build(rng: random.Random, encode, n_decoys: int) -> DagItem:
         text="".join(text for text, _ in chunks),
         token_ids=tuple(ids),
         value_positions={name: sites[f"result:{name}"] for name in order},
+        operand_positions={
+            name: sites[f"operand:{name}"] for name in order
+            if f"operand:{name}" in sites
+        },
         read_position=read_position,
+        condition=condition,
     )
 
-    edits = [_value_edit(rng, item, nodes, order, tags, encode, ANCESTOR, "ancestor")]
+    edits = [_value_edit(rng, item, nodes, order, tags, encode, ANCESTOR, "ancestor",
+                         condition)]
     edits.append(
-        _value_edit(rng, item, nodes, order, tags, encode, NON_ANCESTOR, "non_ancestor")
+        _value_edit(rng, item, nodes, order, tags, encode, NON_ANCESTOR,
+                    "non_ancestor", condition)
     )
     edits.append(_tag_edit(rng, item, nodes, order, tags, encode))
     for name in decoys:
-        edits.append(_value_edit(rng, item, nodes, order, tags, encode, name, "null"))
+        edits.append(_value_edit(rng, item, nodes, order, tags, encode, name, "null",
+                                 condition))
     return dataclasses.replace(item, edits=tuple(edits))
 
 
-def _finish_edit(item, nodes, order, tags, encode, kind, name, implied) -> Edit:
+def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
+                 force_positions=None) -> Edit:
     ids, _ = encode_chunks(_render(nodes, order, tags), encode)
     if len(ids) != len(item.token_ids):
         raise Reject("donor length differs from clean")
-    positions = tuple(i for i, (x, y) in enumerate(zip(ids, item.token_ids)) if x != y)
-    if not positions:
+    differing = tuple(i for i, (x, y) in enumerate(zip(ids, item.token_ids)) if x != y)
+    if not differing:
         raise Reject("donor identical to clean")
+    # Value edits declare both value sites whatever the condition changed, so
+    # every condition writes the same number of residual states. One of the two
+    # is then an identity patch, which the identity check already shows is inert.
+    positions = tuple(force_positions) if force_positions else differing
+    if not set(differing) <= set(positions):
+        raise Reject("donor differs outside the declared positions")
     if max(positions) >= item.read_position:
         raise Reject("edit is not upstream of the read position")
     return Edit(
@@ -325,17 +374,19 @@ def _finish_edit(item, nodes, order, tags, encode, kind, name, implied) -> Edit:
     )
 
 
-def _value_edit(rng, item, nodes, order, tags, encode, name, kind) -> Edit:
+def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition) -> Edit:
     edited = dict(nodes)
-    edited[name] = _reroll_root(rng, nodes[name])
+    edited[name], rerolled = _reroll_root(rng, nodes[name], condition)
     if name == ANCESTOR:
         target = nodes[TARGET]
-        implied = _apply(target.op, edited[name].value, int(target.rhs))
+        implied = _apply(target.op, rerolled, int(target.rhs))
         if not 0 <= implied <= 9 or implied == item.target_value:
             raise Reject("edited target value out of range or unchanged")
     else:
         implied = item.target_value
-    return _finish_edit(item, edited, order, tags, encode, kind, name, implied)
+    sites = (item.operand_positions[name], item.value_positions[name])
+    return _finish_edit(item, edited, order, tags, encode, kind, name, implied,
+                        force_positions=tuple(sorted(sites)))
 
 
 def _tag_edit(rng, item, nodes, order, tags, encode) -> Edit:
@@ -355,15 +406,23 @@ def _tag_edit(rng, item, nodes, order, tags, encode) -> Edit:
                         item.target_value)
 
 
-def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0):
-    """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids."""
+def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0,
+                   condition: str = "both"):
+    """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
+
+    ``condition`` selects the donor condition for every value edit in the batch,
+    so one run measures one condition against its own null spread.
+    """
+    if condition not in DONOR_CONDITIONS:
+        raise ValueError(f"unknown donor condition {condition!r}, "
+                         f"expected one of {DONOR_CONDITIONS}")
     rng = random.Random(seed)
     items = []
     reasons: dict[str, int] = {}
     while len(items) < n_items:
         for _ in range(2000):
             try:
-                items.append(_build(rng, encode, n_decoys))
+                items.append(_build(rng, encode, n_decoys, condition))
                 break
             except Reject as reject:
                 reasons[str(reject)] = reasons.get(str(reject), 0) + 1
@@ -381,7 +440,8 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
 # --------------------------------------------------------------------------
 
 
-def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints) -> dict:
+def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
+                     condition: str = "both") -> dict:
     """Stop condition from the pre-registration.
 
     All three checkpoints must tokenize the same trace into the same id
@@ -400,6 +460,7 @@ def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints) -> 
             n_items=n_items,
             n_decoys=n_decoys,
             seed=seed,
+            condition=condition,
         )
         per_checkpoint[name] = items
 
@@ -428,6 +489,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_items", type=int, default=5)
     parser.add_argument("--n_decoys", type=int, default=6)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--condition", choices=DONOR_CONDITIONS, default="both")
     parser.add_argument("--model_name", default=CHECKPOINTS[0],
                         help="tokenizer used when printing sample items")
     return parser.parse_args()
@@ -441,6 +503,7 @@ def main() -> None:
             n_decoys=args.n_decoys,
             seed=args.seed,
             checkpoints=CHECKPOINTS,
+            condition=args.condition,
         )
         print(json.dumps(report, indent=2))
         sys.exit(0 if report["aligned"] else 1)
@@ -453,6 +516,7 @@ def main() -> None:
         n_items=args.n_items,
         n_decoys=args.n_decoys,
         seed=args.seed,
+        condition=args.condition,
     )
     for item in items:
         print(item.text)

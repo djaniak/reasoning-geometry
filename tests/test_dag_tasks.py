@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dag_tasks import (
     ANCESTOR,
+    DONOR_CONDITIONS,
     NON_ANCESTOR,
     TARGET,
     ancestors,
@@ -70,6 +71,9 @@ def test_every_edit_implied_value_is_a_single_digit(items):
 
 
 def test_donor_traces_are_token_aligned_with_the_clean_trace(items):
+    # A donor may differ at fewer positions than it declares -- the conditions
+    # that change one half of the line leave the other half as an identity patch
+    # -- but never at a position it does not declare.
     for item in items:
         for edit in item.edits:
             assert len(edit.token_ids) == len(item.token_ids)
@@ -77,7 +81,8 @@ def test_donor_traces_are_token_aligned_with_the_clean_trace(items):
                 i for i, (x, y) in enumerate(zip(edit.token_ids, item.token_ids))
                 if x != y
             }
-            assert differing == set(edit.positions)
+            assert differing <= set(edit.positions)
+            assert differing
 
 
 def test_every_edit_is_upstream_of_the_read_position(items):
@@ -238,6 +243,121 @@ def test_survives_a_tokenizer_that_merges_punctuation_with_a_following_letter():
         return [int.from_bytes(token.encode(), "big") for token in tokens]
 
     assert len(generate_items(merging_encode, n_items=2, seed=0)) == 2
+
+
+# --------------------------------------------------------------------------
+# donor conditions
+# --------------------------------------------------------------------------
+
+
+def condition_items(condition):
+    return generate_items(char_encode, n_items=5, n_decoys=6, seed=0,
+                          condition=condition)
+
+
+def parse_line(text, name):
+    """Return (lhs, op, rhs, result) of ``name``'s line, as integers and a str."""
+    for line in text.splitlines():
+        if line.startswith(f"{name} = "):
+            _, expression, result = line.split(" # ")[0].split(" = ")
+            lhs, op, rhs = expression.split(" ")
+            return int(lhs), op, int(rhs), int(result)
+    raise AssertionError(f"no line for {name} in {text!r}")
+
+
+def ancestor_edit(item):
+    return next(edit for edit in item.edits if edit.kind == "ancestor")
+
+
+@pytest.mark.parametrize("condition", DONOR_CONDITIONS)
+def test_every_condition_generates(condition):
+    assert len(condition_items(condition)) == 5
+
+
+def test_the_clean_trace_is_the_same_under_every_condition():
+    # The conditions must differ in the donors only. If the clean traces drifted,
+    # the three runs would not be measuring the same items.
+    traces = {
+        condition: [item.token_ids for item in condition_items(condition)]
+        for condition in DONOR_CONDITIONS
+    }
+    assert traces["result_only"] == traces["both"]
+    assert traces["operand_only"] == traces["both"]
+
+
+def test_all_conditions_imply_the_same_target_value():
+    # This is what makes the three runs comparable: the same directional
+    # statistic, so a difference between them is about mechanism, not target.
+    implied = {
+        condition: [ancestor_edit(item).implied_target_value
+                    for item in condition_items(condition)]
+        for condition in DONOR_CONDITIONS
+    }
+    assert implied["result_only"] == implied["both"]
+    assert implied["operand_only"] == implied["both"]
+
+
+def test_all_conditions_patch_the_same_positions():
+    # Equal number of residual states written, so a smaller effect cannot be
+    # explained by having patched fewer positions.
+    positions = {
+        condition: [ancestor_edit(item).positions
+                    for item in condition_items(condition)]
+        for condition in DONOR_CONDITIONS
+    }
+    assert positions["result_only"] == positions["both"]
+    assert positions["operand_only"] == positions["both"]
+
+
+def test_both_still_differs_at_exactly_its_declared_positions():
+    # Under "both" the forced positions coincide with the positions that actually
+    # differ, so adding the conditions did not change the arm already measured.
+    for item in condition_items("both"):
+        for edit in item.edits:
+            differing = {
+                i for i, (x, y) in enumerate(zip(edit.token_ids, item.token_ids))
+                if x != y
+            }
+            assert differing == set(edit.positions)
+
+
+def test_both_keeps_the_edited_line_arithmetically_consistent():
+    for item in condition_items("both"):
+        lhs, op, rhs, result = parse_line(
+            char_decode(ancestor_edit(item).token_ids), ANCESTOR
+        )
+        assert (lhs + rhs if op == "+" else lhs - rhs) == result
+
+
+def test_result_only_changes_the_result_and_leaves_the_operands_alone():
+    for item in condition_items("result_only"):
+        clean = parse_line(item.text, ANCESTOR)
+        donor = parse_line(char_decode(ancestor_edit(item).token_ids), ANCESTOR)
+        assert donor[:3] == clean[:3]
+        assert donor[3] != clean[3]
+
+
+def test_operand_only_changes_the_operand_and_leaves_the_result_alone():
+    for item in condition_items("operand_only"):
+        clean = parse_line(item.text, ANCESTOR)
+        donor = parse_line(char_decode(ancestor_edit(item).token_ids), ANCESTOR)
+        assert donor[2] != clean[2]
+        assert donor[3] == clean[3]
+
+
+def test_the_two_split_conditions_state_something_false():
+    # Deliberate. Each leaves exactly one mechanism able to move the answer.
+    for condition in ("result_only", "operand_only"):
+        for item in condition_items(condition):
+            lhs, op, rhs, result = parse_line(
+                char_decode(ancestor_edit(item).token_ids), ANCESTOR
+            )
+            assert (lhs + rhs if op == "+" else lhs - rhs) != result
+
+
+def test_an_unknown_condition_is_rejected():
+    with pytest.raises(ValueError, match="unknown donor condition"):
+        generate_items(char_encode, n_items=1, seed=0, condition="operand")
 
 
 def test_rejects_a_tokenizer_that_splits_digits():
