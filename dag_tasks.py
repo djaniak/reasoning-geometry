@@ -31,6 +31,21 @@ Every condition patches the same two token positions -- the operand digit and th
 result digit of the edited node -- so the conditions differ in what the donor text
 says, never in how many residual states are written.
 
+``depth`` is the length of the path from the edited node to the target. At depth 1
+the target reads the edited node directly. At depth k the trace states k-1
+intermediate results in between, and those tokens stay clean in the patched run.
+So the depth ladder does not measure graph distance on its own: it measures
+whether a patched state still moves the answer when a written intermediate value
+contradicts it. That is the honest question for a written chain of thought, but it
+is not "distance in the graph", and the numbers must not be read that way.
+
+``gap`` is the control that separates depth from length. It puts that many decoy
+lines between the chain and the target, which raises the token distance to the
+read position without adding a step on the path. A drop at depth 2 that a
+distance-matched gap at depth 1 does not reproduce is about the extra step, not
+about the extra tokens. Each edit records its own ``distance_to_read``, so the two
+arms are matched on the measured distance rather than on an assumed one.
+
 This module holds no torch and no transformers import. It runs, and is tested,
 on CPU with a fake character-level encoder.
 """
@@ -107,6 +122,8 @@ class DagItem:
     operand_positions: dict[str, int]  # node -> token index of its rhs digit
     read_position: int
     condition: str = "both"
+    depth: int = 1  # steps from the ancestor to the target
+    gap: int = 0  # decoy lines between the chain and the target
     edits: tuple[Edit, ...] = field(default_factory=tuple)
 
     @property
@@ -250,6 +267,34 @@ def _sample_root(rng: random.Random, name: str) -> Node:
     return Node(name, str(left), op, str(right), value)
 
 
+def _sample_step(rng: random.Random, name: str, parent: str, value: int) -> Node:
+    """One chain line ``name = parent op digit``, result still a single digit.
+
+    The operand is at least 1 for the same reason as in a root line: a zero
+    operand turns the step into a copy, and a chain of copies is not a chain.
+    """
+    options = [
+        (op, rhs) for op in "+-" for rhs in range(1, 10)
+        if 0 <= _apply(op, value, rhs) <= 9
+    ]
+    op, rhs = rng.choice(options)
+    return Node(name, parent, op, str(rhs), _apply(op, value, rhs))
+
+
+def _propagate(nodes: dict[str, Node], chain: tuple[str, ...], value: int) -> int:
+    """Re-evaluate the ancestor-to-target path from a new ancestor value.
+
+    Every value on the way must stay a single digit, or the edit would imply a
+    trace the format cannot express.
+    """
+    for name in (*chain, TARGET):
+        node = nodes[name]
+        value = _apply(node.op, value, int(node.rhs))
+        if not 0 <= value <= 9:
+            raise Reject("edited chain value out of range")
+    return value
+
+
 def _reroll_root(rng: random.Random, node: Node, condition: str) -> tuple[Node, int]:
     """Donor version of one root line, plus the value the reroll implies.
 
@@ -279,7 +324,8 @@ def _reroll_root(rng: random.Random, node: Node, condition: str) -> tuple[Node, 
     return dataclasses.replace(node, rhs=str(right), value=value), value
 
 
-def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem:
+def _build(rng: random.Random, encode, n_decoys: int, condition: str,
+           depth: int, gap: int | None) -> DagItem:
     nodes: dict[str, Node] = {}
     nodes[ANCESTOR] = _sample_root(rng, ANCESTOR)
     nodes[NON_ANCESTOR] = _sample_root(rng, NON_ANCESTOR)
@@ -287,10 +333,17 @@ def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem
     for name in decoys:
         nodes[name] = _sample_root(rng, name)
 
-    value_a = nodes[ANCESTOR].value
-    value_c = rng.choice([v for v in range(10) if v != value_a])
-    op_c = "+" if value_c > value_a else "-"
-    nodes[TARGET] = Node(TARGET, ANCESTOR, op_c, str(abs(value_c - value_a)), value_c)
+    # Chain steps take names from the far end of the decoy pool, so depth 1 draws
+    # exactly the nodes and the random numbers the original design drew.
+    chain = tuple(DECOY_NAMES[-(depth - 1):]) if depth > 1 else ()
+    parent, value_p = ANCESTOR, nodes[ANCESTOR].value
+    for name in chain:
+        nodes[name] = _sample_step(rng, name, parent, value_p)
+        parent, value_p = name, nodes[name].value
+
+    value_c = rng.choice([v for v in range(10) if v != value_p])
+    op_c = "+" if value_c > value_p else "-"
+    nodes[TARGET] = Node(TARGET, parent, op_c, str(abs(value_c - value_p)), value_c)
 
     op_e = rng.choice("+-")
     value_e = _apply(op_e, value_c, nodes[NON_ANCESTOR].value)
@@ -305,8 +358,11 @@ def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem
     pair = [ANCESTOR, NON_ANCESTOR]
     rng.shuffle(pair)
     rng.shuffle(decoys)
+    # Always drawn, so fixing the gap does not shift the random stream.
     cut = rng.randrange(len(decoys) + 1)
-    order = tuple(decoys[:cut] + pair + decoys[cut:] + [TARGET, MERGE])
+    if gap is not None:
+        cut = len(decoys) - gap
+    order = tuple(decoys[:cut] + pair + list(chain) + decoys[cut:] + [TARGET, MERGE])
 
     tag_letters = rng.sample(TAG_POOL, len(order))
     tags = dict(zip(order, tag_letters))
@@ -316,7 +372,7 @@ def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem
     read_position = sites[f"result:{TARGET}"] - 1
 
     edges = transitive_reduction(dependency_edges(nodes))
-    if ancestors(edges, TARGET) != {ANCESTOR}:
+    if ancestors(edges, TARGET) != {ANCESTOR, *chain}:
         raise Reject("unexpected ancestor set")
 
     item = DagItem(
@@ -333,18 +389,20 @@ def _build(rng: random.Random, encode, n_decoys: int, condition: str) -> DagItem
         },
         read_position=read_position,
         condition=condition,
+        depth=depth,
+        gap=len(decoys) - cut,
     )
 
     edits = [_value_edit(rng, item, nodes, order, tags, encode, ANCESTOR, "ancestor",
-                         condition)]
+                         condition, chain)]
     edits.append(
         _value_edit(rng, item, nodes, order, tags, encode, NON_ANCESTOR,
-                    "non_ancestor", condition)
+                    "non_ancestor", condition, chain)
     )
     edits.append(_tag_edit(rng, item, nodes, order, tags, encode))
     for name in decoys:
         edits.append(_value_edit(rng, item, nodes, order, tags, encode, name, "null",
-                                 condition))
+                                 condition, chain))
     return dataclasses.replace(item, edits=tuple(edits))
 
 
@@ -374,14 +432,14 @@ def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
     )
 
 
-def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition) -> Edit:
+def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
+                chain) -> Edit:
     edited = dict(nodes)
     edited[name], rerolled = _reroll_root(rng, nodes[name], condition)
     if name == ANCESTOR:
-        target = nodes[TARGET]
-        implied = _apply(target.op, rerolled, int(target.rhs))
-        if not 0 <= implied <= 9 or implied == item.target_value:
-            raise Reject("edited target value out of range or unchanged")
+        implied = _propagate(nodes, chain, rerolled)
+        if implied == item.target_value:
+            raise Reject("edited target value unchanged")
     else:
         implied = item.target_value
     sites = (item.operand_positions[name], item.value_positions[name])
@@ -407,22 +465,35 @@ def _tag_edit(rng, item, nodes, order, tags, encode) -> Edit:
 
 
 def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0,
-                   condition: str = "both"):
+                   condition: str = "both", depth: int = 1, gap: int | None = None):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
-    so one run measures one condition against its own null spread.
+    so one run measures one condition against its own null spread. ``depth`` and
+    ``gap`` set the ancestor-to-target path length and the decoy padding in front
+    of the target; see the module docstring for why both are needed. ``gap``
+    defaults to a random split of the decoys around the edited pair.
     """
     if condition not in DONOR_CONDITIONS:
         raise ValueError(f"unknown donor condition {condition!r}, "
                          f"expected one of {DONOR_CONDITIONS}")
+    if depth < 1:
+        raise ValueError(f"depth must be at least 1, got {depth}")
+    # Chain steps consume decoy names, every line consumes a line tag, and the
+    # surface-null edit needs two tags left over.
+    budget = min(len(DECOY_NAMES) + 1, len(TAG_POOL) - 5)
+    if n_decoys + depth > budget:
+        raise ValueError(f"depth {depth} with {n_decoys} decoys does not fit the "
+                         f"name and tag pools; keep n_decoys + depth <= {budget}")
+    if gap is not None and not 0 <= gap <= n_decoys:
+        raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
     rng = random.Random(seed)
     items = []
     reasons: dict[str, int] = {}
     while len(items) < n_items:
         for _ in range(2000):
             try:
-                items.append(_build(rng, encode, n_decoys, condition))
+                items.append(_build(rng, encode, n_decoys, condition, depth, gap))
                 break
             except Reject as reject:
                 reasons[str(reject)] = reasons.get(str(reject), 0) + 1
@@ -441,7 +512,8 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
 
 
 def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
-                     condition: str = "both") -> dict:
+                     condition: str = "both", depth: int = 1,
+                     gap: int | None = None) -> dict:
     """Stop condition from the pre-registration.
 
     All three checkpoints must tokenize the same trace into the same id
@@ -461,6 +533,8 @@ def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
             n_decoys=n_decoys,
             seed=seed,
             condition=condition,
+            depth=depth,
+            gap=gap,
         )
         per_checkpoint[name] = items
 
@@ -490,6 +564,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_decoys", type=int, default=6)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--condition", choices=DONOR_CONDITIONS, default="both")
+    parser.add_argument("--depth", type=int, default=1,
+                        help="steps from the edited ancestor to the target")
+    parser.add_argument("--gap", type=int, default=None,
+                        help="decoy lines between the chain and the target "
+                             "(default: a random split)")
     parser.add_argument("--model_name", default=CHECKPOINTS[0],
                         help="tokenizer used when printing sample items")
     return parser.parse_args()
@@ -504,6 +583,8 @@ def main() -> None:
             seed=args.seed,
             checkpoints=CHECKPOINTS,
             condition=args.condition,
+            depth=args.depth,
+            gap=args.gap,
         )
         print(json.dumps(report, indent=2))
         sys.exit(0 if report["aligned"] else 1)
@@ -517,11 +598,14 @@ def main() -> None:
         n_decoys=args.n_decoys,
         seed=args.seed,
         condition=args.condition,
+        depth=args.depth,
+        gap=args.gap,
     )
     for item in items:
         print(item.text)
         print(f"target {item.target} = {item.target_value}, "
-              f"read_position {item.read_position}, edges {item.edges}")
+              f"read_position {item.read_position}, depth {item.depth}, "
+              f"gap {item.gap}, edges {item.edges}")
         for edit in item.edits:
             print(f"  {edit.kind:<13} node={edit.node} pos={edit.positions} "
                   f"implied={edit.implied_target_value} dist={edit.distance_to_read}")

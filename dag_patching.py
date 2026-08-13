@@ -302,7 +302,7 @@ def identity_patch_check(model, token_ids, bins, positions) -> dict:
 
 def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
-        condition: str = "both") -> dict:
+        condition: str = "both", depth: int = 1, gap: int | None = None) -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -314,6 +314,8 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         n_decoys=n_decoys,
         seed=seed,
         condition=condition,
+        depth=depth,
+        gap=gap,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -326,11 +328,18 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
     report = {
         "model": model_name,
         "condition": condition,
+        "depth": depth,
+        "gap": [item.gap for item in items],
         "n_items": len(items),
         "seed": seed,
         "layer_bins": bins,
         "n_layers": model.config.num_hidden_layers,
         "n_tokens": [len(item.token_ids) for item in items],
+        # Depth arms are matched against gap arms on this, not on the knobs.
+        "ancestor_distance": [
+            next(e.distance_to_read for e in item.edits if e.kind == "ancestor")
+            for item in items
+        ],
         "identity_patch": identity,
     }
     if not identity["passes"]:
@@ -362,6 +371,9 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
 def print_gate_table(report: dict) -> None:
     gates = report.get("gates")
     print(f"model          {report['model']}")
+    print(f"condition      {report['condition']}  depth {report['depth']}  "
+          f"gap {report['gap']}")
+    print(f"ancestor dist  {report['ancestor_distance']} tokens to the read position")
     print(f"layer bins     {report['layer_bins']} of {report['n_layers']} layers")
     print(f"identity patch max |dlogit| = "
           f"{report['identity_patch']['max_abs_logit_change']:.2e} "
@@ -388,6 +400,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--condition", choices=DONOR_CONDITIONS, default="both",
                         help="which part of the edited line the donor rewrites")
+    parser.add_argument("--depth", type=int, default=1,
+                        help="steps from the edited ancestor to the target")
+    parser.add_argument("--gap", type=int, default=None,
+                        help="decoy lines between the chain and the target; the "
+                             "distance control for --depth")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -402,6 +419,8 @@ def main() -> None:
         n_decoys=args.n_decoys,
         seed=args.seed,
         condition=args.condition,
+        depth=args.depth,
+        gap=args.gap,
         output_path=args.output,
         self_test_only=args.self_test,
     )

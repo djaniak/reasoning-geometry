@@ -4,6 +4,7 @@ A violation here silently misplaces every patch, so these are preconditions for
 the experiment rather than ordinary unit tests.
 """
 
+import statistics
 import sys
 from pathlib import Path
 
@@ -358,6 +359,132 @@ def test_the_two_split_conditions_state_something_false():
 def test_an_unknown_condition_is_rejected():
     with pytest.raises(ValueError, match="unknown donor condition"):
         generate_items(char_encode, n_items=1, seed=0, condition="operand")
+
+
+# --------------------------------------------------------------------------
+# depth ladder
+# --------------------------------------------------------------------------
+
+
+def ladder_items(depth=1, gap=None, n_decoys=6, seed=0):
+    return generate_items(char_encode, n_items=5, n_decoys=n_decoys, seed=seed,
+                          depth=depth, gap=gap)
+
+
+def chain_of(item):
+    """The ancestor-to-target path, in trace order."""
+    path = ancestors(set(item.edges), TARGET) - {ANCESTOR}
+    return [name for name in item.order if name in path]
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_the_path_to_the_target_has_the_requested_depth(depth):
+    for item in ladder_items(depth=depth):
+        assert item.depth == depth
+        assert len(ancestors(set(item.edges), TARGET)) == depth
+
+
+def test_depth_one_is_the_design_that_was_already_measured():
+    # The ladder must not silently re-roll the arm the feasibility run reported.
+    assert [item.token_ids for item in ladder_items(depth=1)] == \
+        [item.token_ids for item in generate_items(char_encode, n_items=5, seed=0)]
+
+
+def test_the_chain_is_a_path_from_the_ancestor_to_the_target():
+    for item in ladder_items(depth=3):
+        chain = chain_of(item)
+        edges = set(item.edges)
+        for parent, child in zip([ANCESTOR] + chain, chain + [TARGET]):
+            assert (parent, child) in edges
+        assert NON_ANCESTOR not in ancestors(edges, TARGET)
+
+
+def test_every_chain_step_reads_the_step_before_it():
+    for item in ladder_items(depth=3):
+        chain = chain_of(item)
+        for parent, child in zip([ANCESTOR] + chain, chain + [TARGET]):
+            node = item.nodes[child]
+            assert node.lhs == parent
+            assert node.rhs.isdigit() and int(node.rhs) != 0
+
+
+def test_a_chain_line_is_written_before_the_line_that_reads_it():
+    for item in ladder_items(depth=3):
+        chain = chain_of(item)
+        order = list(item.order)
+        for parent, child in zip([ANCESTOR] + chain, chain + [TARGET]):
+            assert order.index(parent) < order.index(child)
+
+
+def test_the_ancestor_edit_implies_what_the_whole_chain_produces():
+    for item in ladder_items(depth=3):
+        edit = ancestor_edit(item)
+        value = int(char_decode([edit.token_ids[item.value_positions[ANCESTOR]]]))
+        for name in chain_of(item) + [TARGET]:
+            node = item.nodes[name]
+            value = value + int(node.rhs) if node.op == "+" else value - int(node.rhs)
+        assert edit.implied_target_value == value
+        assert 0 <= value <= 9
+
+
+def test_a_deeper_chain_moves_the_ancestor_edit_further_from_the_read_position():
+    # The confound the gap control exists for: depth costs tokens as well as steps.
+    shallow = ladder_items(depth=1, gap=0)
+    deep = ladder_items(depth=3, gap=0)
+    for near, far in zip(shallow, deep):
+        assert ancestor_edit(far).distance_to_read > \
+            ancestor_edit(near).distance_to_read
+
+
+def test_gap_buys_token_distance_without_buying_depth():
+    for gap in range(4):
+        items = ladder_items(depth=1, gap=gap)
+        assert all(item.gap == gap for item in items)
+        assert all(len(ancestors(set(item.edges), TARGET)) == 1 for item in items)
+    distances = [
+        ancestor_edit(ladder_items(depth=1, gap=gap)[0]).distance_to_read
+        for gap in range(4)
+    ]
+    assert distances == sorted(distances) and distances[0] < distances[-1]
+
+
+def test_a_gap_arm_can_be_matched_to_a_depth_arm_on_token_distance():
+    # Without a matched pair the depth ladder is unreadable, so this checks the
+    # matching is reachable at all rather than only in principle. The match is
+    # close but not exact: a chain line names its operand instead of stating a
+    # digit, which costs one token less than a decoy line.
+    def median_distance(**kwargs):
+        return statistics.median(
+            ancestor_edit(item).distance_to_read for item in ladder_items(**kwargs)
+        )
+
+    deep = median_distance(depth=2, gap=0)
+    matched = [median_distance(depth=1, gap=gap) for gap in range(7)]
+    assert min(abs(distance - deep) for distance in matched) <= 2
+
+
+def test_depth_and_decoys_together_must_fit_the_name_pools():
+    with pytest.raises(ValueError, match=r"keep n_decoys \+ depth <= \d+"):
+        generate_items(char_encode, n_items=1, seed=0, n_decoys=6, depth=4)
+
+
+def test_a_depth_below_one_is_rejected():
+    with pytest.raises(ValueError, match="depth must be at least 1"):
+        generate_items(char_encode, n_items=1, seed=0, depth=0)
+
+
+def test_a_gap_wider_than_the_decoy_pool_is_rejected():
+    with pytest.raises(ValueError, match="gap must be between 0 and n_decoys"):
+        generate_items(char_encode, n_items=1, seed=0, n_decoys=6, gap=7)
+
+
+def test_the_deepest_ladder_rung_still_generates():
+    items = ladder_items(depth=4, n_decoys=5)
+    assert len(items) == 5
+    for item in items:
+        for node in item.nodes.values():
+            assert 0 <= node.value <= 9
+        assert max(ancestor_edit(item).positions) < item.read_position
 
 
 def test_rejects_a_tokenizer_that_splits_digits():
