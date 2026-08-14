@@ -629,3 +629,128 @@ def test_the_two_generators_are_not_the_same_family():
         [item.token_ids for item in generate_items(char_encode, n_items=5,
                                                    seed=0,
                                                    generator="v1_unpaired")]
+
+
+# --------------------------------------------------------------------------
+# cross-item donors
+#
+# Every control in the pilot so far edits the *recipient's own* trace. That
+# leaves the strongest objection standing: the ancestor gap could be generic
+# sensitivity at those token positions rather than the edge being read. The
+# cross-item donor is the matched test. It writes another item's residual state
+# at the same positions, with the same span, width and formatting -- so the only
+# thing that changes is which item the state came from.
+#
+# It predicts a specific digit. The chain is affine, so donor value `v_j` seen
+# through recipient i's chain implies `v_j + delta_i`, which is neither the
+# clean answer nor the donor's own digit. Those three being distinct is what
+# makes the arm readable, so it is asserted here rather than hoped for.
+# --------------------------------------------------------------------------
+
+
+def cross_items(depth=1, *, n_items=5, n_decoys=6, seed=0, gap=0):
+    return generate_items(char_encode, n_items=n_items, n_decoys=n_decoys,
+                          seed=seed, depth=depth, gap=gap, cross_item=True)
+
+
+def cross_edit(item):
+    return next(edit for edit in item.edits if edit.kind == "cross_item")
+
+
+def ancestor_sites(item):
+    return tuple(sorted((item.operand_positions[ANCESTOR],
+                         item.value_positions[ANCESTOR])))
+
+
+def test_cross_item_edits_are_off_unless_asked_for():
+    for item in ladder_items():
+        assert not any(edit.kind == "cross_item" for edit in item.edits)
+
+
+def test_every_item_receives_exactly_one_cross_item_edit():
+    for item in cross_items():
+        assert sum(edit.kind == "cross_item" for edit in item.edits) == 1
+
+
+def test_the_donor_assignment_is_a_derangement():
+    donors = [cross_edit(item).donor_item for item in cross_items()]
+    assert sorted(donors) == list(range(5)), f"not a permutation: {donors}"
+    assert all(donor != index for index, donor in enumerate(donors)), (
+        f"an item donates to itself: {donors}"
+    )
+
+
+def test_the_donor_trace_is_another_items_clean_trace():
+    items = cross_items()
+    for item in items:
+        edit = cross_edit(item)
+        assert edit.token_ids == items[edit.donor_item].token_ids
+
+
+def test_the_patch_lands_on_the_ancestors_own_two_sites():
+    items = cross_items()
+    for item in items:
+        edit = cross_edit(item)
+        assert edit.positions == ancestor_sites(item)
+
+
+def test_donor_and_recipient_agree_on_where_the_ancestor_sits():
+    # The state is lifted from position p in the donor and written to position p
+    # in the recipient. If the two disagree the patch is not the intervention it
+    # claims to be, so the batch is selected to make them agree.
+    items = cross_items()
+    for item in items:
+        assert ancestor_sites(items[cross_edit(item).donor_item]) == \
+            ancestor_sites(item)
+
+
+def test_donor_and_recipient_are_the_same_width():
+    items = cross_items()
+    for item in items:
+        assert len(cross_edit(item).token_ids) == len(item.token_ids)
+
+
+def test_the_implied_value_is_the_donors_value_through_the_recipients_chain():
+    items = cross_items(depth=2)
+    for item in items:
+        edit = cross_edit(item)
+        donor_value = items[edit.donor_item].nodes[ANCESTOR].value
+        assert edit.donor_raw_value == donor_value
+        expected = donor_value
+        for name in (*chain_of(item), TARGET):
+            node = item.nodes[name]
+            expected += int(node.rhs) if node.op == "+" else -int(node.rhs)
+        assert edit.implied_target_value == expected
+
+
+def test_the_prediction_is_neither_the_clean_answer_nor_the_donors_own_digit():
+    # Three distinct digits, so the readout can tell "propagated the donor's
+    # value" from "copied the patched digit" from "did not move".
+    for item in cross_items():
+        edit = cross_edit(item)
+        assert edit.implied_target_value != item.target_value
+        assert edit.implied_target_value != edit.donor_raw_value
+
+
+def test_the_cross_item_edit_is_upstream_of_the_read_position():
+    for item in cross_items():
+        assert max(cross_edit(item).positions) < item.read_position
+
+
+def test_the_cross_item_arm_is_paired_across_depth():
+    # Same recipients, same donor map, same predicted digit at every depth --
+    # otherwise this arm inherits the bug the depth ladder just had fixed.
+    families = {depth: cross_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        edits = [cross_edit(items[index]) for items in families.values()]
+        assert len({edit.donor_item for edit in edits}) == 1
+        assert len({edit.donor_raw_value for edit in edits}) == 1
+        assert len({edit.implied_target_value for edit in edits}) == 1
+
+
+def test_a_batch_with_no_possible_derangement_is_refused():
+    # Better to fail loudly than to quietly run four recipients and call the
+    # quorum on five.
+    with pytest.raises(ValueError, match="derangement"):
+        generate_items(char_encode, n_items=5, n_decoys=6, seed=0, depth=1,
+                       gap=0, cross_item=True, oversample=5)

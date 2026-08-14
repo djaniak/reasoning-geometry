@@ -167,7 +167,7 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
             p_probs, p_logodds, p_mass = digit_readout(
                 patched_logits, item.read_position, digit_ids
             )
-            rows.append({
+            row = {
                 "kind": edit.kind,
                 "node": edit.node,
                 "layer": layer,
@@ -182,7 +182,19 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 ),
                 "digit_mass_clean": mass,
                 "digit_mass_patched": p_mass,
-            })
+            }
+            if edit.donor_raw_value is not None:
+                # Only the cross-item control sets this. Movement toward the
+                # donor's own digit is what copying the patched token looks
+                # like; it needs the clean log-odds, which no rescore has, so
+                # it is recorded here or not at all. Every other kind keeps the
+                # schema the archived runs recorded.
+                row["donor_item"] = edit.donor_item
+                row["delta_toward_raw"] = float(
+                    p_logodds[edit.donor_raw_value]
+                    - logodds[edit.donor_raw_value]
+                )
+            rows.append(row)
     return rows, {
         "target_value": item.target_value,
         "clean_top_digit": int(probs.argmax()),
@@ -255,6 +267,70 @@ def _joint_layer_gate(gates: dict, scored: list[int]) -> dict:
         "valid_layers": valid,
         "passes": bool(joint),
         "verdict_if_applied": would_be,
+        "applied_to_verdict": False,
+    }
+
+
+def _cross_item_gate(per_item: list[list[dict]], bins: list[int],
+                     scored: list[int]) -> dict:
+    """The cross-item donor control: another item's state, same two positions.
+
+    Every other edit rewrites the recipient's own trace, so none of them touches
+    the sharpest objection to the ancestor gap -- that those positions are simply
+    perturbation-sensitive, and any state written there would move the readout.
+    This one writes a *foreign* state of the same span, width and formatting, and
+    predicts a specific digit: the donor's value carried through the recipient's
+    chain, which is neither the clean answer nor the donor's own digit.
+
+    Two things must hold, and at the same layer:
+
+    * ``n_toward`` -- the readout moves toward that predicted digit. The channel
+      carries a value, and carries it out of the context it was measured in.
+    * ``n_specific`` -- it moves toward the predicted digit more than toward the
+      donor's own. Movement toward the donor's own digit is what copying the
+      patched token looks like, and that is not a claim about the graph.
+
+    The joint-layer rule applies from the start here. This gate has no archived
+    verdict to preserve, so there is no reason to repeat the ``any(layer)``
+    mistake that ``_joint_layer_gate`` exists to undo.
+
+    Reported, never binding. The verdict space says whether the *within-item*
+    intervention was valid; folding a new statistic into it before its null is
+    known is the post-hoc move the last two checkpoints were spent undoing.
+    """
+    per_layer = {}
+    for layer in bins:
+        rows = [row for rows in per_item for row in rows
+                if row["kind"] == "cross_item" and row["layer"] == layer]
+        toward = [row["delta_toward"] for row in rows]
+        per_layer[layer] = {
+            "n_items": len(rows),
+            "n_toward": sum(value > 0 for value in toward),
+            "n_specific": sum(
+                row["delta_toward"] > row["delta_toward_raw"] for row in rows
+            ),
+            "median_delta_toward": statistics.median(toward) if toward else 0.0,
+            "median_tv": statistics.median([row["tv"] for row in rows])
+            if rows else 0.0,
+        }
+    measured = any(entry["n_items"] for entry in per_layer.values())
+
+    def clears(layer: int) -> bool:
+        entry = per_layer[layer]
+        return bool(
+            entry["n_items"]
+            and entry["n_toward"] >= _quorum(entry["n_items"])
+            and entry["median_delta_toward"] > 0
+            and entry["n_specific"] >= _quorum(entry["n_items"])
+        )
+
+    layers = [layer for layer in scored if clears(layer)] if measured else []
+    return {
+        "rule": PROSPECTIVE_LAYER_RULE,
+        "measured": measured,
+        "per_layer": per_layer,
+        "layers": layers,
+        "passes": bool(layers),
         "applied_to_verdict": False,
     }
 
@@ -401,6 +477,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
             surface_pass[name], bins, name, n_by_layer, scored
         )
     gates["surface_active"] = gates[f"surface_{policy}"]
+    gates["cross_item_donor"] = _cross_item_gate(per_item, bins, scored)
     gates["prospective_joint_layer"] = _joint_layer_gate(gates, scored)
     gates["detail"] = detail
     return gates
@@ -543,7 +620,7 @@ def identity_patch_check(model, token_ids, bins, positions) -> dict:
 def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
         condition: str = "both", depth: int = 1, gap: int | None = None,
-        generator: str = DEFAULT_GENERATOR) -> dict:
+        generator: str = DEFAULT_GENERATOR, cross_item: bool = False) -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -558,6 +635,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         depth=depth,
         gap=gap,
         generator=generator,
+        cross_item=cross_item,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -573,6 +651,15 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         # the way the archived eight did.
         "generator": generator,
         "n_decoys": n_decoys,
+        # The cross-item batch is selected for mutual donatability, so it is a
+        # different batch from a plain run at the same seed. Recorded, not
+        # inferable from the other settings.
+        "cross_item": cross_item,
+        "donor_map": [
+            next((edit.donor_item for edit in item.edits
+                  if edit.kind == "cross_item"), None)
+            for item in items
+        ] if cross_item else None,
         "condition": condition,
         "depth": depth,
         "gap": [item.gap for item in items],
@@ -655,6 +742,20 @@ def print_gate_table(report: dict) -> None:
         print(f"  layers where every gate clears together: "
               f"{joint['layers'] or 'none'}")
         print(f"  verdict if applied: {joint['verdict_if_applied']}")
+    cross = gates.get("cross_item_donor")
+    if cross and cross["measured"]:
+        print()
+        print("cross_item_donor (reported beside the verdict, never binding)")
+        print(f"  {'layer':<8}{'toward':<10}{'specific':<11}"
+              f"{'median toward':<16}median TV")
+        for layer, entry in sorted(cross["per_layer"].items(),
+                                   key=lambda pair: int(pair[0])):
+            counted = f"{entry['n_toward']}/{entry['n_items']}"
+            specific = f"{entry['n_specific']}/{entry['n_items']}"
+            print(f"  {layer:<8}{counted:<10}{specific:<11}"
+                  f"{entry['median_delta_toward']:<16.3f}"
+                  f"{entry['median_tv']:.3f}")
+        print(f"  layers clearing both: {cross['layers'] or 'none'}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -674,6 +775,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gap", type=int, default=None,
                         help="decoy lines between the chain and the target; the "
                              "distance control for --depth")
+    parser.add_argument("--cross_item", action="store_true",
+                        help="add the cross-item donor control; selects a "
+                             "mutually donatable batch, so it is its own arm "
+                             "and not comparable item-by-item to the ladder")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -702,6 +807,7 @@ def main() -> None:
         condition=args.condition,
         depth=args.depth,
         gap=args.gap,
+        cross_item=args.cross_item,
         output_path=args.output,
         self_test_only=args.self_test,
     )

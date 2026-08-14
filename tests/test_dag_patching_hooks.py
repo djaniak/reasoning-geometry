@@ -249,3 +249,28 @@ def test_measure_item_rejects_an_edit_at_or_after_the_read_position(model):
     )
     with pytest.raises(ValueError, match="not upstream"):
         measure_item(model, broken, layer_bins(4), TOY_DIGIT_IDS)
+
+
+def test_measure_item_records_what_the_cross_item_control_needs(model):
+    # The control compares movement toward the propagated digit against movement
+    # toward the donor's own. The second is only computable while the logits are
+    # in hand, so `measure_item` has to emit it -- a rescore cannot recover it.
+    from dag_tasks import generate_items
+
+    items = generate_items(toy_encode, n_items=5, seed=0, gap=0,
+                           cross_item=True)
+    item = items[0]
+    rows, _ = measure_item(model, item, layer_bins(4), TOY_DIGIT_IDS)
+
+    cross = [row for row in rows if row["kind"] == "cross_item"]
+    assert len(cross) == len(layer_bins(4))
+    edit = next(e for e in item.edits if e.kind == "cross_item")
+    for row in cross:
+        assert row["donor_item"] == edit.donor_item
+        assert isinstance(row["delta_toward_raw"], float)
+
+    # Every other kind keeps the schema the archived runs recorded.
+    for row in rows:
+        if row["kind"] != "cross_item":
+            assert "delta_toward_raw" not in row
+            assert "donor_item" not in row

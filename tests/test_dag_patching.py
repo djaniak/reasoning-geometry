@@ -63,7 +63,7 @@ def test_digit_token_ids_rejects_colliding_ids():
 
 
 def make_rows(layer, *, ancestor_toward, ancestor_tv, non_ancestor_tv,
-              surface_tv, null_tvs, mass_ratio=1.0):
+              surface_tv, null_tvs, mass_ratio=1.0, cross=None):
     rows = [{
         "kind": "ancestor", "node": "a", "layer": layer, "distance_to_read": 10,
         "tv": ancestor_tv, "delta_toward": ancestor_toward, "delta_away": -1.0,
@@ -82,6 +82,14 @@ def make_rows(layer, *, ancestor_toward, ancestor_tv, non_ancestor_tv,
             "kind": "null", "node": f"n{index}", "layer": layer,
             "distance_to_read": 30 + index, "tv": value,
             "delta_toward": 0.0, "delta_away": 0.0,
+            "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
+        })
+    if cross is not None:
+        toward, raw, tv = cross
+        rows.append({
+            "kind": "cross_item", "node": "a", "layer": layer,
+            "distance_to_read": 10, "tv": tv, "donor_item": 1,
+            "delta_toward": toward, "delta_toward_raw": raw, "delta_away": 0.0,
             "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
         })
     return rows
@@ -422,27 +430,34 @@ def test_two_dissenting_items_out_of_five_fail_the_directional_control():
 
 
 def stored_report(n_items=5, bins=(6, 13, 20, 27), *, surface_tv=0.001,
-                  verdict_str="positive"):
+                  verdict_str="positive", with_cross=False):
     """A report laid out the way ``measure_item`` flattens it: edit-major.
 
     ``measure_item`` loops ``for edit: for layer:``, so one item's block is nine
     consecutive edit groups of four layer rows each -- not the kind-major order
-    ``make_rows`` produces for the gate tests.
+    ``make_rows`` produces for the gate tests. ``with_cross`` adds the tenth
+    group, which is what a cross-item run stores.
     """
     kinds = ["ancestor", "non_ancestor", "surface_null"] + ["null"] * 6
+    if with_cross:
+        kinds.append("cross_item")
     tvs = {"ancestor": 0.8, "non_ancestor": 0.05, "surface_null": surface_tv,
-           "null": 0.03}
+           "null": 0.03, "cross_item": 0.5}
     rows = []
     for _ in range(n_items):
         for kind in kinds:
             for layer in bins:
-                rows.append({
+                row = {
                     "kind": kind, "node": None, "layer": layer,
                     "distance_to_read": 11, "tv": tvs[kind],
-                    "delta_toward": 2.0 if kind == "ancestor" else 0.0,
+                    "delta_toward": 2.0 if kind in ("ancestor", "cross_item")
+                    else 0.0,
                     "delta_away": 0.0,
                     "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
-                })
+                }
+                if kind == "cross_item":
+                    row |= {"delta_toward_raw": 0.2, "donor_item": 1}
+                rows.append(row)
     return {
         "model": "test", "condition": "both", "n_items": n_items, "seed": 0,
         "layer_bins": list(bins), "n_layers": 28, "rows": rows,
@@ -511,3 +526,115 @@ def test_rescore_leaves_the_measurement_rows_untouched():
     before = [dict(row) for row in original["rows"]]
     rescore_report(original)
     assert original["rows"] == before
+
+
+# --------------------------------------------------------------------------
+# the cross-item donor control
+#
+# Every other edit rewrites the recipient's own trace, so the sharpest objection
+# to the ancestor gap survives all of them: those two positions might just be
+# perturbation-sensitive. The cross-item donor writes another item's state at the
+# same positions, same span and width, and predicts a specific digit -- the donor
+# value carried through the recipient's chain, which is neither the clean answer
+# nor the donor's own digit.
+#
+# Registered before the first run, with the joint-layer rule applied from the
+# start: this gate has no archived verdicts to preserve, so there is no reason to
+# repeat the `any(layer)` mistake here. Reported, never binding -- the verdict
+# space is about whether the *within-item* intervention was valid, and folding a
+# brand-new statistic into it before its null is known is the post-hoc move the
+# previous two checkpoints existed to undo.
+# --------------------------------------------------------------------------
+
+
+def cross_rows(layer, cross):
+    return make_rows(layer, ancestor_toward=2.0, ancestor_tv=0.8,
+                     non_ancestor_tv=0.05, surface_tv=0.04,
+                     null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02],
+                     cross=cross)
+
+
+def test_a_run_without_cross_item_rows_reports_the_control_as_unmeasured():
+    gate = evaluate_gates(item_rows(
+        ancestor_toward=2.0, ancestor_tv=0.8, non_ancestor_tv=0.05,
+        surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02],
+    ), [0])["cross_item_donor"]
+    assert gate["measured"] is False
+    assert gate["passes"] is False
+    assert gate["layers"] == []
+
+
+def test_a_donor_carried_through_the_chain_clears_the_control():
+    # Moves toward the propagated digit, and more than toward the donor's own.
+    gates = evaluate_gates([cross_rows(0, (1.8, 0.2, 0.5)) for _ in range(5)], [0])
+    gate = gates["cross_item_donor"]
+    assert gate["measured"] is True
+    assert gate["layers"] == [0]
+    assert gate["passes"] is True
+
+
+def test_a_donor_that_does_not_move_the_readout_fails_the_control():
+    gate = evaluate_gates(
+        [cross_rows(0, (-0.4, -0.3, 0.5)) for _ in range(5)], [0]
+    )["cross_item_donor"]
+    assert gate["per_layer"][0]["n_toward"] == 0
+    assert gate["passes"] is False
+
+
+def test_movement_toward_the_raw_donor_digit_is_not_specific():
+    # The readout moves, and in the right direction, but the donor's own digit
+    # rises more -- which is what copying the patched token would look like.
+    gate = evaluate_gates(
+        [cross_rows(0, (0.4, 2.0, 0.5)) for _ in range(5)], [0]
+    )["cross_item_donor"]
+    assert gate["per_layer"][0]["n_toward"] == 5
+    assert gate["per_layer"][0]["n_specific"] == 0
+    assert gate["passes"] is False
+
+
+def test_the_control_uses_the_same_quorum_as_every_other_gate():
+    rows = [cross_rows(0, (1.8, 0.2, 0.5)) for _ in range(4)]
+    rows.append(cross_rows(0, (-1.0, 0.2, 0.5)))
+    gate = evaluate_gates(rows, [0])["cross_item_donor"]
+    assert gate["per_layer"][0]["n_toward"] == 4
+    assert gate["passes"] is True, "4 of 5 is the quorum everywhere else"
+
+    rows[3] = cross_rows(0, (-1.0, 0.2, 0.5))
+    assert evaluate_gates(rows, [0])["cross_item_donor"]["passes"] is False
+
+
+def test_direction_and_specificity_must_clear_at_the_same_layer():
+    rows = [cross_rows(0, (1.8, 0.2, 0.5)) + cross_rows(1, (0.4, 2.0, 0.5))
+            for _ in range(5)]
+    gate = evaluate_gates(rows, [0, 1])["cross_item_donor"]
+    assert gate["layers"] == [0], "layer 1 is directional but not specific"
+
+
+def test_the_control_is_bounded_by_the_scoring_layers():
+    # The inert final layer cannot carry this gate any more than the others.
+    rows = [cross_rows(20, (0.0, 0.0, 0.0)) + cross_rows(27, (1.8, 0.2, 0.5))
+            for _ in range(5)]
+    assert evaluate_gates(rows, [20, 27], n_layers=28)["cross_item_donor"][
+        "layers"] == []
+    assert evaluate_gates(rows, [20, 27])["cross_item_donor"]["layers"] == [27]
+
+
+def test_the_control_never_decides_the_verdict():
+    # A control that fails everything must not turn a positive arm into anything
+    # else; it is reported beside the verdict, not folded into it.
+    gates = evaluate_gates(
+        [cross_rows(0, (-2.0, 3.0, 0.9)) for _ in range(5)], [0])
+    assert gates["cross_item_donor"]["passes"] is False
+    assert gates["cross_item_donor"]["applied_to_verdict"] is False
+    assert verdict(gates) == "positive"
+    assert invalid_reasons(gates) == []
+
+
+def test_a_report_with_cross_item_rows_still_rescores():
+    report = stored_report(with_cross=True)
+    rescored = rescore_report(report)
+    assert rescored["verdict"] == "positive"
+    for policy in GATE_POLICIES:
+        gate = rescored["scoring"][policy]["gates"]["cross_item_donor"]
+        assert gate["measured"] is True
+        assert gate["applied_to_verdict"] is False

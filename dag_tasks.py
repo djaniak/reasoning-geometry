@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import itertools
 import json
 import random
 import sys
@@ -109,12 +110,18 @@ class Edit:
     faithful model should not move at all.
     """
 
-    kind: str  # ancestor | non_ancestor | surface_null | null
+    kind: str  # ancestor | non_ancestor | surface_null | null | cross_item
     node: str | None
     positions: tuple[int, ...]
     token_ids: tuple[int, ...]
     implied_target_value: int
     distance_to_read: int  # tokens from the last patched position to read_position
+    # Set only for ``cross_item``: which item in the batch the donor trace is,
+    # and the value its ancestor line states. The second is the digit a patch
+    # that merely copied the token it overwrote would produce, which is not the
+    # same prediction as ``implied_target_value``.
+    donor_item: int | None = None
+    donor_raw_value: int | None = None
 
 
 @dataclass(frozen=True)
@@ -647,9 +654,154 @@ def _tag_edit(rng, item, nodes, order, tags, encode, names=None,
                         item.target_value)
 
 
+# --------------------------------------------------------------------------
+# cross-item donors
+#
+# Every other edit rewrites the recipient's own trace, which leaves the sharpest
+# objection to the ancestor gap standing: those two token positions might simply
+# be perturbation-sensitive, and any state written there would move the readout.
+# The cross-item donor is the matched test of that. It writes *another item's*
+# residual state at the same positions -- same span, same width, same formatting
+# -- so the only thing that varies is which item the state came from.
+#
+# It also makes a sharp prediction. The chain is affine, so a donor value ``v_j``
+# read through recipient ``i``'s chain implies ``v_j + delta_i``: not the clean
+# answer, and not the donor's own digit either. Those three digits being distinct
+# is what separates "propagated the donor's value" from "copied the patched
+# token" from "did not move", so the batch is selected to keep them distinct.
+#
+# The donor is the other item's *clean* trace, so the donor condition does not
+# apply to this edit: there is nothing rerolled to state falsely.
+# --------------------------------------------------------------------------
+
+# Candidates sampled per requested item, and how much of the matched group the
+# subset search looks at. Both only widen the search; neither selects on
+# anything the measurement reads.
+CROSS_ITEM_OVERSAMPLE = 8
+CROSS_ITEM_SEARCH = 3
+
+
+def _ancestor_sites(item: DagItem) -> tuple[int, ...]:
+    return tuple(sorted((item.operand_positions[ANCESTOR],
+                         item.value_positions[ANCESTOR])))
+
+
+def _implied_by_donor(recipient: DagItem, donor: DagItem) -> int | None:
+    """Target value the donor's ancestor state implies in ``recipient``.
+
+    The chain is the affine map ``v -> v + delta``, and under ``v2_paired``
+    ``delta`` is fixed by the spine: both the target value and the ancestor value
+    are drawn before the chain exists. So this reads the net delta off the spine
+    instead of walking the chain, and eligibility does not move with depth.
+
+    That is deliberate, and it is the same rule that fixed the ladder. Walking
+    the chain with ``_propagate`` would also reject a pair whose *intermediate*
+    values leave 0..9, which is a depth-dependent condition -- it would hand a
+    different donor map to depth 1 and depth 3 and desynchronise the arm exactly
+    as the unpaired generator did. (Those intermediates are unconstrained for an
+    arbitrary donor value, so at depth > 1 the prediction assumes the model
+    carries a value the written chain never states. At depth 1 no intermediate
+    exists and the question does not arise.)
+
+    ``None`` means the pair is unusable: the counterfactual is not a digit, or it
+    lands back on the clean answer and there is nothing for the readout to show.
+    Self-donation fails the second test by construction.
+    """
+    implied = (donor.nodes[ANCESTOR].value
+               + recipient.target_value - recipient.nodes[ANCESTOR].value)
+    if not 0 <= implied <= 9 or implied == recipient.target_value:
+        return None
+    return implied
+
+
+def _perfect_matching(n: int, allowed: list[list[int]]) -> list[int] | None:
+    """A permutation with ``sigma[i]`` drawn from ``allowed[i]``, or ``None``.
+
+    Kuhn's augmenting-path search. ``allowed[i]`` never contains ``i``, so any
+    perfect matching it returns is fixed-point-free -- the derangement the
+    control needs, rather than a permutation that has to be rejected afterwards.
+    """
+    donor_to_recipient = [-1] * n
+
+    def augment(recipient: int, seen: list[bool]) -> bool:
+        for donor in allowed[recipient]:
+            if seen[donor]:
+                continue
+            seen[donor] = True
+            if (donor_to_recipient[donor] == -1
+                    or augment(donor_to_recipient[donor], seen)):
+                donor_to_recipient[donor] = recipient
+                return True
+        return False
+
+    for recipient in range(n):
+        if not augment(recipient, [False] * n):
+            return None
+    sigma = [-1] * n
+    for donor, recipient in enumerate(donor_to_recipient):
+        sigma[recipient] = donor
+    return sigma
+
+
+def _select_cross_item_batch(candidates: list[DagItem], n_items: int):
+    """Pick ``n_items`` mutually donatable candidates, and who donates to whom.
+
+    Two selections happen here and they are deliberately different in kind. The
+    first groups candidates by where the ancestor line sits, so donor and
+    recipient share the patched positions -- that is formatting, and nothing the
+    readout measures depends on it. The second keeps a subset whose members can
+    donate to each other at all, which depends on the sampled values; it is a
+    constraint of the ten-way digit readout, not a preference over outcomes, but
+    it does mean this arm is not the same value distribution as the ladder.
+    Earliest-first order keeps both deterministic and as close to a free sample
+    as the constraint allows.
+    """
+    groups: dict[tuple[int, ...], list[int]] = {}
+    for index, item in enumerate(candidates):
+        groups.setdefault(_ancestor_sites(item), []).append(index)
+    group = max(groups.values(), key=lambda members: (len(members), -members[0]))
+
+    for subset in itertools.combinations(group[:CROSS_ITEM_SEARCH * n_items],
+                                         n_items):
+        allowed = [
+            [slot for slot, donor in enumerate(subset)
+             if _implied_by_donor(candidates[recipient],
+                                  candidates[donor]) is not None]
+            for recipient in subset
+        ]
+        sigma = _perfect_matching(n_items, allowed)
+        if sigma is not None:
+            return [candidates[index] for index in subset], sigma
+    raise ValueError(
+        f"no derangement over {n_items} of {len(candidates)} candidates: the "
+        f"largest position-matched group has {len(group)} members and no "
+        f"{n_items} of them can all donate to one another. Raise oversample."
+    )
+
+
+def _attach_cross_item_edits(items: list[DagItem], sigma: list[int]):
+    attached = []
+    for index, item in enumerate(items):
+        donor = items[sigma[index]]
+        sites = _ancestor_sites(item)
+        edit = Edit(
+            kind="cross_item",
+            node=ANCESTOR,
+            positions=sites,
+            token_ids=donor.token_ids,
+            implied_target_value=_implied_by_donor(item, donor),
+            distance_to_read=item.read_position - max(sites),
+            donor_item=sigma[index],
+            donor_raw_value=donor.nodes[ANCESTOR].value,
+        )
+        attached.append(dataclasses.replace(item, edits=(*item.edits, edit)))
+    return attached
+
+
 def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0,
                    condition: str = "both", depth: int = 1, gap: int | None = None,
-                   generator: str = DEFAULT_GENERATOR):
+                   generator: str = DEFAULT_GENERATOR,
+                   cross_item: bool = False, oversample: int | None = None):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
@@ -663,6 +815,11 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     depth apart from its chain. ``v1_unpaired`` is the 2026-08-13 family, kept
     reachable only so the archived artifacts stay re-derivable; its depth arms
     are different families and cannot be compared item by item.
+
+    ``cross_item`` adds the cross-item donor control, which needs the batch to
+    be mutually donatable. That is a constraint on which sampled items are kept,
+    so it changes the batch: a cross-item run is its own arm and its numbers are
+    not the ladder's. ``oversample`` is how many candidates to sample from.
     """
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}, "
@@ -681,10 +838,15 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     if gap is not None and not 0 <= gap <= n_decoys:
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
     build = _build_paired if generator == "v2_paired" else _build_unpaired
+    # Sampling a wider pool and then selecting is what lets the cross-item batch
+    # be mutually donatable. Without the control the pool is the batch, so the
+    # ladder's items are untouched by any of this.
+    n_sampled = (oversample or CROSS_ITEM_OVERSAMPLE * n_items) if cross_item \
+        else n_items
     rng = random.Random(seed)
     items = []
     reasons: dict[str, int] = {}
-    while len(items) < n_items:
+    while len(items) < n_sampled:
         for _ in range(2000):
             try:
                 items.append(build(rng, encode, n_decoys, condition, depth, gap))
@@ -697,6 +859,9 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
             raise RuntimeError(
                 f"could not sample a valid DAG item after 2000 tries: {detail}"
             )
+    if cross_item:
+        items, sigma = _select_cross_item_batch(items, n_items)
+        items = _attach_cross_item_edits(items, sigma)
     return items
 
 
