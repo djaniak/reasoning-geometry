@@ -26,7 +26,13 @@ import json
 import statistics
 from pathlib import Path
 
-from dag_tasks import CHECKPOINTS, DONOR_CONDITIONS, generate_items
+from dag_tasks import (
+    CHECKPOINTS,
+    DEFAULT_GENERATOR,
+    DONOR_CONDITIONS,
+    GENERATORS,
+    generate_items,
+)
 
 LAYER_FRACTIONS = (0.25, 0.50, 0.75, 1.00)
 DIGITS = tuple(str(d) for d in range(10))
@@ -536,7 +542,8 @@ def identity_patch_check(model, token_ids, bins, positions) -> dict:
 
 def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
-        condition: str = "both", depth: int = 1, gap: int | None = None) -> dict:
+        condition: str = "both", depth: int = 1, gap: int | None = None,
+        generator: str = DEFAULT_GENERATOR) -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -550,6 +557,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         condition=condition,
         depth=depth,
         gap=gap,
+        generator=generator,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -561,6 +569,10 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
     )
     report = {
         "model": model_name,
+        # Recorded from the start, so no later run has to have it inferred
+        # the way the archived eight did.
+        "generator": generator,
+        "n_decoys": n_decoys,
         "condition": condition,
         "depth": depth,
         "gap": [item.gap for item in items],
@@ -650,6 +662,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model_name", default=CHECKPOINTS[2])
     parser.add_argument("--n_items", type=int, default=5)
     parser.add_argument("--n_decoys", type=int, default=6)
+    parser.add_argument("--generator", choices=GENERATORS,
+                        default=DEFAULT_GENERATOR,
+                        help="item family; v1_unpaired is the archived one "
+                             "and is not paired across depth")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--condition", choices=DONOR_CONDITIONS, default="both",
                         help="which part of the edited line the donor rewrites")
@@ -681,6 +697,7 @@ def main() -> None:
         model_name=args.model_name,
         n_items=args.n_items,
         n_decoys=args.n_decoys,
+        generator=args.generator,
         seed=args.seed,
         condition=args.condition,
         depth=args.depth,

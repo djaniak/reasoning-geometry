@@ -384,10 +384,15 @@ def test_the_path_to_the_target_has_the_requested_depth(depth):
         assert len(ancestors(set(item.edges), TARGET)) == depth
 
 
-def test_depth_one_is_the_design_that_was_already_measured():
-    # The ladder must not silently re-roll the arm the feasibility run reported.
-    assert [item.token_ids for item in ladder_items(depth=1)] == \
-        [item.token_ids for item in generate_items(char_encode, n_items=5, seed=0)]
+@pytest.mark.parametrize("generator", ["v1_unpaired", "v2_paired"])
+def test_depth_one_is_whatever_that_generator_produces_by_default(generator):
+    # Asking for depth 1 explicitly must not re-roll the arm; it is the default.
+    # Pinned per generator, because the two are deliberately different families.
+    assert [item.token_ids for item in
+            generate_items(char_encode, n_items=5, seed=0, depth=1,
+                           generator=generator)] == \
+        [item.token_ids for item in
+         generate_items(char_encode, n_items=5, seed=0, generator=generator)]
 
 
 def test_the_chain_is_a_path_from_the_ancestor_to_the_target():
@@ -509,3 +514,118 @@ def test_the_failure_message_names_the_reason():
 
     with pytest.raises(RuntimeError, match=r"\d+x site 'operand:\w+' is 2 tokens"):
         generate_items(splitting_encode, n_items=1, seed=0)
+
+
+# --------------------------------------------------------------------------
+# cross-depth pairing
+#
+# The depth ladder is only readable if depth-1 item i and depth-3 item i are the
+# same item apart from the chain. Under the unpaired generator they are not: the
+# chain's `_sample_step` draws come out of the main stream, so every draw after
+# them lands at a different position and the whole item re-rolls. That makes the
+# depth contrast a between-family difference, which no amount of GPU turns into
+# a paired estimate.
+#
+# `v2_paired` takes one chain seed from the main stream per item whatever the
+# depth and builds the chain from a separate stream, so the spine is identical
+# at every depth. This is the audit to run before spending a GPU on the ladder.
+# --------------------------------------------------------------------------
+
+
+def paired_items(depth, *, n_items=5, n_decoys=6, seed=0, gap=0):
+    return generate_items(char_encode, n_items=n_items, n_decoys=n_decoys,
+                          seed=seed, depth=depth, gap=gap,
+                          generator="v2_paired")
+
+
+def spine_lines(item):
+    """Every line except the chain, as rendered text, in trace order."""
+    chain = set(chain_of(item))
+    return [line for name, line in zip(item.order, item.text.splitlines())
+            if name not in chain]
+
+
+DEPTHS = [1, 2, 3]
+
+
+def test_the_spine_is_identical_at_every_depth():
+    families = {depth: paired_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        rendered = {depth: spine_lines(items[index])
+                    for depth, items in families.items()}
+        # The target line names its parent and states the step's operand, both
+        # of which are the last link of the chain. Everything else must match.
+        without_target = {depth: lines[:-2] + lines[-1:]
+                          for depth, lines in rendered.items()}
+        assert len(set(map(tuple, without_target.values()))) == 1, (
+            f"item {index} spine differs across depths: {without_target}"
+        )
+
+
+def test_the_target_value_is_identical_at_every_depth():
+    families = {depth: paired_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        values = {items[index].target_value for items in families.values()}
+        assert len(values) == 1, f"item {index} target value differs: {values}"
+
+
+def test_every_non_chain_node_is_identical_at_every_depth():
+    families = {depth: paired_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        per_depth = []
+        for depth, items in families.items():
+            item = items[index]
+            chain = set(chain_of(item))
+            per_depth.append({
+                name: node for name, node in item.nodes.items()
+                if name not in chain and name != TARGET
+            })
+        assert all(other == per_depth[0] for other in per_depth[1:])
+
+
+def test_the_ancestor_edit_implies_the_same_target_value_at_every_depth():
+    # The chain is an affine map on the ancestor's value, so a paired family has
+    # a fixed net delta: the counterfactual the ancestor edit asserts is the same
+    # trace-level claim at every depth, only reached through more steps.
+    families = {depth: paired_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        implied = {ancestor_edit(items[index]).implied_target_value
+                   for items in families.values()}
+        assert len(implied) == 1, f"item {index} implied value differs: {implied}"
+
+
+def test_the_irrelevant_lines_keep_their_tags_and_their_order():
+    families = {depth: paired_items(depth) for depth in DEPTHS}
+    for index in range(5):
+        orders = set()
+        for items in families.values():
+            item = items[index]
+            chain = set(chain_of(item))
+            orders.add(tuple(n for n in item.order if n not in chain))
+        assert len(orders) == 1, f"item {index} line order differs: {orders}"
+
+
+def test_only_the_chain_lines_are_added_as_depth_grows():
+    for index in range(5):
+        counts = [len(paired_items(depth)[index].order) for depth in DEPTHS]
+        assert counts == [counts[0] + depth - 1 for depth in DEPTHS]
+
+
+def test_the_unpaired_generator_still_reproduces_what_was_already_measured():
+    # Characterisation test, not new behaviour: the three v0 artifacts are
+    # re-derived by regenerating their items, so the legacy path has to stay
+    # byte-exact or `dag_evidence` can no longer verify the manifest.
+    legacy = generate_items(char_encode, n_items=5, seed=0,
+                            generator="v1_unpaired")
+    assert [item.target_value for item in legacy] == [3, 7, 2, 7, 3]
+    assert len({item.token_ids for item in legacy}) == 5
+
+
+def test_the_two_generators_are_not_the_same_family():
+    # The paired generator draws a chain seed and two spare tag letters that the
+    # legacy one never drew, so it necessarily samples a different family. Said
+    # out loud here so nobody reads a paired run as a replay of an archived one.
+    assert [item.token_ids for item in paired_items(1, gap=None)] != \
+        [item.token_ids for item in generate_items(char_encode, n_items=5,
+                                                   seed=0,
+                                                   generator="v1_unpaired")]

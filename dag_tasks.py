@@ -68,6 +68,13 @@ MERGE = "e"
 DECOY_NAMES = "fghijlmn"
 TAG_POOL = "dkopqrstuvwxyz"
 
+# `v1_unpaired` is the 2026-08-13 family: its chain draws from the main stream,
+# so an item re-rolls entirely with depth and the ladder compares different
+# families. It is kept reachable only because the archived artifacts are
+# re-derived by regenerating their items. `v2_paired` is what new runs use.
+GENERATORS = ("v1_unpaired", "v2_paired")
+DEFAULT_GENERATOR = "v2_paired"
+
 CHECKPOINTS = (
     "Qwen/Qwen2.5-Math-1.5B",
     "Qwen/Qwen2.5-Math-1.5B-Instruct",
@@ -324,8 +331,173 @@ def _reroll_root(rng: random.Random, node: Node, condition: str) -> tuple[Node, 
     return dataclasses.replace(node, rhs=str(right), value=value), value
 
 
-def _build(rng: random.Random, encode, n_decoys: int, condition: str,
-           depth: int, gap: int | None) -> DagItem:
+def _sample_chain(rng: random.Random, n_steps: int, start: int,
+                  donor_start: int, delta: int, tries: int = 200):
+    """Signed increments along the ancestor-to-target path, one per step.
+
+    Every step is ``value ± rhs``, so the path as a whole is the affine map
+    ``v -> v + delta`` and the net delta is fixed by the spine: the clean
+    ancestor value has to land on the target value. The donor value therefore
+    lands on ``donor_start + delta`` at every depth, which is what makes the
+    ancestor edit assert the same counterfactual whether it is one step away or
+    three.
+
+    Only the intermediate values are free, and they must stay single digits on
+    both the clean and the donor path. That is the one constraint resolved here,
+    drawn from the chain stream, so failing it can never shift the spine.
+    """
+    if n_steps == 1:
+        return (delta,)
+    for _ in range(tries):
+        steps, clean, donor = [], start, donor_start
+        for _ in range(n_steps - 1):
+            options = [
+                step for step in range(-9, 10)
+                if step and 0 <= clean + step <= 9 and 0 <= donor + step <= 9
+            ]
+            if not options:
+                break
+            steps.append(rng.choice(options))
+            clean += steps[-1]
+            donor += steps[-1]
+        else:
+            last = delta - sum(steps)
+            if last and -9 <= last <= 9:
+                return (*steps, last)
+    raise Reject("no chain realises the required net delta")
+
+
+def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
+                  depth: int, gap: int | None) -> DagItem:
+    """Build an item whose spine does not move with ``depth``.
+
+    Depth-1 item *i* and depth-3 item *i* must be the same trace apart from the
+    chain, or the ladder measures a between-family difference. Two things make
+    that hold: the chain is built from its own stream, seeded by a single draw
+    taken whatever the depth; and every quantity the chain could otherwise
+    perturb -- the target value, the ancestor's donor line, the tag assignment,
+    the surface edit's target lines -- is drawn from the main stream *before* the
+    chain exists, with a count that does not depend on depth.
+    """
+    chain_rng = random.Random(rng.randrange(2 ** 32))
+
+    nodes: dict[str, Node] = {}
+    nodes[ANCESTOR] = _sample_root(rng, ANCESTOR)
+    nodes[NON_ANCESTOR] = _sample_root(rng, NON_ANCESTOR)
+    decoys = list(DECOY_NAMES[:n_decoys])
+    for name in decoys:
+        nodes[name] = _sample_root(rng, name)
+
+    # Drawn against the ancestor rather than against whatever the chain last
+    # produced, so it does not move with depth. At depth 1 they are the same
+    # node, so this is the rule the original design used.
+    start = nodes[ANCESTOR].value
+    value_c = rng.choice([value for value in range(10) if value != start])
+
+    # The ancestor's donor line is drawn here, not with the other edits, so the
+    # chain can be sampled knowing it. Both rejections below are decided by the
+    # spine alone and therefore fire identically at every depth -- which is the
+    # point: a depth-dependent rejection would desynchronise the family just as
+    # surely as a depth-dependent draw.
+    ancestor_donor = _reroll_root(rng, nodes[ANCESTOR], condition)
+    rerolled = ancestor_donor[1]
+    implied = rerolled + (value_c - start)
+    if not 0 <= implied <= 9:
+        raise Reject("edited chain value out of range")
+    if implied == value_c:
+        raise Reject("edited target value unchanged")
+
+    op_e = rng.choice("+-")
+    value_e = _apply(op_e, value_c, nodes[NON_ANCESTOR].value)
+    if not 0 <= value_e <= 9:
+        raise Reject("merge value out of range")
+    nodes[MERGE] = Node(MERGE, TARGET, op_e, NON_ANCESTOR, value_e)
+
+    pair = [ANCESTOR, NON_ANCESTOR]
+    rng.shuffle(pair)
+    rng.shuffle(decoys)
+    cut = rng.randrange(len(decoys) + 1)
+    if gap is not None:
+        cut = len(decoys) - gap
+
+    # A fixed number of spine tags and two spares for the surface edit, both
+    # drawn whatever the depth. The chain's tags come out of what is left over,
+    # from the chain stream.
+    spine = (*decoys[:cut], *pair, *decoys[cut:], TARGET, MERGE)
+    spine_letters = rng.sample(TAG_POOL, len(spine))
+    left_over = [letter for letter in TAG_POOL if letter not in spine_letters]
+    spare_letters = rng.sample(left_over, 2)
+    # Which two lines the surface edit rewrites is a spine decision as well.
+    upstream = [name for name in spine if name not in (TARGET, MERGE)]
+    edited_tags = rng.sample(upstream, 2)
+
+    chain = tuple(DECOY_NAMES[-(depth - 1):]) if depth > 1 else ()
+    steps = _sample_chain(chain_rng, depth, start, rerolled, value_c - start)
+    parent, running = ANCESTOR, start
+    for name, step in zip(chain, steps):
+        running += step
+        nodes[name] = Node(name, parent, "+" if step > 0 else "-",
+                           str(abs(step)), running)
+        parent = name
+    nodes[TARGET] = Node(TARGET, parent, "+" if steps[-1] > 0 else "-",
+                         str(abs(steps[-1])), value_c)
+    chain_letters = chain_rng.sample(
+        [letter for letter in left_over if letter not in spare_letters], len(chain)
+    )
+
+    order = (*decoys[:cut], *pair, *chain, *decoys[cut:], TARGET, MERGE)
+    tags = dict(zip(spine, spine_letters)) | dict(zip(chain, chain_letters))
+
+    chunks = _render(nodes, order, tags)
+    ids, sites = encode_chunks(chunks, encode)
+    read_position = sites[f"result:{TARGET}"] - 1
+
+    edges = transitive_reduction(dependency_edges(nodes))
+    if ancestors(edges, TARGET) != {ANCESTOR, *chain}:
+        raise Reject("unexpected ancestor set")
+
+    item = DagItem(
+        nodes=nodes,
+        order=order,
+        edges=tuple(sorted(edges)),
+        target=TARGET,
+        text="".join(text for text, _ in chunks),
+        token_ids=tuple(ids),
+        value_positions={name: sites[f"result:{name}"] for name in order},
+        operand_positions={
+            name: sites[f"operand:{name}"] for name in order
+            if f"operand:{name}" in sites
+        },
+        read_position=read_position,
+        condition=condition,
+        depth=depth,
+        gap=len(decoys) - cut,
+    )
+
+    edits = [
+        _value_edit(rng, item, nodes, order, tags, encode, ANCESTOR, "ancestor",
+                    condition, chain, donor=ancestor_donor),
+        _value_edit(rng, item, nodes, order, tags, encode, NON_ANCESTOR,
+                    "non_ancestor", condition, chain),
+        _tag_edit(rng, item, nodes, order, tags, encode,
+                  names=edited_tags, letters=spare_letters),
+    ]
+    for name in decoys:
+        edits.append(_value_edit(rng, item, nodes, order, tags, encode, name,
+                                 "null", condition, chain))
+    return dataclasses.replace(item, edits=tuple(edits))
+
+
+def _build_unpaired(rng: random.Random, encode, n_decoys: int, condition: str,
+                    depth: int, gap: int | None) -> DagItem:
+    """The generator as it stood for the 2026-08-13 pilot. Frozen, not fixed.
+
+    Its chain steps draw from the main stream, so every draw after them lands at
+    a different position and the whole item re-rolls with depth. That is the bug
+    ``_build_paired`` exists to fix. This path stays byte-exact because the three
+    v0 artifacts are re-derived by regenerating their items -- see
+    ``dag_evidence.reconstruct_items``.
+    """
     nodes: dict[str, Node] = {}
     nodes[ANCESTOR] = _sample_root(rng, ANCESTOR)
     nodes[NON_ANCESTOR] = _sample_root(rng, NON_ANCESTOR)
@@ -433,9 +605,11 @@ def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
 
 
 def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
-                chain) -> Edit:
+                chain, donor=None) -> Edit:
     edited = dict(nodes)
-    edited[name], rerolled = _reroll_root(rng, nodes[name], condition)
+    # `donor` is the paired generator handing over a reroll it had to draw before
+    # the chain existed; drawing it again here would move the stream.
+    edited[name], rerolled = donor or _reroll_root(rng, nodes[name], condition)
     if name == ANCESTOR:
         implied = _propagate(nodes, chain, rerolled)
         if implied == item.target_value:
@@ -447,25 +621,35 @@ def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
                         force_positions=tuple(sorted(sites)))
 
 
-def _tag_edit(rng, item, nodes, order, tags, encode) -> Edit:
+def _tag_edit(rng, item, nodes, order, tags, encode, names=None,
+              letters=None) -> Edit:
     """Surface null: replace two line tags with unused letters.
 
     Two positions, to match the token count of a value edit. Line tags carry no
     computational role, so a faithful model should not move.
+
+    ``names`` and ``letters`` are the paired generator's: both the lines to
+    rewrite and the spare letters have to be chosen from the spine, before the
+    chain adds lines and consumes tags, or the surface edit lands somewhere else
+    at every depth.
     """
-    spare = [letter for letter in TAG_POOL if letter not in tags.values()]
-    if len(spare) < 2:
-        raise Reject("not enough spare tag letters")
-    upstream = [name for name in order if item.value_positions[name] < item.read_position]
+    if names is None or letters is None:
+        spare = [letter for letter in TAG_POOL if letter not in tags.values()]
+        if len(spare) < 2:
+            raise Reject("not enough spare tag letters")
+        upstream = [name for name in order
+                    if item.value_positions[name] < item.read_position]
+        names, letters = rng.sample(upstream, 2), rng.sample(spare, 2)
     edited = dict(tags)
-    for name, letter in zip(rng.sample(upstream, 2), rng.sample(spare, 2)):
+    for name, letter in zip(names, letters):
         edited[name] = letter
     return _finish_edit(item, nodes, order, edited, encode, "surface_null", None,
                         item.target_value)
 
 
 def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0,
-                   condition: str = "both", depth: int = 1, gap: int | None = None):
+                   condition: str = "both", depth: int = 1, gap: int | None = None,
+                   generator: str = DEFAULT_GENERATOR):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
@@ -473,7 +657,16 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     ``gap`` set the ancestor-to-target path length and the decoy padding in front
     of the target; see the module docstring for why both are needed. ``gap``
     defaults to a random split of the decoys around the edited pair.
+
+    ``generator`` picks the item family. ``v2_paired`` is the default and the
+    only one to run new experiments on: item *i* is the same trace at every
+    depth apart from its chain. ``v1_unpaired`` is the 2026-08-13 family, kept
+    reachable only so the archived artifacts stay re-derivable; its depth arms
+    are different families and cannot be compared item by item.
     """
+    if generator not in GENERATORS:
+        raise ValueError(f"unknown generator {generator!r}, "
+                         f"expected one of {GENERATORS}")
     if condition not in DONOR_CONDITIONS:
         raise ValueError(f"unknown donor condition {condition!r}, "
                          f"expected one of {DONOR_CONDITIONS}")
@@ -487,13 +680,14 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                          f"name and tag pools; keep n_decoys + depth <= {budget}")
     if gap is not None and not 0 <= gap <= n_decoys:
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
+    build = _build_paired if generator == "v2_paired" else _build_unpaired
     rng = random.Random(seed)
     items = []
     reasons: dict[str, int] = {}
     while len(items) < n_items:
         for _ in range(2000):
             try:
-                items.append(_build(rng, encode, n_decoys, condition, depth, gap))
+                items.append(build(rng, encode, n_decoys, condition, depth, gap))
                 break
             except Reject as reject:
                 reasons[str(reject)] = reasons.get(str(reject), 0) + 1
@@ -513,7 +707,8 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
 
 def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
                      condition: str = "both", depth: int = 1,
-                     gap: int | None = None) -> dict:
+                     gap: int | None = None,
+                     generator: str = DEFAULT_GENERATOR) -> dict:
     """Stop condition from the pre-registration.
 
     All three checkpoints must tokenize the same trace into the same id
@@ -535,6 +730,7 @@ def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
             condition=condition,
             depth=depth,
             gap=gap,
+            generator=generator,
         )
         per_checkpoint[name] = items
 
@@ -548,6 +744,8 @@ def check_tokenizers(*, n_items: int, n_decoys: int, seed: int, checkpoints,
                 mismatches.append({"item": index, "checkpoint": name})
     return {
         "checkpoints": list(checkpoints),
+        "generator": generator,
+        "depth": depth,
         "n_items": n_items,
         "reference": reference,
         "n_tokens": [len(item.token_ids) for item in per_checkpoint[reference]],
@@ -569,6 +767,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gap", type=int, default=None,
                         help="decoy lines between the chain and the target "
                              "(default: a random split)")
+    parser.add_argument("--generator", choices=GENERATORS,
+                        default=DEFAULT_GENERATOR,
+                        help="item family; v1_unpaired is the archived one "
+                             "and is not paired across depth")
     parser.add_argument("--model_name", default=CHECKPOINTS[0],
                         help="tokenizer used when printing sample items")
     return parser.parse_args()
@@ -585,6 +787,7 @@ def main() -> None:
             condition=args.condition,
             depth=args.depth,
             gap=args.gap,
+            generator=args.generator,
         )
         print(json.dumps(report, indent=2))
         sys.exit(0 if report["aligned"] else 1)
@@ -600,6 +803,7 @@ def main() -> None:
         condition=args.condition,
         depth=args.depth,
         gap=args.gap,
+        generator=args.generator,
     )
     for item in items:
         print(item.text)
