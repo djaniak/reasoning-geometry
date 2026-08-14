@@ -275,3 +275,75 @@ def test_measure_item_records_what_the_cross_item_control_needs(model):
         if row["kind"] != "cross_item":
             assert "donor_item" not in row
         assert ("delta_toward_raw" in row) is (row["kind"] != "surface_null")
+
+
+# --------------------------------------------------------------------------
+# the row as a sufficient measurement
+# --------------------------------------------------------------------------
+#
+# Every scalar in a row is a projection of the ten-way digit distribution onto
+# one question asked at run time: TV asks how far the readout moved, and the two
+# `delta_toward*` fields ask whether it moved toward one particular digit. That
+# was enough right up until the question became "toward *which* digits, and how
+# much mass went where" -- which cost a GPU rerun to answer, because the
+# distribution was computed and discarded.
+#
+# The project already separates measurement from scoring so that a gate revision
+# costs no GPU. The row schema quietly broke that: the gates are a policy over
+# the rows, but the rows were themselves a policy over the logits. Storing the
+# distribution puts the boundary back where the design says it is.
+
+
+def test_measure_item_stores_the_whole_patched_digit_distribution(model):
+    item = toy_items()[0]
+    bins = layer_bins(4)
+    rows, _ = measure_item(model, item, bins, TOY_DIGIT_IDS)
+
+    for row in rows:
+        assert len(row["probs_patched"]) == 10
+        assert sum(row["probs_patched"]) == pytest.approx(1.0, abs=1e-5)
+
+
+def test_the_clean_distribution_is_recorded_once_per_item(model):
+    # Clean is a property of the item, not of an edit or a layer, so it belongs
+    # in the summary. Putting it in every row would repeat it len(edits)*len(bins)
+    # times and invite the two copies to disagree.
+    item = toy_items()[0]
+    _, summary = measure_item(model, item, layer_bins(4), TOY_DIGIT_IDS)
+
+    assert len(summary["clean_probs"]) == 10
+    assert sum(summary["clean_probs"]) == pytest.approx(1.0, abs=1e-5)
+    assert int(max(range(10), key=lambda d: summary["clean_probs"][d])) == \
+        summary["clean_top_digit"]
+
+
+def test_every_stored_scalar_is_recomputable_from_the_distributions(model):
+    # The point of the change: with clean and patched in hand, a rescore can
+    # derive what the run recorded -- and anything else it did not think to ask.
+    import math
+
+    item = toy_items()[0]
+    rows, summary = measure_item(model, item, layer_bins(4), TOY_DIGIT_IDS)
+    clean = summary["clean_probs"]
+
+    # `digit_readout` calls it "logodds", but it is `log_softmax` over the ten
+    # digits -- a log-probability within the readout, not a log-odds against the
+    # rest of the vocabulary. So the stored deltas are log probability ratios,
+    # and that is what has to be recomputed here.
+    def logodds(probs, digit):
+        return math.log(probs[digit])
+
+    for row in rows:
+        patched = row["probs_patched"]
+        tv = 0.5 * sum(abs(p - c) for p, c in zip(patched, clean))
+        assert tv == pytest.approx(row["tv"], abs=1e-5)
+
+        edit = next(e for e in item.edits
+                    if e.kind == row["kind"] and e.node == row["node"])
+        for field, digit in (("delta_toward", edit.implied_target_value),
+                             ("delta_away", item.target_value),
+                             ("delta_toward_raw", edit.donor_raw_value)):
+            if digit is None or field not in row:
+                continue
+            recomputed = logodds(patched, digit) - logodds(clean, digit)
+            assert recomputed == pytest.approx(row[field], abs=1e-4)

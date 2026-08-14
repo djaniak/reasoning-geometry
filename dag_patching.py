@@ -182,6 +182,11 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 ),
                 "digit_mass_clean": mass,
                 "digit_mass_patched": p_mass,
+                # The whole readout, not just the projections of it this run
+                # happened to ask for. Every scalar above is derivable from this
+                # and `clean_probs` in the summary; the reverse is not true, and
+                # finding that out cost a rerun. Ten floats a row.
+                "probs_patched": [float(p) for p in p_probs],
             }
             if edit.donor_raw_value is not None:
                 # Movement toward the digit the donor writes at the patched
@@ -199,6 +204,9 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
             rows.append(row)
     return rows, {
         "target_value": item.target_value,
+        # Clean is a property of the item, so it is recorded once here rather
+        # than repeated into every (edit, layer) row.
+        "clean_probs": [float(p) for p in probs],
         "clean_top_digit": int(probs.argmax()),
         "clean_target_logodds": float(logodds[item.target_value]),
         "clean_digit_mass": mass,
