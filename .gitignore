@@ -36,6 +36,13 @@ env/
 !/results/dag_patching/*.json
 !/results/dag_patching/README.md
 
+# Same exception, one level down: the paired depth-ladder rerun. Kept apart
+# from the archived, immutable package above rather than merged into it.
+!/results/dag_patching/paired_ladder/
+/results/dag_patching/paired_ladder/*
+!/results/dag_patching/paired_ladder/*.json
+!/results/dag_patching/paired_ladder/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/
