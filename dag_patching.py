@@ -31,6 +31,10 @@ from dag_tasks import CHECKPOINTS, DONOR_CONDITIONS, generate_items
 LAYER_FRACTIONS = (0.25, 0.50, 0.75, 1.00)
 DIGITS = tuple(str(d) for d in range(10))
 
+# Surface-control policies. See ``_surface_gate`` for why there are two.
+GATE_POLICIES = ("v1_two_sided", "v2_one_sided")
+ACTIVE_GATE_POLICY = "v2_one_sided"
+
 
 def layer_bins(n_layers: int, fractions=LAYER_FRACTIONS) -> list[int]:
     """Four relative-depth decoder-layer indices, fixed once per checkpoint.
@@ -172,9 +176,75 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
     }
 
 
-def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
-    """The four continue-rules from the prototype specification."""
-    gates = {}
+def scoring_layers(bins: list[int], n_layers: int | None) -> list[int]:
+    """The layer bins a gate may be decided on.
+
+    Patching the last decoder layer at a position upstream of the read position
+    cannot reach that position: there is no later layer to carry it. Every TV
+    there is 0 by construction, so a containment gate passes trivially
+    (``0 <= 0 <= 0``) and an ``any(layer)`` rule would let the inert bin rescue a
+    gate that fails at every informative layer. The prose summary already
+    excluded it; this makes the scorer agree.
+
+    ``n_layers`` is what identifies the model's final layer. Without it the
+    caller has not said which bin that is, so every bin scores.
+    """
+    if n_layers is None:
+        return list(bins)
+    return [layer for layer in bins if layer != n_layers - 1]
+
+
+def _surface_gate(passes_by_layer, bins, policy, n_by_layer, scored) -> dict:
+    """Aggregate one surface policy with the same 4/5 rule as the other gates.
+
+    ``v1_two_sided`` is the rule as originally registered: the surface
+    perturbation must fall *inside* the range spanned by the null perturbations.
+    That is a distributional-matching test, and the surface control was intended
+    to test one-sided non-interference -- a computationally irrelevant edit must
+    not move the readout *more* than an irrelevant value edit does.
+
+    ``v2_one_sided`` states that role directly and is the active policy. It is a
+    post-hoc amendment, so both policies stay runnable and both are reported.
+    Passing v2 establishes only that the tag edit is quiet; it does not establish
+    selectivity. The tag edit is a floor check, not a matched control -- the
+    cross-item donor control is what would test selectivity.
+    """
+    per_layer = {
+        layer: {
+            "surface_items": sum(ok for lay, ok in passes_by_layer if lay == layer),
+            "n_items": n_by_layer[layer],
+        }
+        for layer in bins
+    }
+    return {
+        "policy": policy,
+        "per_layer": per_layer,
+        "failure_reason": (
+            "surface_above_null" if policy == "v2_one_sided"
+            else "surface_outside_null_spread"
+        ),
+        "passes": any(
+            per_layer[layer]["surface_items"] >= max(1, per_layer[layer]["n_items"] - 1)
+            for layer in scored
+        ),
+    }
+
+
+def evaluate_gates(per_item: list[list[dict]], bins: list[int],
+                   policy: str = ACTIVE_GATE_POLICY,
+                   n_layers: int | None = None) -> dict:
+    """The four continue-rules from the prototype specification.
+
+    ``policy`` selects which surface rule the verdict is bound to. Both are
+    always computed and reported; only the active one gates the verdict.
+    """
+    if policy not in GATE_POLICIES:
+        raise ValueError(f"unknown gate policy {policy!r}, expected one of "
+                         f"{GATE_POLICIES}")
+    scored = scoring_layers(bins, n_layers)
+    if not scored:
+        raise ValueError(f"no scoring layers left in {bins} for {n_layers} layers")
+    gates = {"gate_policy_version": policy, "scoring_layers": scored}
 
     # 1. Directional positive control. An ancestor patch must move the target
     #    toward the value implied by the donor, not merely away from the clean
@@ -195,9 +265,9 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
     gates["directional_control"] = {
         "per_layer": directional,
         "passes": any(
-            stats["n_positive"] >= max(1, stats["n_items"] - 1)
-            and stats["median_delta_toward"] > 0
-            for stats in directional.values()
+            directional[layer]["n_positive"] >= max(1, directional[layer]["n_items"] - 1)
+            and directional[layer]["median_delta_toward"] > 0
+            for layer in scored
         ),
     }
 
@@ -214,8 +284,10 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
     }
 
     # 3. The ancestor-minus-non-ancestor gap must exceed the per-item null spread.
-    # 4. The surface edit must sit inside that spread.
-    gap_pass, surface_pass, detail = [], [], []
+    # 4. The surface edit must not interfere; see ``_surface_gate`` for the two
+    #    policies and why v2 is active.
+    gap_pass, detail = [], []
+    surface_pass = {name: [] for name in GATE_POLICIES}
     for rows in per_item:
         for layer in bins:
             at_layer = [row for row in rows if row["layer"] == layer]
@@ -225,7 +297,9 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
             surface = next(r["tv"] for r in at_layer if r["kind"] == "surface_null")
             spread = max(nulls) - min(nulls)
             gap_pass.append((layer, (ancestor - non_ancestor) > spread))
-            surface_pass.append((layer, min(nulls) <= surface <= max(nulls)))
+            surface_pass["v1_two_sided"].append(
+                (layer, min(nulls) <= surface <= max(nulls)))
+            surface_pass["v2_one_sided"].append((layer, surface <= max(nulls)))
             detail.append({
                 "layer": layer,
                 "tv_ancestor": ancestor,
@@ -234,44 +308,144 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int]) -> dict:
                 "tv_null_min": min(nulls),
                 "tv_null_max": max(nulls),
                 "ancestor_above_all_nulls": ancestor > max(nulls),
+                # Which side a v1 failure fell on. Every archived v1 failure but
+                # one is "below", which is the direction the control wants.
+                "surface_side": (
+                    "below" if surface < min(nulls)
+                    else "above" if surface > max(nulls)
+                    else "in"
+                ),
             })
-    by_layer = {
-        layer: {
-            "gap_items": sum(ok for lay, ok in gap_pass if lay == layer),
-            "surface_items": sum(ok for lay, ok in surface_pass if lay == layer),
-            "n_items": sum(lay == layer for lay, _ in gap_pass),
-        }
-        for layer in bins
-    }
+    n_by_layer = {layer: sum(lay == layer for lay, _ in gap_pass) for layer in bins}
     gates["ancestor_gap"] = {
-        "per_layer": by_layer,
+        "per_layer": {
+            layer: {
+                "gap_items": sum(ok for lay, ok in gap_pass if lay == layer),
+                "n_items": n_by_layer[layer],
+            }
+            for layer in bins
+        },
         "passes": any(
-            stats["gap_items"] >= max(1, stats["n_items"] - 1)
-            for stats in by_layer.values()
+            sum(ok for lay, ok in gap_pass if lay == layer)
+            >= max(1, n_by_layer[layer] - 1)
+            for layer in scored
         ),
     }
-    gates["surface_inside_null_spread"] = {
-        "per_layer": by_layer,
-        "passes": any(
-            stats["surface_items"] >= max(1, stats["n_items"] - 1)
-            for stats in by_layer.values()
-        ),
-    }
+    for name in GATE_POLICIES:
+        gates[f"surface_{name}"] = _surface_gate(
+            surface_pass[name], bins, name, n_by_layer, scored
+        )
+    gates["surface_active"] = gates[f"surface_{policy}"]
     gates["detail"] = detail
     return gates
+
+
+def invalid_reasons(gates: dict) -> list[str]:
+    """Why the intervention itself failed, if it did. Empty means it held.
+
+    Directional control, fluency, and the active surface gate are validity
+    requirements: they say whether the patch measured anything. Ancestor
+    separation is only meaningful once all three hold, so it is not consulted
+    here.
+    """
+    reasons = []
+    if not gates["directional_control"]["passes"]:
+        reasons.append("directional_control_failed")
+    if not gates["fluency"]["passes"]:
+        reasons.append("digit_mass_collapsed")
+    if not gates["surface_active"]["passes"]:
+        reasons.append(gates["surface_active"]["failure_reason"])
+    return reasons
 
 
 def verdict(gates: dict) -> str:
     """Positive, scientific negative, or invalid test -- kept strictly separate.
 
     An invalid test is not evidence about the model. Reporting one as a null is
-    the specific failure the feasibility stage exists to catch.
+    the specific failure the feasibility stage exists to catch. A loud surface
+    edit belongs in that bucket: it means any two-token perturbation moves the
+    readout, so the ancestor gap is not attributable to the edge.
     """
-    if not gates["directional_control"]["passes"] or not gates["fluency"]["passes"]:
+    if invalid_reasons(gates):
         return "invalid test"
     if gates["ancestor_gap"]["passes"]:
         return "positive"
     return "scientific negative"
+
+
+# --------------------------------------------------------------------------
+# offline rescoring
+#
+# The rows are the measurement; the gates and the verdict are a policy over
+# them. Keeping the two separable is what lets a gate revision be re-run on an
+# archived report instead of costing a GPU replay.
+# --------------------------------------------------------------------------
+
+
+def unflatten_rows(report: dict) -> list[list[dict]]:
+    """Recover per-item row blocks from a stored report's flat ``rows``.
+
+    ``measure_item`` emits ``for edit: for layer:``, so one item is a run of
+    edit groups, each group one row per layer bin in ``layer_bins`` order. This
+    validates that layout rather than assuming it: a silently regrouped file
+    would mix two items into one block and produce a plausible-looking verdict.
+    """
+    rows = report["rows"]
+    n_items = report["n_items"]
+    bins = list(report["layer_bins"])
+    if n_items <= 0 or len(rows) % n_items:
+        raise ValueError(
+            f"row count {len(rows)} does not divide into {n_items} items"
+        )
+    per_item = len(rows) // n_items
+    if not bins or per_item % len(bins):
+        raise ValueError(
+            f"row count {per_item} per item is not a multiple of "
+            f"{len(bins)} layer bins"
+        )
+    blocks = [rows[i * per_item:(i + 1) * per_item] for i in range(n_items)]
+    for index, block in enumerate(blocks):
+        for start in range(0, per_item, len(bins)):
+            group = block[start:start + len(bins)]
+            if [row["layer"] for row in group] != bins:
+                raise ValueError(
+                    f"item {index}: unexpected layer order "
+                    f"{[row['layer'] for row in group]}, expected {bins}"
+                )
+            if len({row["kind"] for row in group}) != 1:
+                raise ValueError(
+                    f"item {index}: edit block does not have a single kind, got "
+                    f"{sorted({row['kind'] for row in group})}"
+                )
+    return blocks
+
+
+def rescore_report(report: dict, *, active: str = ACTIVE_GATE_POLICY) -> dict:
+    """Re-run every gate policy over a stored report's rows.
+
+    Returns a new report; the input and its rows are left untouched. Both
+    policies' gates and verdicts are recorded so the legacy numbers stay
+    auditable against the same measurement.
+    """
+    per_item = unflatten_rows(report)
+    bins = list(report["layer_bins"])
+    scoring = {}
+    for policy in GATE_POLICIES:
+        gates = evaluate_gates(per_item, bins, policy=policy,
+                               n_layers=report.get("n_layers"))
+        scoring[policy] = {
+            "gates": gates,
+            "verdict": verdict(gates),
+            "invalid_reasons": invalid_reasons(gates),
+        }
+    rescored = dict(report)
+    if "verdict" in report:
+        rescored["original_verdict"] = report["verdict"]
+    rescored["gate_policy_version"] = active
+    rescored["gates"] = scoring[active]["gates"]
+    rescored["verdict"] = scoring[active]["verdict"]
+    rescored["scoring"] = scoring
+    return rescored
 
 
 # --------------------------------------------------------------------------
@@ -358,8 +532,9 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
 
     report["items"] = summaries
     report["rows"] = [row for rows in per_item for row in rows]
-    report["gates"] = evaluate_gates(per_item, bins)
-    report["verdict"] = verdict(report["gates"])
+    # Score through the same path an archived report takes, so a fresh run and a
+    # rescored one cannot disagree, and the row layout is validated on the way.
+    report = rescore_report(report)
 
     if output_path:
         path = Path(output_path)
@@ -371,9 +546,14 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
 def print_gate_table(report: dict) -> None:
     gates = report.get("gates")
     print(f"model          {report['model']}")
-    print(f"condition      {report['condition']}  depth {report['depth']}  "
-          f"gap {report['gap']}")
-    print(f"ancestor dist  {report['ancestor_distance']} tokens to the read position")
+    # depth / gap / ancestor_distance postdate the first three artifacts. Show
+    # them as unrecorded rather than inventing a default; `dag_evidence.py`
+    # derives the true values by regenerating the items.
+    print(f"condition      {report['condition']}  "
+          f"depth {report.get('depth', '(v0: unrecorded)')}  "
+          f"gap {report.get('gap', '(v0: unrecorded)')}")
+    print(f"ancestor dist  {report.get('ancestor_distance', '(v0: unrecorded)')} "
+          f"tokens to the read position")
     print(f"layer bins     {report['layer_bins']} of {report['n_layers']} layers")
     print(f"identity patch max |dlogit| = "
           f"{report['identity_patch']['max_abs_logit_change']:.2e} "
@@ -382,14 +562,20 @@ def print_gate_table(report: dict) -> None:
         print(f"verdict        {report['verdict']}")
         return
     print()
+    print(f"gate policy    {report.get('gate_policy_version', ACTIVE_GATE_POLICY)}")
     print(f"{'gate':<32}{'passes':<10}detail")
     for name in ("directional_control", "fluency", "ancestor_gap",
-                 "surface_inside_null_spread"):
+                 *(f"surface_{policy}" for policy in GATE_POLICIES)):
         gate = gates[name]
         detail = {k: v for k, v in gate.items() if k != "passes"}
         print(f"{name:<32}{str(gate['passes']):<10}{json.dumps(detail)[:110]}")
     print()
-    print(f"verdict        {report['verdict']}")
+    for policy, scored in report.get("scoring", {}).items():
+        mark = " (active)" if policy == report.get("gate_policy_version") else ""
+        reasons = ", ".join(scored["invalid_reasons"]) or "-"
+        print(f"verdict[{policy}]{mark:<9} {scored['verdict']:<20} {reasons}")
+    if "scoring" not in report:
+        print(f"verdict        {report['verdict']}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -408,11 +594,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
+    parser.add_argument("--rescore", default=None, metavar="REPORT_JSON",
+                        help="re-run every gate policy over a stored report's "
+                             "rows and stop; no model is loaded")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.rescore:
+        report = rescore_report(json.loads(Path(args.rescore).read_text()))
+        if args.output:
+            path = Path(args.output)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(report, indent=2))
+        print_gate_table(report)
+        return
     report = run(
         model_name=args.model_name,
         n_items=args.n_items,
