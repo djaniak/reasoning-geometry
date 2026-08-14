@@ -317,6 +317,24 @@ def test_the_clean_distribution_is_recorded_once_per_item(model):
         summary["clean_top_digit"]
 
 
+def test_the_row_names_the_digits_its_deltas_point_at(model):
+    # A delta without its referent is half a measurement: `delta_toward` says
+    # how far the readout moved toward the implied digit without saying which
+    # digit that was, so "where did the mass actually go" still needs the
+    # generator re-run to answer. The digits are per-edit facts, so they go in
+    # the row beside the deltas that use them.
+    item = toy_items()[0]
+    rows, _ = measure_item(model, item, layer_bins(4), TOY_DIGIT_IDS)
+
+    for row in rows:
+        edit = next(e for e in item.edits
+                    if e.kind == row["kind"] and e.node == row["node"])
+        assert row["implied_value"] == edit.implied_target_value
+        assert ("raw_value" in row) is ("delta_toward_raw" in row)
+        if "raw_value" in row:
+            assert row["raw_value"] == edit.donor_raw_value
+
+
 def test_every_stored_scalar_is_recomputable_from_the_distributions(model):
     # The point of the change: with clean and patched in hand, a rescore can
     # derive what the run recorded -- and anything else it did not think to ask.

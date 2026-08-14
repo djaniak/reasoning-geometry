@@ -171,6 +171,10 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 "kind": edit.kind,
                 "node": edit.node,
                 "layer": layer,
+                # The digit `delta_toward` is a delta toward. Without it the
+                # delta says how far the readout moved but not toward what, so
+                # reading the distribution below still needs the generator.
+                "implied_value": edit.implied_target_value,
                 "distance_to_read": edit.distance_to_read,
                 "tv": float(0.5 * abs(p_probs - probs).sum()),
                 "delta_toward": float(
@@ -199,6 +203,7 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                     p_logodds[edit.donor_raw_value]
                     - logodds[edit.donor_raw_value]
                 )
+                row["raw_value"] = edit.donor_raw_value
             if edit.donor_item is not None:
                 row["donor_item"] = edit.donor_item
             rows.append(row)
