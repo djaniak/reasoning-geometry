@@ -5,6 +5,81 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-14: The floor changes four verdicts and v3 confirms depth 1 on a well-posed family
+
+Two changes, both following from the entry below.
+
+### `answer_moved`: gate on whether the answer moved, not only on whether it moved more
+
+Every gate was a ratio or a one-sided comparison, so none noticed when both
+sides of the comparison were approximately zero. The floor asks whether the
+clean answer still holds a majority of the digit readout after patching.
+
+A half is the largest threshold that is not a free parameter -- below it the
+clean answer cannot still be the argmax -- and it does no work here anyway:
+
+| | clean share at the best layer |
+|:---|:---|
+| arms that fail | 0.946, 0.961, 0.966, 0.991, 0.992 |
+| arms that pass | 0.000 - 0.040 |
+| `operand_only` | 0.401 (the only arm anywhere near the line) |
+
+A 20x gap around the threshold is the evidence that it was not tuned to
+produce this result. Failing it is a **scientific negative**, not an invalid
+test: such a patch was directional, quiet and selective, and simply did not
+change the answer. It also joins the joint-layer rule.
+
+It is computable on the archived reports without a replay -- they store
+`delta_away` per row and `clean_target_logodds` per item, so `rescore_report`
+joins the two. A report supplying neither leaves the floor *unmeasurable*,
+which fails rather than passes. **No archived file was modified**, and the
+manifest re-derives identically.
+
+Four verdicts change, all of them depth 2 or depth 3, in both families:
+
+| Arm | archived | with floor |
+|:---|:---|:---|
+| `depth2_gap0` (archived and paired) | positive | **scientific negative** |
+| `depth3_gap0` (archived and paired) | positive | **scientific negative** |
+
+`operand_only` is unchanged, but its share of 0.401 is worth recording: that
+arm's answer *does* move, and it is a negative because the movement is not
+selective, not because nothing happened.
+
+### `v3_distinct`: the generator keeps all three competing digits apart
+
+`v2_paired` kept the implied value off the clean answer but nothing kept the
+**raw** digit off it, so 2 of 20 ancestor items and 1 of 20 cross-item items
+posed a question with two identical answers. One more rejection, decided by the
+spine alone so it fires identically at every depth, and tested on the reroll
+rather than on the digit a given condition renders so it fires identically in
+all three conditions -- the clean trace has to be the same under each. Donor
+eligibility in the cross-item arm carries the same rule, since that digit comes
+from another item.
+
+It moves the random stream, so it is a new family and the new default, not a
+repair to `v2_paired`. A test pins that `v2_paired` still carries the defect, so
+a quiet fix cannot make the artifacts already run against it unreproducible.
+
+Nine arms run against it, in `results/dag_patching/v3_distinct/`. **Zero
+ill-posed items**, so these counts are whole-batch rather than filtered:
+
+| | n | -> implied | -> raw | -> clean | median mass implied / raw |
+|:---|---:|---:|---:|---:|:---|
+| ancestor, depth-1 arms | 15 | **14** | 1 | 0 | 0.586 / 0.389 |
+| cross-item, seeds 0-3 | 20 | **12** | 6 | 1 | 0.487 / 0.365 |
+
+And the ladder, scored under the floor from the start, reproduces on a fresh
+family what the rescore showed on the old one: `depth1_gap{0,1,2}` positive at
+5/5 items moved, `depth2_gap0` and `depth3_gap0` scientific negatives at 0/5
+with clean shares of 0.961 and 0.991.
+
+So the depth-1 result survives every check applied to it: a paired family, a
+foreign donor, a well-posed batch, and an absolute floor. It remains a
+**mixture** -- roughly 0.59 propagation against 0.39 copying in the ancestor
+arm -- and the collapse after depth 1 is now what the verdict says rather than
+something only the detail block knew.
+
 ## 2026-08-14: The rows now store the digit distribution, and the first question asked of it says the depth ladder collapses after depth 1
 
 `measure_item` computed the ten-way readout and stored three projections of it

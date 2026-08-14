@@ -49,6 +49,13 @@ env/
 !/results/dag_patching/cross_item/*.json
 !/results/dag_patching/cross_item/README.md
 
+# And the v3_distinct family: the ladder and the cross-item arm rerun on a
+# generator that keeps the copied digit off the clean answer.
+!/results/dag_patching/v3_distinct/
+/results/dag_patching/v3_distinct/*
+!/results/dag_patching/v3_distinct/*.json
+!/results/dag_patching/v3_distinct/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/
