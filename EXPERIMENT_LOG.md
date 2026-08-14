@@ -5,6 +5,112 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-14: The cross-item donor control fails its specificity leg, and the directional gate turns out not to separate copying from propagation
+
+The strong donor control, built and run: another item's residual state written
+at the recipient's *own* ancestor positions — same span, token width and
+formatting — under a derangement, so no item donates to itself. Four seeds
+(0-3), depth 1, gap 0, five items each. Artifacts in
+`results/dag_patching/cross_item/`. This is the control that was supposed to
+close selectivity. It does not close it; it reopens something larger.
+
+### The arm is matched in everything but where the state came from
+
+The cross-item edit lands on exactly the positions the within-item ancestor
+edit uses — `(97, 100)`, distance 11 to the read position, two tokens, all five
+items 127 tokens wide with the read position at 111. The batch is selected for
+mutual donatability, twice and for different reasons: by ancestor line position
+(formatting, and nothing measured depends on it) and by value compatibility
+(the ten-way readout has to be able to express the counterfactual). The second
+means this arm is **not** the ladder's value distribution.
+
+The chain is affine, so donor value `v_j` through recipient `i`'s chain implies
+`v_j + delta_i` — neither the clean answer nor the donor's own digit. Selection
+keeps all three distinct, which is what makes "propagated" and "copied"
+separable predictions. Eligibility is decided by the spine alone; walking the
+chain would range-check intermediates, which is depth-dependent and would
+desynchronise the arm exactly as `v1_unpaired` did.
+
+### The control's direction leg passes and its specificity leg fails, on every seed
+
+| Seed | toward (per layer, L6/L13/L20) | specific | median TV |
+|:---|:---|:---|:---|
+| 0 | 5/5, 5/5, 5/5 | 1/5 | 0.99 |
+| 1 | 5/5, 5/5, 5/5 | 2/5 | 0.96 |
+| 2 | 5/5, 5/5, 5/5 | 2/5 | 0.97 |
+| 3 | 5/5, 5/5, 5/5 | 2/5 | 0.98 |
+
+Quorum is 4/5. No seed comes close on specificity, and no layer clears both
+legs together on any seed. Digit mass ratio stays at ~1.00 throughout, so this
+is not a collapsed readout — the intervention is clean and the answer moves a
+long way. It moves toward the digit that was *written*, not toward the value
+that digit implies once carried through the recipient's chain.
+
+Note the magnitude: median TV 0.971 for a foreign item's state against 0.984
+for the native ancestor edit. A state lifted out of an entirely different trace
+perturbs the readout about as much as the matched within-item edit does. Those
+positions are highly sensitive to whatever is written there.
+
+### What that forced us to check, and the answer is uncomfortable
+
+The ancestor edit's `implied_target_value` is the donor's stated value carried
+*through* the chain. Its `directional_control` gate — 5/5 in every arm ever run
+— asks only whether the readout moved toward that value. It never asked whether
+the readout moved toward the plain digit the donor writes at the patched
+position even more. At depth 1 those are different digits, so the question is
+well-posed and was simply never put.
+
+`delta_toward_raw` is now recorded for every value edit, at no extra forward
+pass. Pooling the four seeds, 20 items, median margin over L6/L13/L20:
+
+| Arm | Well-posed | Propagated | Copied |
+|:---|:---|:---|:---|
+| ancestor (within-item) | 18/20 | 10 | 8 |
+| cross-item donor | 19/20 | 6 | 13 |
+
+The within-item ancestor edit is **a coin flip**. The cross-item donor leans
+toward copying. So the headline "the patch moves the answer toward the value
+the donor implies" survives as a statement about direction, and does not
+survive as a statement about mechanism: on the one contrast that can tell them
+apart, propagation and digit-copying are about equally often the better
+description of the within-item edit.
+
+This does not say the value channel is unreal — the movement is large,
+directional, fluent, and it separates ancestors from non-ancestors. It says the
+mechanism behind it is not established to be computation over the written
+graph, and the arm that was supposed to demonstrate selectivity instead
+demonstrated that the sharpest available reading of the effect is unsupported.
+
+### No verdict moved, deliberately
+
+`cross_item_donor` is registered with the joint-layer rule applied from the
+start — it has no archived verdict to protect, so there was no reason to repeat
+the `any(layer)` mistake — and it is reported without binding any verdict.
+Rescoring all eight archived artifacts leaves every verdict and every joint
+layer exactly as before, with the control marked unmeasured. Changing verdicts
+on the strength of a statistic whose null is not yet characterised is the
+post-hoc move the previous two checkpoints were spent undoing.
+
+### A generator defect this exposed
+
+Nothing stops the donor's stated digit from equalling the clean answer. When it
+does, "moved toward the written digit" and "did not move" are the same
+prediction and the contrast is ill-posed — 2 of 20 ancestor edits and 1 of 20
+cross-item edits here. The cross-item batch selection rejects it by
+construction; `_reroll_root` does not. Fixing it changes the random stream and
+therefore the item family, so it is a `v3` generator and a rerun, not an edit
+to `v2_paired`. Not done here: the paired ladder above was run under `v2_paired`
+and a silent family change would strand it.
+
+### Limits
+
+Five items per seed, four seeds, one checkpoint, depth 1 only. The
+propagated/copied split is a per-item median over three layers with no
+significance test and no correction; 10-vs-8 and 6-vs-13 are patterns, not
+estimates. Depth > 1 is not reported: for an arbitrary donor value the chain's
+intermediate values are unconstrained, so the prediction there assumes the model
+carries a value the written trace never states.
+
 ## 2026-08-14: The paired depth ladder is rerun — prospective confirmation, and depth separates from token distance
 
 Five arms, `dag_patching.py --generator v2_paired`, same settings as the
@@ -242,7 +348,9 @@ No GPU was used. The archived arms are unaffected and were not rerun.
 
 Unchanged by any of this: the tag edit is a floor check, not a matched control,
 so selectivity remains open until the cross-item donor experiment — the next
-thing to build. It is a prerequisite for node-by-node graph recovery.
+thing to build. It is a prerequisite for node-by-node graph recovery. (Built and
+run; see the cross-item entry above, which reopens the mechanism question rather
+than closing selectivity.)
 
 The *archived* depth arms remain unpaired and always will be; the generator that
 produced them is frozen. The depth-1 to depth-2 collapse they report stayed
