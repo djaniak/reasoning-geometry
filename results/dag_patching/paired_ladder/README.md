@@ -5,6 +5,13 @@ was **not** touched) using the `v2_paired` generator, so the five arms below
 are the same item family at every depth/gap instead of three re-rolled ones.
 See `EXPERIMENT_LOG.md`, 2026-08-14, "The paired depth ladder is rerun."
 
+**Rerun once since, to add fields only.** Rows now carry `probs_patched`,
+`delta_toward_raw`, `implied_value` and `raw_value`; items carry `clean_probs`.
+Every scalar the first run recorded reproduced exactly — 0 changed values across
+the five files — and the verdicts and gates are unchanged, so these are the same
+measurements with more of the readout kept. See `EXPERIMENT_LOG.md`, "The rows
+now store the digit distribution."
+
 Run commit for all five: `20ea135e36fceca36909c8122b84b6d02a68a5d2`. Model
 `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`, seed 0, `n_items 5`,
 `n_decoys 6`, `condition both` — identical to the archived ladder's settings,

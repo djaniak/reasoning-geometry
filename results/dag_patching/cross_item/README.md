@@ -23,6 +23,13 @@ uv run python dag_patching.py \
   --output results/dag_patching/cross_item/depth1_gap0.json
 ```
 
+**Rerun once since, to add fields only** — `probs_patched` per row,
+`clean_probs` per item, and the `implied_value` / `raw_value` digits the deltas
+point at. Every previously recorded scalar reproduced exactly, and the verdicts
+and gates are unchanged. Read on mass rather than log-ratio, this arm's result
+differs from the one below: see `EXPERIMENT_LOG.md`, "Where the mass goes at
+depth 1."
+
 Run commit `140c335`. Each report records `cross_item`, `donor_map`,
 `generator` and `n_decoys` directly, so nothing here needs the provenance
 recovery the archived eight required. These runs are not in the archived

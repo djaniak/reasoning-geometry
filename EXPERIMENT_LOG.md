@@ -5,6 +5,99 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-14: The rows now store the digit distribution, and the first question asked of it says the depth ladder collapses after depth 1
+
+`measure_item` computed the ten-way readout and stored three projections of it
+(TV, `delta_toward`, `delta_toward_raw`), so every new question about *where*
+the mass went cost a GPU rerun. The project separates measurement from scoring
+precisely so a gate revision costs no GPU; the row schema quietly broke that,
+because the gates were a policy over the rows but the rows were themselves a
+policy over the logits. Rows now carry `probs_patched`, items carry
+`clean_probs`, and rows name the digits their deltas point at (`implied_value`,
+`raw_value`) — a delta without its referent being the same half-measurement one
+level down. A test derives all four stored scalars back out of the two
+distributions, which is what makes the row sufficient rather than merely bigger.
+
+All nine non-archived arms were rerun (five paired-ladder, four cross-item).
+**Every pre-existing scalar reproduced exactly** — 0 changed values across 9
+files — and every verdict and gate is unchanged. The eight archived artifacts
+were not touched, and rescore output for them is byte-identical before and
+after. Cost: 792K + 692K on disk, about 30 s of GPU per arm.
+
+### At matched token distance, depth 1 replaces the answer and depth 2 does not
+
+| Arm | dist | median TV | `median_delta_toward` | clean mass | implied mass |
+|:---|---:|---:|---:|---:|---:|
+| `depth1_gap0` | 24 | 0.973 | 6.86 | 0.001 | 0.651 |
+| `depth1_gap1` | 37 | 0.989 | 7.62 | 0.001 | 0.526 |
+| `depth1_gap2` | 50 | 0.978 | 6.82 | 0.002 | 0.618 |
+| `depth2_gap0` | 36 | 0.026 | 1.84 | **0.970** | 0.002 |
+| `depth3_gap0` | 48 | 0.006 | 1.31 | **0.992** | 0.000 |
+
+The distance-matched pairs still say depth rather than token distance, as
+logged before. What is new is the magnitude. `median_delta_toward` of 1.84 nats
+reads as a real effect; the distribution it summarises has not moved, the clean
+answer keeping 0.970 of the readout. **`depth2_gap0` and `depth3_gap0` are
+scored `positive` on arms where the answer does not change.**
+
+Every gate is a ratio or a one-sided comparison, and none asks whether the
+readout moved in absolute terms. At `depth2_gap0`, layer 6: `ancestor_gap`
+passes on `tv_ancestor` 0.026 against `tv_null_max` 0.0025 — a clean 10x
+between two numbers that are both approximately zero — and
+`directional_control` passes 5/5 on log-ratio movement from about 1e-5 to about
+1e-4.
+
+**This did not need the distributions.** `tv_ancestor` sits in the `detail`
+block of the archived reports and always did: 0.089 at depth 2 and 0.016 at
+depth 3, against 0.99 at depth 1. The collapse was measured, stored, and
+reported in the summary as its log-ratio, which pointed the other way. The
+distributions confirmed it and made the mechanism legible; they were not what
+made it findable. The missing piece is a gate, not a measurement, and it is now
+a rescore.
+
+### Where the mass goes at depth 1: propagation, not copying, but mixed
+
+At the joint layer, well-posed items only (implied, raw and clean answer all
+distinct), argmax of the patched readout:
+
+| Arm | n | -> implied | -> raw | -> clean | median mass implied / raw |
+|:---|---:|---:|---:|---:|:---|
+| ancestor, `depth1_gap0` | 4 | 4 | 0 | 0 | 0.618 / 0.375 |
+| ancestor, `depth1_gap{1,2}` | 8 | 6 | 2 | 0 | ~0.53 / ~0.46 |
+| cross-item, seeds 0-3 | 19 | 12 | 7 | 0 | 0.540 / 0.434 |
+
+The prediction registered before the distributions were stored — *patched
+argmax is the raw written digit, in both arms* — is **falsified**. The implied
+digit wins on argmax and on mass. The previous entry's `delta_toward -
+delta_toward_raw` margin, which read as a coin flip and appeared to track digit
+adjacency, was measuring log-ratios against a clean baseline that varies by
+digit; the mass comparison does not have that dependence and is the statistic
+that should have been used.
+
+This also changes how the cross-item control reads. Its implied digit is the
+donor's value carried through the *recipient's* chain, so a foreign donor
+landing there 12/19 is the model reading a value out of the patched state and
+applying the recipient's delta — not the generic position-sensitivity the
+control was built to rule out. On mass the control supports the mechanism at
+depth 1. Its specificity leg still fails on the log-ratio statistic, and that
+gate has not been rewritten; both readings are now on the record and the
+statistic is the open question, not the data.
+
+Both arms put roughly 0.43-0.46 on the raw digit as well. Depth 1 is a genuine
+mixture of propagation and copying, not one or the other.
+
+### What this does not say
+
+Nothing here rescues depth 2 or 3, and nothing here makes depth 1's mixture
+selective. Two claims logged earlier are now known to be softer than they read:
+"the ladder is positive at every depth" is true only of the current gates, and
+the depth-ladder magnitudes were reported in a unit that overstates arms whose
+answer does not move.
+
+Open, and deliberately not decided here: whether an absolute-effect floor joins
+the active gate policy. It would change archived verdicts, which is a scoring
+decision reserved to the user, and it is now free to evaluate either way.
+
 ## 2026-08-14: The cross-item donor control fails its specificity leg, and the directional gate turns out not to separate copying from propagation
 
 The strong donor control, built and run: another item's residual state written
