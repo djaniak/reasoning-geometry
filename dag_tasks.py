@@ -586,7 +586,7 @@ def _build_unpaired(rng: random.Random, encode, n_decoys: int, condition: str,
 
 
 def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
-                 force_positions=None) -> Edit:
+                 force_positions=None, donor_raw_value=None) -> Edit:
     ids, _ = encode_chunks(_render(nodes, order, tags), encode)
     if len(ids) != len(item.token_ids):
         raise Reject("donor length differs from clean")
@@ -608,6 +608,7 @@ def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
         token_ids=tuple(ids),
         implied_target_value=implied,
         distance_to_read=item.read_position - max(positions),
+        donor_raw_value=donor_raw_value,
     )
 
 
@@ -624,8 +625,15 @@ def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
     else:
         implied = item.target_value
     sites = (item.operand_positions[name], item.value_positions[name])
+    # The digit standing at the patched result position in the donor trace, which
+    # is what a readout that copies what it finds there would emit. Deliberately
+    # not ``rerolled``: under ``operand_only`` the donor leaves the result token
+    # alone, so copying predicts no movement while the implied value predicts a
+    # changed answer. Separating the two is the point -- at depth 1 the ancestor
+    # gate cannot otherwise tell "propagated the value" from "copied the digit".
     return _finish_edit(item, edited, order, tags, encode, kind, name, implied,
-                        force_positions=tuple(sorted(sites)))
+                        force_positions=tuple(sorted(sites)),
+                        donor_raw_value=edited[name].value)
 
 
 def _tag_edit(rng, item, nodes, order, tags, encode, names=None,

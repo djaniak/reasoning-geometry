@@ -754,3 +754,61 @@ def test_a_batch_with_no_possible_derangement_is_refused():
     with pytest.raises(ValueError, match="derangement"):
         generate_items(char_encode, n_items=5, n_decoys=6, seed=0, depth=1,
                        gap=0, cross_item=True, oversample=5)
+
+
+# --------------------------------------------------------------------------
+# copy versus propagation
+#
+# The ancestor edit's implied value is the donor's stated value carried *through*
+# the chain. A model that simply emits the digit it finds at the patched result
+# position would score on that gate too, at depth 1, because the two predictions
+# were never separated. Recording the donor's own stated value on every value
+# edit is what separates them, and it costs no extra forward pass.
+# --------------------------------------------------------------------------
+
+
+def value_edits(item):
+    return [edit for edit in item.edits
+            if edit.kind in ("ancestor", "non_ancestor", "null")]
+
+
+def test_every_value_edit_records_the_digit_it_writes():
+    for item in ladder_items():
+        for edit in value_edits(item):
+            assert edit.donor_raw_value is not None, edit.kind
+            assert 0 <= edit.donor_raw_value <= 9
+
+
+def test_the_ancestor_edits_stated_digit_is_not_the_value_it_implies():
+    # At depth 1 the chain still applies a non-zero step, so "copied the digit"
+    # and "propagated the digit" are different predictions for every item.
+    for item in ladder_items():
+        edit = ancestor_edit(item)
+        assert edit.donor_raw_value != edit.implied_target_value
+
+
+def test_the_digit_a_value_edit_writes_is_the_one_its_donor_line_states():
+    for item in ladder_items():
+        for edit in value_edits(item):
+            *_, stated = parse_line(char_decode(edit.token_ids), edit.node)
+            assert edit.donor_raw_value == stated
+
+
+@pytest.mark.parametrize("condition", DONOR_CONDITIONS)
+def test_the_recorded_digit_is_the_one_sitting_at_the_patched_position(condition):
+    # Not the value the reroll implies. Under `operand_only` the donor leaves the
+    # result token alone, so a readout that merely copies what it finds there
+    # predicts *no* movement -- which is a different prediction from the implied
+    # value, and the whole reason to record this separately.
+    for item in condition_items(condition):
+        edit = ancestor_edit(item)
+        assert edit.donor_raw_value == \
+            edit.token_ids[item.value_positions[ANCESTOR]] - ord("0")
+        if condition == "operand_only":
+            assert edit.donor_raw_value == item.nodes[ANCESTOR].value
+
+
+def test_the_surface_edit_has_no_digit_to_copy():
+    for item in ladder_items():
+        surface = next(e for e in item.edits if e.kind == "surface_null")
+        assert surface.donor_raw_value is None

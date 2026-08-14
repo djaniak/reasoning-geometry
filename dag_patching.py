@@ -184,16 +184,18 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 "digit_mass_patched": p_mass,
             }
             if edit.donor_raw_value is not None:
-                # Only the cross-item control sets this. Movement toward the
-                # donor's own digit is what copying the patched token looks
-                # like; it needs the clean log-odds, which no rescore has, so
-                # it is recorded here or not at all. Every other kind keeps the
-                # schema the archived runs recorded.
-                row["donor_item"] = edit.donor_item
+                # Movement toward the digit the donor writes at the patched
+                # position -- what a readout that copies what it finds there
+                # would do, as opposed to carrying the value through the chain.
+                # It needs the clean log-odds, which no rescore has, so it is
+                # recorded here or not at all. Set for every value edit and for
+                # the cross-item control; the tag edit writes no digit.
                 row["delta_toward_raw"] = float(
                     p_logodds[edit.donor_raw_value]
                     - logodds[edit.donor_raw_value]
                 )
+            if edit.donor_item is not None:
+                row["donor_item"] = edit.donor_item
             rows.append(row)
     return rows, {
         "target_value": item.target_value,

@@ -269,8 +269,9 @@ def test_measure_item_records_what_the_cross_item_control_needs(model):
         assert row["donor_item"] == edit.donor_item
         assert isinstance(row["delta_toward_raw"], float)
 
-    # Every other kind keeps the schema the archived runs recorded.
+    # Only the cross-item control names a donor item; every value edit records
+    # the digit it writes, and the tag edit writes none.
     for row in rows:
         if row["kind"] != "cross_item":
-            assert "delta_toward_raw" not in row
             assert "donor_item" not in row
+        assert ("delta_toward_raw" in row) is (row["kind"] != "surface_null")
