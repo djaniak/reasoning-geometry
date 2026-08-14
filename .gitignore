@@ -43,6 +43,12 @@ env/
 !/results/dag_patching/paired_ladder/*.json
 !/results/dag_patching/paired_ladder/README.md
 
+# And the cross-item donor control, likewise its own arm.
+!/results/dag_patching/cross_item/
+/results/dag_patching/cross_item/*
+!/results/dag_patching/cross_item/*.json
+!/results/dag_patching/cross_item/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/
