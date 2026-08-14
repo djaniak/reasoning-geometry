@@ -5,6 +5,93 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-14: The surface gate is amended and enforced; the pilot runs are archived
+
+External review of `5cbb176` found that the registered surface gate was computed
+but never consulted by `verdict()`. Acting on it surfaced a second, independent
+scoring defect. No GPU was used: the rows are the measurement, and the gates are
+a policy over them.
+
+### The gate policy, and what passing it does not establish
+
+The registered v1 gate required the surface perturbation to fall inside the range
+of two null perturbations. That rule tests distributional matching, while the
+surface control was intended to test one-sided non-interference. We therefore
+introduce a post-hoc v2 policy requiring surface effect ≤ maximum null effect. We
+report both policies. Passing v2 establishes only that the tag edit is quiet; it
+does not establish selectivity.
+
+The direction of the v1 failures is why this is an amendment rather than a
+rescue: in the `result_only` run every v1 failure but one is *below* the null
+minimum, and the exception is L6 item 1 at 0.0153 against a null max of 0.0152.
+No epsilon was added for it; it stays a failure, and the 4/5 aggregation rule
+absorbs it.
+
+Directional control, fluency, and the active surface gate are now validity
+requirements, and ancestor separation is consulted only once all three hold. A
+loud surface edit is an invalid test, recorded with reason `surface_above_null`,
+not a positive. The verdict space is unchanged.
+
+### The final decoder layer was scoring, and rescued the v1 gate
+
+Patching the last decoder layer upstream of the read position cannot reach that
+position, so every TV at layer 27 is exactly 0. A containment gate passes
+trivially there at `0 <= 0 <= 0`, and under the `any(layer)` rule that inert bin
+was carrying the v1 surface gate at 5/5 while it failed 2/5, 3/5, 1/5 at every
+informative layer. The prose summary below already excluded layer 27; the scorer
+now agrees. Directional control and the ancestor gap were unaffected — both
+evaluate to false at an all-zero layer.
+
+### Verdicts under both policies
+
+Archived verdicts are unchanged by the amendment. The two policies disagree on
+exactly one arm, which is the arm the question was about.
+
+| Artifact | Schema | Archived | v1 two-sided | v2 one-sided (active) |
+|:---|:---|:---|:---|:---|
+| `feasibility` | v0 | positive | positive | positive |
+| `result_only` | v0 | positive | **invalid test** | positive |
+| `operand_only` | v0 | scientific negative | scientific negative | scientific negative |
+| `depth{1,2,3}_gap0` | v1 | positive | positive | positive |
+| `depth1_gap{1,2}` | v1 | positive | positive | positive |
+
+Surface items passing per scoring layer, `result_only`, L6/L13/L20: 2/3/1 under
+v1, 4/5/5 under v2.
+
+### Evidence package
+
+`results/dag_patching/` is now in git — not DVC; it is not a stage and never was,
+and with no DVC remote here `.dvc/cache` would be the only copy. The eight runs
+are committed byte-for-byte and are immutable.
+
+`MANIFEST.json` carries sha256, source commit, model and tokenizer revision,
+exact command, and schema version per artifact. `tokenizer_alignment.json` is the
+report noted below as missing; the three checkpoints agree.
+
+The three v0 artifacts predate `depth`/`gap`/`ancestor_distance`, and
+`feasibility.json` predates `condition`. The originals were not backfilled. The
+missing values were recovered by regenerating the items and verified against the
+archived measurements — item count, token count, target value, and the kind,
+node, and `distance_to_read` of every edit in recorded order. All three verify:
+depth 1, gap `[1, 3, 6, 1, 1]`, ancestor distance `[24, 50, 89, 24, 37]`.
+
+Note what that reveals: the donor-split arms ran at ancestor distances of 24-89
+tokens, while `depth1_gap0` in the ladder sits at 11-24. The three donor arms
+share one item family, so the mechanism split is internally paired; it is not
+distance-matched to the ladder's depth-1 baseline.
+
+`condition` is labelled inferred, not derived. It changes only the donor text —
+positions, token count, target value, and every distance are identical across
+conditions — so no archived field can confirm it.
+
+### Still open
+
+Unchanged by any of this: the tag edit is a floor check, not a matched control,
+so selectivity remains open until the cross-item donor experiment. The depth arms
+remain unpaired across item families, so the depth-1 to depth-2 collapse is still
+suggestive rather than an estimate. Both are prerequisites for node-by-node graph
+recovery.
+
 ## 2026-08-13: Arithmetic DAG patching pilot finds a shallow stated-value channel
 
 North star: can residual-stream patching recover a known dependency edge before
@@ -77,6 +164,11 @@ surface-tag diagnostic falls inside the itemwise null range for only 2/5, 3/5,
 and 1/5 items at layers 6/13/20. The positive verdict does not depend on that
 diagnostic, so surface selectivity remains unresolved for this five-item run.
 
+*Superseded 2026-08-14.* The verdict now does depend on a surface gate, and those
+failures are almost all in the benign direction — see the entry above. The
+conclusion that selectivity is unresolved still stands, for a different reason:
+the tag edit is a floor check rather than a matched control.
+
 ### Depth ladder and token-distance control
 
 All runs below use the consistent `both` edit. Values report median ancestor TV
@@ -114,6 +206,10 @@ provenance, and the first three use the older schema. A causal-DAG fidelity scor
 needs a larger fixed item set, a non-degenerate surface control, and replication
 on the Base/Instruct/Distill checkpoints with the tokenizer-alignment gate. No
 saved tokenizer-alignment report exists for these runs.
+
+*Superseded 2026-08-14.* The artifacts are archived in git with a manifest, and
+the tokenizer-alignment report is saved and passing. The larger fixed item set
+and the non-degenerate surface control remain outstanding.
 
 ## 2026-08-10: Two breadth collects queued — second prompt set, second non-distilled model
 
