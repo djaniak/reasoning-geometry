@@ -7,6 +7,7 @@ claims to describe would be worse than no reconstruction at all. These tests
 pin the acceptance check, not the convenience.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -15,8 +16,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dag_evidence import (
+    RUN_COMMITS,
+    SCHEMA_INTRODUCED,
     derive_v0_fields,
+    inferred_fields,
     reconstruct_items,
+    resolve_run_commit,
     schema_version,
     sha256_file,
     verdict_table,
@@ -146,18 +151,39 @@ def test_the_earliest_report_predates_condition_and_defaults_to_both():
     assert verify_reconstruction(report, items)["matches"] is True
 
 
-def test_condition_and_decoy_count_are_marked_inferred_not_derived():
+def test_a_report_that_never_recorded_its_condition_lists_it_as_inferred():
     # The donor condition changes only the donor text. Positions, token count,
     # target value, and every distance are identical across conditions, so the
     # reconstruction cannot confirm it -- it comes from the run order and the
     # log. Recording it as derived would overstate what was checked.
     report = archived_report()
     del report["condition"]
+    assert "condition" in inferred_fields(report)
+
+
+def test_a_report_that_does_record_its_condition_does_not_list_it_as_inferred():
+    # Only `feasibility.json` predates the field. Marking it inferred on the two
+    # runs that state it outright understates the provenance we have.
+    assert "condition" not in inferred_fields(archived_report())
+
+
+def test_every_report_lists_its_unrecorded_decoy_count_as_inferred():
+    # No artifact records n_decoys, v1 included -- so the flag is not a v0
+    # concern and must not be attached only to the reports that get a v0
+    # derivation block.
+    v1 = archived_report()
+    v1.update(depth=1, gap=[0], ancestor_distance=[11])
+    assert "n_decoys" in inferred_fields(v1)
+    assert "depth" not in inferred_fields(v1)
+
+
+def test_derived_fields_carry_only_what_the_reconstruction_checked():
+    # condition and n_decoys are provenance, not derivation; they belong to the
+    # manifest entry, not to the block whose contract is "verified against the
+    # archived measurement".
+    report = archived_report()
     items = reconstruct_items(report, char_encode)
-    derived = derive_v0_fields(report, items)
-    assert "condition" in derived["inferred_fields"]
-    assert "n_decoys" in derived["inferred_fields"]
-    assert "depth" not in derived["inferred_fields"]
+    assert "condition" not in derive_v0_fields(report, items)
 
 
 def test_derived_fields_refuse_to_run_on_a_mismatched_reconstruction():
@@ -183,6 +209,60 @@ def test_derived_ancestor_distance_agrees_with_the_archived_rows():
 # --------------------------------------------------------------------------
 # provenance
 # --------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------
+# which commit produced each run
+#
+# No report records it. It is recovered from the artifact's mtime, bracketed
+# against the commit timeline, and corroborated independently by which schema
+# fields the report carries. mtime does not survive a clone, so the resolved
+# values are frozen in `RUN_COMMITS` and the recovery is a check on them.
+# --------------------------------------------------------------------------
+
+TIMELINE = [("ccc", 300), ("bbb", 200), ("aaa", 100)]  # newest first
+
+
+def test_the_run_commit_is_the_newest_commit_older_than_the_artifact():
+    assert resolve_run_commit(250, TIMELINE, archive_time=1000) == "bbb"
+    assert resolve_run_commit(150, TIMELINE, archive_time=1000) == "aaa"
+
+
+def test_an_artifact_written_by_the_commit_itself_resolves_to_that_commit():
+    assert resolve_run_commit(200, TIMELINE, archive_time=1000) == "bbb"
+
+
+def test_an_mtime_from_a_fresh_checkout_resolves_to_nothing():
+    # After a clone every file's mtime is checkout time. Returning the newest
+    # commit there would confidently name the wrong one.
+    assert resolve_run_commit(1200, TIMELINE, archive_time=1000) is None
+
+
+def test_an_artifact_older_than_every_commit_resolves_to_nothing():
+    assert resolve_run_commit(50, TIMELINE, archive_time=1000) is None
+
+
+def test_every_frozen_run_commit_agrees_with_the_schema_its_report_carries():
+    # A report carrying a field cannot predate the commit that added it, and a
+    # report missing that field cannot postdate it. This is the second,
+    # mtime-independent signal -- it must agree with the frozen mapping.
+    import subprocess
+
+    def commit_time(short):
+        return int(subprocess.run(
+            ["git", "show", "-s", "--format=%ct", short],
+            capture_output=True, text=True, check=True).stdout.strip())
+
+    directory = Path(__file__).resolve().parents[1] / "results/dag_patching"
+    for name, commit in RUN_COMMITS.items():
+        report = json.loads((directory / f"{name}.json").read_text())
+        run_at = commit_time(commit)
+        for field, introduced in SCHEMA_INTRODUCED.items():
+            added_at = commit_time(introduced)
+            if field in report:
+                assert run_at >= added_at, f"{name} has {field} but predates it"
+            else:
+                assert run_at < added_at, f"{name} lacks {field} but postdates it"
 
 
 def test_sha256_is_stable_and_content_addressed(tmp_path):

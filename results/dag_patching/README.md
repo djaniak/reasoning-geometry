@@ -18,7 +18,7 @@ remote on this host, which would make `.dvc/cache` the only copy.
 | `result_only.json`, `operand_only.json` | the donor mechanism split |
 | `depth{1,2,3}_gap0.json` | the path-depth ladder |
 | `depth1_gap{1,2}.json` | token-distance controls for depth 1 |
-| `MANIFEST.json` | sha256, source commit, model and tokenizer revision, exact command, schema version, and derived fields |
+| `MANIFEST.json` | sha256, run commit, model and tokenizer revision, replay command, schema version, derived fields, and inferred fields |
 | `tokenizer_alignment.json` | the three checkpoints tokenize the same trace identically — a precondition for any Base/Instruct/Distill comparison |
 
 ## Schema versions
@@ -37,11 +37,26 @@ the kind, node, and `distance_to_read` of every edit in recorded order.
 
 - **derived** — recovered and checked against the measurement (`depth`, `gap`,
   `ancestor_distance`).
-- **inferred** — taken from the run order and the log, *not* checkable. The donor
-  `condition` changes only the donor text; positions, token count, target value,
-  and every distance are identical across conditions, so no archived field can
-  confirm it. `n_decoys` was never recorded either, though a wrong value would
-  change the token count and be rejected.
+- **inferred** — taken from the run order and the log, *not* checkable. Listed
+  per artifact from what that report omits, so it is honest in both directions.
+  Only `feasibility` lacks `condition`; the other two v0 runs state theirs.
+  `n_decoys` is unrecorded in all eight, v1 included, so it is flagged
+  everywhere — though a wrong value would change the token count and be rejected.
+
+## Provenance field names
+
+- `run_commit` — the commit that produced the run. No report recorded it. It is
+  recovered from the artifact mtime bracketed against the commit timeline, and
+  corroborated independently by which schema fields the report carries: a report
+  with `condition` cannot predate the commit that added it, one without cannot
+  postdate it. Both signals agree for all eight. The values are frozen in
+  `dag_evidence.RUN_COMMITS` because git does not preserve mtimes, so a clone
+  loses the first signal; `mtime_still_confirms` records whether this checkout
+  can still see it.
+- `replay_command` — reconstructed from the recorded settings. It reproduces the
+  run; it is not a transcript of what was typed.
+- `manifest_generation_commit` — when the manifest was built. Not when any run
+  was produced.
 
 ## Scoring
 
@@ -57,6 +72,10 @@ Two surface-control policies are reported for every run. `v1_two_sided` is the
 rule as originally registered; `v2_one_sided` is the active post-hoc amendment.
 See `dag_patching._surface_gate` for why, and `EXPERIMENT_LOG.md` for what
 passing v2 does and does not establish.
+
+Each run also reports `prospective_joint_layer`: the layers at which every gate
+clears together. It is frozen for the next paired run and does not decide any
+archived verdict — see `dag_patching._joint_layer_gate`.
 
 ## Regenerating this package
 

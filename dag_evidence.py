@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dag_patching import GATE_POLICIES, rescore_report
@@ -51,9 +52,44 @@ DEFAULT_N_DECOYS = 6
 # value, and every distance are identical across conditions, so a reconstruction
 # cannot confirm it. It is inferred from the run order and the log, not derived.
 DEFAULT_CONDITION = "both"
-INFERRED_FIELDS = ("condition", "n_decoys")
+
+# Provenance the reports may or may not state. Whether a field is inferred is a
+# property of the individual report -- `result_only` and `operand_only` do record
+# their condition, and calling it inferred there understates what we have. Only
+# `n_decoys` is absent from all eight, v1 included.
+PROVENANCE_FIELDS = ("condition", "n_decoys")
 
 SCHEMA_V1_FIELDS = ("depth", "gap", "ancestor_distance")
+
+# Which commit was checked out when each run was written. No report records it.
+# Recovered from the artifact mtimes (see `resolve_run_commit`) and frozen here,
+# because mtime is checkout time after a clone and the evidence would be lost.
+#
+# Corroborated by a second, mtime-independent signal: a report carrying a schema
+# field cannot predate the commit that added the field, and a report missing it
+# cannot postdate that commit. Both signals agree for all eight; the test
+# `test_every_frozen_run_commit_agrees_with_the_schema_its_report_carries`
+# re-checks the second one against the repository.
+RUN_COMMITS = {
+    "feasibility": "015a0f40202b50ab4b8fc56ab16089f4d7a6734b",
+    "result_only": "e8117b5ad2547bc96e15135fb47958d8a6e5ccb4",
+    "operand_only": "e8117b5ad2547bc96e15135fb47958d8a6e5ccb4",
+    "depth1_gap0": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+    "depth2_gap0": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+    "depth3_gap0": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+    "depth1_gap1": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+    "depth1_gap2": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+}
+
+# The commit that introduced each field, for the corroborating check above.
+SCHEMA_INTRODUCED = {
+    "condition": "e8117b5ad2547bc96e15135fb47958d8a6e5ccb4",
+    "depth": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+}
+
+# The commit that put the artifacts under git. An mtime at or after it is a
+# checkout timestamp, not a run timestamp.
+ARCHIVE_COMMIT = "605b676b07c5a41508a3442908790439a4bfd17e"
 
 
 # --------------------------------------------------------------------------
@@ -70,6 +106,63 @@ def sha256_file(path) -> str:
 def schema_version(report: dict) -> str:
     """``v1`` once depth/gap/distance were recorded, ``v0`` before that."""
     return "v1" if all(field in report for field in SCHEMA_V1_FIELDS) else "v0"
+
+
+def inferred_fields(report: dict) -> list[str]:
+    """Provenance this report does not state, so it comes from the log instead.
+
+    Built from what is absent rather than asserted for a whole schema version:
+    two of the three v0 runs do record their condition, and every run -- v1
+    included -- leaves `n_decoys` unrecorded.
+    """
+    return [field for field in PROVENANCE_FIELDS if field not in report]
+
+
+def commit_timeline() -> list[tuple[str, int]]:
+    """``(sha, unix time)`` for every commit, newest first."""
+    result = subprocess.run(
+        ["git", "log", "--format=%H %ct"], capture_output=True, text=True,
+        check=True,
+    )
+    return [(line.split()[0], int(line.split()[1]))
+            for line in result.stdout.splitlines() if line.strip()]
+
+
+def resolve_run_commit(mtime: float, timeline, archive_time: float) -> str | None:
+    """The commit checked out when a file with this mtime was written.
+
+    ``None`` when the mtime cannot be a run time: at or after ``archive_time``
+    it is a checkout timestamp (git does not preserve mtimes), and before every
+    commit there is nothing to attribute it to. Both cases must say "unknown"
+    rather than confidently name the nearest commit.
+    """
+    if mtime >= archive_time:
+        return None
+    for sha, when in timeline:  # newest first
+        if when <= mtime:
+            return sha
+    return None
+
+
+def run_commit_evidence(name: str, path) -> dict:
+    """The frozen run commit for ``name``, plus the mtime check behind it."""
+    frozen = RUN_COMMITS.get(name)
+    timeline = commit_timeline()
+    times = dict(timeline)
+    archive_time = times.get(ARCHIVE_COMMIT)
+    mtime = Path(path).stat().st_mtime
+    resolved = (resolve_run_commit(mtime, timeline, archive_time)
+                if archive_time else None)
+    return {
+        "run_commit": frozen,
+        "basis": "artifact mtime, bracketed against the commit timeline; "
+                 "corroborated by which schema fields the report carries",
+        "artifact_mtime_utc": datetime.fromtimestamp(mtime, UTC).isoformat(),
+        # False after a fresh clone, where mtime is checkout time. That does not
+        # weaken `run_commit` -- it only means this host can no longer re-derive
+        # it, which is why the value is frozen in the first place.
+        "mtime_still_confirms": resolved == frozen,
+    }
 
 
 def git_commit() -> str | None:
@@ -192,14 +285,12 @@ def derive_v0_fields(report: dict, items) -> dict:
                  if edit.kind == "ancestor")
             for item in items
         ],
-        # Not recoverable from any recorded field; taken from the run order and
-        # the log. Listed separately so the manifest never presents these as
-        # checked against the measurement.
-        "inferred_fields": list(INFERRED_FIELDS),
-        "condition": report.get("condition", DEFAULT_CONDITION),
-        "n_decoys": report.get("n_decoys", DEFAULT_N_DECOYS),
         "ancestor_node": ANCESTOR,
     }
+    # `condition` and `n_decoys` are deliberately absent. They are provenance,
+    # not derivation -- nothing here checked them against the measurement -- so
+    # they live on the manifest entry under `inferred_fields`, alongside the same
+    # flag for the v1 runs that also never recorded `n_decoys`.
 
 
 # --------------------------------------------------------------------------
@@ -275,8 +366,14 @@ def build_manifest(directory=ARTIFACT_DIR) -> dict:
             "seed": report["seed"],
             "condition": report.get("condition", DEFAULT_CONDITION),
             "n_items": report["n_items"],
+            "n_decoys": report.get("n_decoys", DEFAULT_N_DECOYS),
             "layer_bins": report["layer_bins"],
-            "command": _command_for(name, report),
+            # Which of the two fields above the report did not state itself.
+            "inferred_fields": inferred_fields(report),
+            **run_commit_evidence(name, path),
+            # Reconstructed from the recorded settings, not captured at run time:
+            # it reproduces the run, it is not a transcript of what was typed.
+            "replay_command": _command_for(name, report),
         }
         if entry["schema_version"] == "v0":
             items = reconstruct_items(
@@ -287,8 +384,13 @@ def build_manifest(directory=ARTIFACT_DIR) -> dict:
         entries.append(entry)
     return {
         "note": "Original artifacts are immutable and content-addressed. v0 "
-                "fields are derived by regenerating items, never backfilled.",
-        "source_commit": git_commit(),
+                "fields are derived by regenerating items, never backfilled. "
+                "Per artifact: `run_commit` is the commit that produced the run, "
+                "`replay_command` reproduces it from the recorded settings, and "
+                "`inferred_fields` names provenance the report never stated.",
+        # The commit this manifest was generated at -- not the commit any run
+        # was produced at. That is `run_commit`, per artifact.
+        "manifest_generation_commit": git_commit(),
         "artifacts": entries,
     }
 

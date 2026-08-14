@@ -15,17 +15,22 @@ a policy over them.
 ### The gate policy, and what passing it does not establish
 
 The registered v1 gate required the surface perturbation to fall inside the range
-of two null perturbations. That rule tests distributional matching, while the
-surface control was intended to test one-sided non-interference. We therefore
-introduce a post-hoc v2 policy requiring surface effect ≤ maximum null effect. We
-report both policies. Passing v2 establishes only that the tag edit is quiet; it
-does not establish selectivity.
+spanned by the per-item null edits — six of them per item, one per irrelevant
+node. That rule tests distributional matching, while the surface control was
+intended to test one-sided non-interference. We therefore introduce a post-hoc v2
+policy requiring surface effect ≤ maximum null effect. We report both policies.
+Passing v2 establishes only that the tag edit is quiet; it does not establish
+selectivity.
 
-The direction of the v1 failures is why this is an amendment rather than a
-rescue: in the `result_only` run every v1 failure but one is *below* the null
-minimum, and the exception is L6 item 1 at 0.0153 against a null max of 0.0152.
-No epsilon was added for it; it stays a failure, and the 4/5 aggregation rule
-absorbs it.
+State the operational effect plainly: v2 rescues `result_only` from invalid under
+v1 to positive, and it was chosen after seeing that outcome. What argues it is
+not fitted to the outcome is the *direction* of the v1 failures — in that run
+every v1 failure but one is *below* the null minimum, which is the side the
+control wants, and the exception is L6 item 1 at 0.0153 against a null max of
+0.0152. No epsilon was added for it; it stays a failure, and the 4/5 aggregation
+rule absorbs it. The construct change is justified on its own terms, but it
+remains post-hoc and needs prospective confirmation on a run scored under v2 from
+the start.
 
 Directional control, fluency, and the active surface gate are now validity
 requirements, and ancestor separation is consulted only once all three hold. A
@@ -58,15 +63,50 @@ exactly one arm, which is the arm the question was about.
 Surface items passing per scoring layer, `result_only`, L6/L13/L20: 2/3/1 under
 v1, 4/5/5 under v2.
 
+### A joint-layer rule, frozen prospectively
+
+Every gate aggregates with `any(layer)` independently, so each may clear at a
+different bin. That admits an arm-level positive with no single layer at which
+the patch was directional, quiet, and selective at once — which is what an
+arm-level positive is meant to assert. `joint_layer` requires one such layer.
+
+It is reported for the archived runs and does **not** decide their verdicts;
+applying it retroactively would be a third post-hoc policy move. It is frozen
+here for the next paired run, while adopting it is still free: every active
+positive already has a joint layer, and only `depth3_gap0` loses one.
+
+| Artifact | Joint layers | Verdict if applied |
+|:---|:---|:---|
+| `feasibility`, `result_only`, `depth1_gap{0,1,2}`, `depth2_gap0` | 6, 13, 20 | positive |
+| `depth3_gap0` | 6, 13 | positive |
+| `operand_only` | none | scientific negative |
+
 ### Evidence package
 
 `results/dag_patching/` is now in git — not DVC; it is not a stage and never was,
 and with no DVC remote here `.dvc/cache` would be the only copy. The eight runs
 are committed byte-for-byte and are immutable.
 
-`MANIFEST.json` carries sha256, source commit, model and tokenizer revision,
-exact command, and schema version per artifact. `tokenizer_alignment.json` is the
-report noted below as missing; the three checkpoints agree.
+`MANIFEST.json` carries sha256, model and tokenizer revision, schema version, and
+per artifact a `run_commit`, a `replay_command`, and an `inferred_fields` list.
+The names are deliberate. `replay_command` is reconstructed from the recorded
+settings — it reproduces the run, it is not a transcript of what was typed. The
+manifest's own `manifest_generation_commit` is when the manifest was built, which
+is not when any run was produced. `tokenizer_alignment.json` is the report noted
+below as missing; the three checkpoints agree.
+
+No report records which commit produced it. It is recovered from each artifact's
+mtime, bracketed against the commit timeline, and corroborated by a second,
+mtime-independent signal: a report carrying a schema field cannot predate the
+commit that added the field, and a report missing it cannot postdate that commit.
+Both signals agree for all eight, and the values are frozen in `RUN_COMMITS`
+because git does not preserve mtimes — after a clone that evidence is gone.
+
+| Artifact | Run commit | Why it is bounded |
+|:---|:---|:---|
+| `feasibility` | `015a0f4` | no `condition` field, which `e8117b5` added |
+| `result_only`, `operand_only` | `e8117b5` | has `condition`, no `depth`, which `60efa8d` added |
+| `depth*` | `60efa8d` | has `depth` and `gap` |
 
 The three v0 artifacts predate `depth`/`gap`/`ancestor_distance`, and
 `feasibility.json` predates `condition`. The originals were not backfilled. The
@@ -80,9 +120,14 @@ tokens, while `depth1_gap0` in the ladder sits at 11-24. The three donor arms
 share one item family, so the mechanism split is internally paired; it is not
 distance-matched to the ladder's depth-1 baseline.
 
-`condition` is labelled inferred, not derived. It changes only the donor text —
-positions, token count, target value, and every distance are identical across
-conditions — so no archived field can confirm it.
+`inferred_fields` is built per artifact from what that report omits, not asserted
+for a whole schema version. Only `feasibility` lacks `condition`; `result_only`
+and `operand_only` state theirs outright, and marking those inferred would
+understate the provenance. Where it *is* inferred it cannot be checked: the
+condition changes only the donor text — positions, token count, target value, and
+every distance are identical across conditions — so no archived field can confirm
+it. `n_decoys` is unrecorded in all eight, v1 included, so it is flagged
+everywhere; a wrong value would change the token count and be rejected.
 
 ### Still open
 
