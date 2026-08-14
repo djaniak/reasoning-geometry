@@ -5,6 +5,67 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-14: The paired depth ladder is rerun — prospective confirmation, and depth separates from token distance
+
+Five arms, `dag_patching.py --generator v2_paired`, same settings as the
+archived ladder (model, seed 0, `n_items 5`, `condition both`, `n_decoys 6`):
+`depth{1,2,3}_gap0`, `depth1_gap{1,2}`. Output in
+`results/dag_patching/paired_ladder/`; the archived package was not touched.
+Scored under `v2_one_sided` and `joint_layer` from the start — not amended
+after the fact, so this is the prospective confirmation the gate amendment
+below needed.
+
+### Verdicts unchanged, joint layers shift by one arm each way
+
+| Arm | Ancestor dist | Archived joint layers | Paired joint layers | Verdict (both) |
+|:---|:---|:---|:---|:---|
+| `depth1_gap0` | 11 (paired) / 24 (archived) | 6, 13, 20 | 13, 20 | positive |
+| `depth2_gap0` | 23 / — | 6, 13, 20 | 6, 13, 20 | positive |
+| `depth3_gap0` | 35 / — | 6, 13 | 6, 13, 20 | positive |
+| `depth1_gap1` | 24 / — | 6, 13, 20 | 6, 13, 20 | positive |
+| `depth1_gap2` | 37 / — | 6, 13, 20 | 6, 13, 20 | positive |
+
+Every arm stays positive under `v1_two_sided`, `v2_one_sided`, and
+`joint_layer` alike. `depth1_gap0` loses layer 6 as a joint layer under
+pairing; `depth3_gap0` gains layer 20. No arm loses joint-layer coverage
+entirely. The amendment's prospective test passes.
+
+### The depth/token-distance confound resolves
+
+Pairing lets the ladder do what it was built for: compare a depth step
+against a token-distance-matched gap step on the *same* items. It separates
+cleanly.
+
+| Arm | Dist | L6 | L13 | L20 |
+|:---|:---|:---|:---|:---|
+| `depth1_gap0` | 11 | 6.82 | 6.86 | 6.66 |
+| `depth2_gap0` | 23 | 1.84 | 1.59 | 1.47 |
+| `depth1_gap1` (dist-matched to depth2) | 24 | 7.62 | 7.67 | 7.59 |
+| `depth3_gap0` | 35 | 1.31 | 1.06 | 0.93 |
+| `depth1_gap2` (dist-matched to depth3) | 37 | 6.82 | 6.94 | 6.90 |
+
+(`median_delta_toward`, directional-control gate, TV log-odds.) `depth2_gap0`
+and `depth1_gap1` sit one token apart (23 vs 24) and differ four- to fivefold
+in effect size; `depth3_gap0` and `depth1_gap2` sit two tokens apart (35 vs
+37) and differ five- to sevenfold. Token distance alone does not produce this
+gap — graph depth does. This replaces the archived ladder's "suggestive"
+depth-1-to-depth-2 collapse (never paired, so confounded with both family and
+distance) with a paired, distance-controlled one: the collapse is real and is
+a depth effect, not a token-distance artifact.
+
+Descriptive only — five items, one seed, no significance test, and
+`median_delta_toward` is not itself a gate metric. Worth a registered
+contrast before it is a claim rather than a pattern.
+
+### What this does and does not change
+
+The archived eight runs and their verdicts are untouched; this is a new,
+better-controlled ladder, not a correction to them. It supersedes the
+"suggestive" framing in "Still open" below for the depth-vs-distance
+question specifically. It does not touch selectivity: the tag edit is still
+a floor check, and the cross-item donor experiment is still the next thing to
+build.
+
 ## 2026-08-14: The surface gate is amended and enforced; the pilot runs are archived
 
 External review of `5cbb176` found that the registered surface gate was computed
@@ -184,11 +245,9 @@ so selectivity remains open until the cross-item donor experiment — the next
 thing to build. It is a prerequisite for node-by-node graph recovery.
 
 The *archived* depth arms remain unpaired and always will be; the generator that
-produced them is frozen. The depth-1 to depth-2 collapse they report stays
-suggestive rather than an estimate, and the paired ladder has to be rerun to
-replace it. That run is also the prospective confirmation the v2 surface gate
-needs, since it will be scored under v2 and the joint-layer rule from the start
-rather than after the fact.
+produced them is frozen. The depth-1 to depth-2 collapse they report stayed
+suggestive rather than an estimate; the paired ladder rerun above replaces it
+and doubles as the prospective confirmation the v2 surface gate needed.
 
 ## 2026-08-13: Arithmetic DAG patching pilot finds a shallow stated-value channel
 
