@@ -22,7 +22,19 @@ env/
 
 # DVC-managed directories (tracked via dvc.yaml / .dvc files, not git)
 /data/
-/results/
+/results/*
+
+# Exception: the DAG patching artifacts are not a DVC stage and never were --
+# they appear in neither dvc.yaml nor dvc.lock. They are half a megabyte of JSON
+# and the only record of the pilot's per-item measurements, so they go in git
+# directly. There is no DVC remote on this host, which would make .dvc/cache the
+# only copy and a checkout/gc irreversible; git is the safer home for something
+# this small. Only .json and the README are admitted, one path at a time, so a
+# stray large output dropped in this directory cannot ride along.
+!/results/dag_patching/
+/results/dag_patching/*
+!/results/dag_patching/*.json
+!/results/dag_patching/README.md
 
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
