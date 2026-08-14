@@ -248,6 +248,97 @@ def test_rescore_excludes_the_final_layer_using_the_reports_n_layers():
     assert rescored["gates"]["scoring_layers"] == [6, 13, 20]
 
 
+# --------------------------------------------------------------------------
+# the prospective joint-layer rule
+#
+# Every gate aggregates with `any(layer)`, so each one may clear at a different
+# bin. That yields an arm-level positive with no single layer at which the patch
+# was directional, quiet, and selective at once -- which is what an arm-level
+# positive is meant to assert. The rule below requires one such layer. It is
+# frozen for the next paired run and reported here alongside the active verdict;
+# applying it to the archived reports would be a third post-hoc policy move.
+# --------------------------------------------------------------------------
+
+
+def split_layer_rows():
+    """Directional control clears only at layer 0; the gap only at layer 1."""
+    return [
+        # Directional, quiet, but the gap does not exceed the null spread.
+        make_rows(0, ancestor_toward=2.0, ancestor_tv=0.30, non_ancestor_tv=0.28,
+                  surface_tv=0.20, null_tvs=[0.20, 0.25, 0.30, 0.28, 0.26, 0.22])
+        # Selective and quiet, but the patch moves away from the donor value.
+        + make_rows(1, ancestor_toward=-2.0, ancestor_tv=0.80, non_ancestor_tv=0.05,
+                    surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+        for _ in range(5)
+    ]
+
+
+def test_the_joint_layer_rule_lists_every_layer_where_all_gates_clear_together():
+    rows = [
+        make_rows(0, ancestor_toward=1.5, ancestor_tv=0.7, non_ancestor_tv=0.05,
+                  surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+        + make_rows(1, ancestor_toward=-1.0, ancestor_tv=0.05, non_ancestor_tv=0.05,
+                    surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+        for _ in range(5)
+    ]
+    joint = evaluate_gates(rows, [0, 1])["prospective_joint_layer"]
+    assert joint["layers"] == [0]
+    assert joint["passes"] is True
+
+
+def test_gates_clearing_at_different_layers_leave_no_joint_layer():
+    joint = evaluate_gates(split_layer_rows(), [0, 1])["prospective_joint_layer"]
+    assert joint["layers"] == []
+    assert joint["passes"] is False
+    assert joint["verdict_if_applied"] == "scientific negative"
+
+
+def test_the_prospective_rule_does_not_touch_the_active_verdict():
+    # The active `any(layer)` rule calls this positive: directional clears at
+    # layer 0, the gap at layer 1. The prospective rule would not.
+    gates = evaluate_gates(split_layer_rows(), [0, 1])
+    assert gates["directional_control"]["passes"] is True
+    assert gates["ancestor_gap"]["passes"] is True
+    assert verdict(gates) == "positive"
+    assert gates["prospective_joint_layer"]["applied_to_verdict"] is False
+    assert gates["prospective_joint_layer"]["verdict_if_applied"] != "positive"
+
+
+def test_a_quiet_loud_split_across_layers_is_an_invalid_test_under_the_rule():
+    # Directional and selective at layer 0, but the surface edit is louder than
+    # every null there. Validity is a per-layer property too.
+    rows = [
+        make_rows(0, ancestor_toward=2.0, ancestor_tv=0.80, non_ancestor_tv=0.05,
+                  surface_tv=0.60, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+        + make_rows(1, ancestor_toward=-2.0, ancestor_tv=0.05, non_ancestor_tv=0.05,
+                    surface_tv=0.01, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+        for _ in range(5)
+    ]
+    joint = evaluate_gates(rows, [0, 1])["prospective_joint_layer"]
+    assert joint["verdict_if_applied"] == "invalid test"
+
+
+def test_the_joint_rule_is_bounded_by_the_scoring_layers():
+    # Layer 27 is given rows that would clear every gate, to show it is excluded
+    # because it is the final decoder layer and not because its real rows are 0.
+    clean = dict(ancestor_toward=2.0, ancestor_tv=0.80, non_ancestor_tv=0.05,
+                 surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+    dead = dict(ancestor_toward=-2.0, ancestor_tv=0.05, non_ancestor_tv=0.05,
+                surface_tv=0.04, null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02])
+    rows = [make_rows(20, **dead) + make_rows(27, **clean) for _ in range(5)]
+    gates = evaluate_gates(rows, [20, 27], n_layers=28)
+    assert gates["prospective_joint_layer"]["layers"] == []
+    assert evaluate_gates(rows, [20, 27])["prospective_joint_layer"]["layers"] == [27]
+
+
+def test_rescore_reports_the_prospective_rule_for_every_policy():
+    scoring = rescore_report(stored_report())["scoring"]
+    for policy in GATE_POLICIES:
+        joint = scoring[policy]["gates"]["prospective_joint_layer"]
+        assert joint["rule"] == "joint_layer"
+        assert joint["applied_to_verdict"] is False
+
+
 def test_a_hairs_breadth_above_the_null_max_is_still_a_failure():
     # L6 item 1 of the archived result_only run: surface 0.0153 against a null
     # max of 0.0152. No epsilon; the 4/5 aggregation rule is what absorbs it.

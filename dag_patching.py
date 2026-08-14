@@ -35,6 +35,15 @@ DIGITS = tuple(str(d) for d in range(10))
 GATE_POLICIES = ("v1_two_sided", "v2_one_sided")
 ACTIVE_GATE_POLICY = "v2_one_sided"
 
+# The layer-aggregation rule frozen for the next paired run. Every gate today
+# aggregates independently with `any(layer)`, so each may clear at a different
+# bin -- an arm-level positive with no single layer at which the patch was
+# directional, quiet, and selective at once. `joint_layer` requires one such
+# layer. It is computed and reported for the archived runs but does not decide
+# their verdicts: applying it retroactively would be a third post-hoc policy
+# move. See `_joint_layer_gate`.
+PROSPECTIVE_LAYER_RULE = "joint_layer"
+
 
 def layer_bins(n_layers: int, fractions=LAYER_FRACTIONS) -> list[int]:
     """Four relative-depth decoder-layer indices, fixed once per checkpoint.
@@ -194,6 +203,56 @@ def scoring_layers(bins: list[int], n_layers: int | None) -> list[int]:
     return [layer for layer in bins if layer != n_layers - 1]
 
 
+def _quorum(n_items: int) -> int:
+    """How many of ``n_items`` must clear a gate at a layer: all but one."""
+    return max(1, n_items - 1)
+
+
+def _joint_layer_gate(gates: dict, scored: list[int]) -> dict:
+    """Which scoring layers clear every per-layer gate at once.
+
+    An arm-level positive asserts that the patch was directional, quiet, and
+    selective. Under `any(layer)` those three can each be satisfied at a
+    different bin, and nothing in the report says so. This rule names the layers
+    where they hold together.
+
+    Fluency is arm-level, not per-layer -- it is measured over the ancestor rows
+    of the whole run -- so it enters only through ``verdict_if_applied``.
+
+    Reported, never applied: ``verdict_if_applied`` is what the arm would be
+    called under this rule. The archived runs keep the verdicts their active
+    policy gives them.
+    """
+    def clears(name: str, layer: int) -> bool:
+        entry = gates[name]["per_layer"][layer]
+        counted = ("n_positive" if name == "directional_control"
+                   else "gap_items" if name == "ancestor_gap"
+                   else "surface_items")
+        if entry[counted] < _quorum(entry["n_items"]):
+            return False
+        return (name != "directional_control"
+                or entry["median_delta_toward"] > 0)
+
+    # Directional control and the surface gate say whether the patch measured
+    # anything at that layer; the gap is only meaningful where both hold.
+    valid = [layer for layer in scored
+             if clears("directional_control", layer)
+             and clears("surface_active", layer)]
+    joint = [layer for layer in valid if clears("ancestor_gap", layer)]
+    if not gates["fluency"]["passes"] or not valid:
+        would_be = "invalid test"
+    else:
+        would_be = "positive" if joint else "scientific negative"
+    return {
+        "rule": PROSPECTIVE_LAYER_RULE,
+        "layers": joint,
+        "valid_layers": valid,
+        "passes": bool(joint),
+        "verdict_if_applied": would_be,
+        "applied_to_verdict": False,
+    }
+
+
 def _surface_gate(passes_by_layer, bins, policy, n_by_layer, scored) -> dict:
     """Aggregate one surface policy with the same 4/5 rule as the other gates.
 
@@ -224,7 +283,7 @@ def _surface_gate(passes_by_layer, bins, policy, n_by_layer, scored) -> dict:
             else "surface_outside_null_spread"
         ),
         "passes": any(
-            per_layer[layer]["surface_items"] >= max(1, per_layer[layer]["n_items"] - 1)
+            per_layer[layer]["surface_items"] >= _quorum(per_layer[layer]["n_items"])
             for layer in scored
         ),
     }
@@ -265,7 +324,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
     gates["directional_control"] = {
         "per_layer": directional,
         "passes": any(
-            directional[layer]["n_positive"] >= max(1, directional[layer]["n_items"] - 1)
+            directional[layer]["n_positive"] >= _quorum(directional[layer]["n_items"])
             and directional[layer]["median_delta_toward"] > 0
             for layer in scored
         ),
@@ -327,7 +386,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
         },
         "passes": any(
             sum(ok for lay, ok in gap_pass if lay == layer)
-            >= max(1, n_by_layer[layer] - 1)
+            >= _quorum(n_by_layer[layer])
             for layer in scored
         ),
     }
@@ -336,6 +395,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
             surface_pass[name], bins, name, n_by_layer, scored
         )
     gates["surface_active"] = gates[f"surface_{policy}"]
+    gates["prospective_joint_layer"] = _joint_layer_gate(gates, scored)
     gates["detail"] = detail
     return gates
 
@@ -576,6 +636,13 @@ def print_gate_table(report: dict) -> None:
         print(f"verdict[{policy}]{mark:<9} {scored['verdict']:<20} {reasons}")
     if "scoring" not in report:
         print(f"verdict        {report['verdict']}")
+    joint = gates.get("prospective_joint_layer")
+    if joint:
+        print()
+        print(f"{joint['rule']} (frozen for the next paired run, not applied here)")
+        print(f"  layers where every gate clears together: "
+              f"{joint['layers'] or 'none'}")
+        print(f"  verdict if applied: {joint['verdict_if_applied']}")
 
 
 def parse_args() -> argparse.Namespace:
