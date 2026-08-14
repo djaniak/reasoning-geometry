@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 from pathlib import Path
 
@@ -40,6 +41,13 @@ DIGITS = tuple(str(d) for d in range(10))
 # Surface-control policies. See ``_surface_gate`` for why there are two.
 GATE_POLICIES = ("v1_two_sided", "v2_one_sided")
 ACTIVE_GATE_POLICY = "v2_one_sided"
+
+# The absolute-effect floor: the clean answer's largest share of the patched
+# digit readout that still counts as having moved the answer. A half is the
+# largest value that is not a free parameter -- below it the clean answer cannot
+# still be the argmax -- which is why the floor is stated this way rather than as
+# a tuned minimum on TV. See ``_answer_moved_gate``.
+ANSWER_MOVED_MAX_CLEAN_SHARE = 0.5
 
 # The layer-aggregation rule frozen for the next paired run. Every gate today
 # aggregates independently with `any(layer)`, so each may clear at a different
@@ -184,6 +192,10 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 "delta_away": float(
                     p_logodds[item.target_value] - logodds[item.target_value]
                 ),
+                # The baseline `delta_away` is a ratio against. Carrying it on
+                # the row makes the clean answer's *patched* share computable
+                # without joining back to the item summary.
+                "clean_target_logodds": float(logodds[item.target_value]),
                 "digit_mass_clean": mass,
                 "digit_mass_patched": p_mass,
                 # The whole readout, not just the projections of it this run
@@ -241,6 +253,63 @@ def _quorum(n_items: int) -> int:
     return max(1, n_items - 1)
 
 
+def _answer_moved_gate(per_item: list[list[dict]], bins: list[int],
+                       scored: list[int]) -> dict:
+    """Did the patch actually change the answer, in absolute terms?
+
+    Every other gate is a ratio or a one-sided comparison. ``ancestor_gap`` asks
+    whether the ancestor edit perturbs the readout more than the controls do;
+    ``directional_control`` asks whether it perturbs it the right way. Neither
+    notices when both quantities are approximately zero. At ``depth2_gap0``,
+    layer 6, the gap gate passes on ``tv_ancestor`` 0.026 against a null maximum
+    of 0.0025 -- a clean 10x -- while the clean answer keeps 0.970 of the
+    readout, and the directional gate passes 5/5 on log-ratio movement from
+    about 1e-5 to about 1e-4. Both arms of the ladder past depth 1 were scored
+    ``positive`` that way.
+
+    ``delta_away`` is the log ratio of the clean answer's share, so adding the
+    clean baseline back gives the patched share directly. Failing this is a
+    *scientific negative*, not an invalid test: such a patch was directional,
+    quiet and selective, and simply did not change the answer.
+
+    ``measured`` is False when no ancestor row carries the clean baseline, which
+    is the state a pre-backfill legacy report is in. An unmeasurable floor must
+    not read as a cleared one, so it fails.
+    """
+    per_layer, measured = {}, False
+    for layer in bins:
+        shares = [
+            math.exp(row["clean_target_logodds"] + row["delta_away"])
+            for rows in per_item
+            for row in rows
+            if row["kind"] == "ancestor" and row["layer"] == layer
+            and row.get("clean_target_logodds") is not None
+        ]
+        n_items = sum(
+            row["kind"] == "ancestor" and row["layer"] == layer
+            for rows in per_item for row in rows
+        )
+        measured = measured or bool(shares)
+        per_layer[layer] = {
+            "moved_items": sum(
+                share < ANSWER_MOVED_MAX_CLEAN_SHARE for share in shares),
+            "n_items": n_items,
+            "median_clean_share": statistics.median(shares) if shares else None,
+        }
+    return {
+        "rule": f"clean answer below {ANSWER_MOVED_MAX_CLEAN_SHARE} of the "
+                "digit readout, for all but one item, at some scoring layer",
+        "measured": measured,
+        "max_clean_share": ANSWER_MOVED_MAX_CLEAN_SHARE,
+        "per_layer": per_layer,
+        "passes": measured and any(
+            per_layer[layer]["moved_items"] >= _quorum(per_layer[layer]["n_items"])
+            for layer in scored
+        ),
+        "applied_to_verdict": True,
+    }
+
+
 def _joint_layer_gate(gates: dict, scored: list[int]) -> dict:
     """Which scoring layers clear every per-layer gate at once.
 
@@ -260,6 +329,7 @@ def _joint_layer_gate(gates: dict, scored: list[int]) -> dict:
         entry = gates[name]["per_layer"][layer]
         counted = ("n_positive" if name == "directional_control"
                    else "gap_items" if name == "ancestor_gap"
+                   else "moved_items" if name == "answer_moved"
                    else "surface_items")
         if entry[counted] < _quorum(entry["n_items"]):
             return False
@@ -271,7 +341,13 @@ def _joint_layer_gate(gates: dict, scored: list[int]) -> dict:
     valid = [layer for layer in scored
              if clears("directional_control", layer)
              and clears("surface_active", layer)]
-    joint = [layer for layer in valid if clears("ancestor_gap", layer)]
+    # A layer where the gap separates but the answer does not move is the
+    # depth-2 case: real separation between two effects that are both
+    # approximately nothing. It is not a layer at which the patch worked.
+    joint = [layer for layer in valid
+             if clears("ancestor_gap", layer)
+             and gates["answer_moved"]["measured"]
+             and clears("answer_moved", layer)]
     if not gates["fluency"]["passes"] or not valid:
         would_be = "invalid test"
     else:
@@ -493,6 +569,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
         )
     gates["surface_active"] = gates[f"surface_{policy}"]
     gates["cross_item_donor"] = _cross_item_gate(per_item, bins, scored)
+    gates["answer_moved"] = _answer_moved_gate(per_item, bins, scored)
     gates["prospective_joint_layer"] = _joint_layer_gate(gates, scored)
     gates["detail"] = detail
     return gates
@@ -526,7 +603,7 @@ def verdict(gates: dict) -> str:
     """
     if invalid_reasons(gates):
         return "invalid test"
-    if gates["ancestor_gap"]["passes"]:
+    if gates["ancestor_gap"]["passes"] and gates["answer_moved"]["passes"]:
         return "positive"
     return "scientific negative"
 
@@ -578,6 +655,34 @@ def unflatten_rows(report: dict) -> list[list[dict]]:
     return blocks
 
 
+def _backfilled(per_item: list[list[dict]], items: list[dict] | None
+                ) -> list[list[dict]]:
+    """Recover ``clean_target_logodds`` onto rows that predate the field.
+
+    The archived reports store it once per item and ``delta_away`` per row, so
+    the absolute-effect floor is computable on them by a join -- no GPU replay,
+    and no rewriting of the archived files, which are immutable. Rows are copied
+    rather than mutated so the caller's report is untouched.
+
+    Reports that carry neither leave the floor unmeasurable, which
+    ``_answer_moved_gate`` reports as a failure rather than a pass.
+    """
+    if not items:
+        return per_item
+    filled = []
+    for block, summary in zip(per_item, items):
+        baseline = summary.get("clean_target_logodds")
+        if baseline is None:
+            filled.append(block)
+            continue
+        filled.append([
+            row if "clean_target_logodds" in row or row["kind"] != "ancestor"
+            else row | {"clean_target_logodds": baseline}
+            for row in block
+        ])
+    return filled
+
+
 def rescore_report(report: dict, *, active: str = ACTIVE_GATE_POLICY) -> dict:
     """Re-run every gate policy over a stored report's rows.
 
@@ -585,7 +690,7 @@ def rescore_report(report: dict, *, active: str = ACTIVE_GATE_POLICY) -> dict:
     policies' gates and verdicts are recorded so the legacy numbers stay
     auditable against the same measurement.
     """
-    per_item = unflatten_rows(report)
+    per_item = _backfilled(unflatten_rows(report), report.get("items"))
     bins = list(report["layer_bins"])
     scoring = {}
     for policy in GATE_POLICIES:
@@ -739,6 +844,7 @@ def print_gate_table(report: dict) -> None:
     print(f"gate policy    {report.get('gate_policy_version', ACTIVE_GATE_POLICY)}")
     print(f"{'gate':<32}{'passes':<10}detail")
     for name in ("directional_control", "fluency", "ancestor_gap",
+                 "answer_moved",
                  *(f"surface_{policy}" for policy in GATE_POLICIES)):
         gate = gates[name]
         detail = {k: v for k, v in gate.items() if k != "passes"}
@@ -757,6 +863,15 @@ def print_gate_table(report: dict) -> None:
         print(f"  layers where every gate clears together: "
               f"{joint['layers'] or 'none'}")
         print(f"  verdict if applied: {joint['verdict_if_applied']}")
+    moved = gates.get("answer_moved")
+    if moved and moved["measured"]:
+        print()
+        print(f"answer_moved: {moved['rule']}")
+        print(f"  {'layer':<8}{'moved':<10}median clean share")
+        for layer, entry in moved["per_layer"].items():
+            share = entry["median_clean_share"]
+            print(f"  {str(layer):<8}{entry['moved_items']}/{entry['n_items']:<8}"
+                  f"{'-' if share is None else format(share, '.3f')}")
     cross = gates.get("cross_item_donor")
     if cross and cross["measured"]:
         print()

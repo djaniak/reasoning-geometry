@@ -63,10 +63,13 @@ def test_digit_token_ids_rejects_colliding_ids():
 
 
 def make_rows(layer, *, ancestor_toward, ancestor_tv, non_ancestor_tv,
-              surface_tv, null_tvs, mass_ratio=1.0, cross=None):
+              surface_tv, null_tvs, mass_ratio=1.0, cross=None,
+              ancestor_away=-1.0, clean_target_logodds=-0.02):
     rows = [{
         "kind": "ancestor", "node": "a", "layer": layer, "distance_to_read": 10,
-        "tv": ancestor_tv, "delta_toward": ancestor_toward, "delta_away": -1.0,
+        "tv": ancestor_tv, "delta_toward": ancestor_toward,
+        "delta_away": ancestor_away,
+        "clean_target_logodds": clean_target_logodds,
         "digit_mass_clean": 1.0, "digit_mass_patched": mass_ratio,
     }, {
         "kind": "non_ancestor", "node": "b", "layer": layer, "distance_to_read": 12,
@@ -452,9 +455,14 @@ def stored_report(n_items=5, bins=(6, 13, 20, 27), *, surface_tv=0.001,
                     "distance_to_read": 11, "tv": tvs[kind],
                     "delta_toward": 2.0 if kind in ("ancestor", "cross_item")
                     else 0.0,
-                    "delta_away": 0.0,
+                    # The ancestor edit drives the clean answer off the readout,
+                    # so these reports clear the absolute-effect floor and the
+                    # verdicts here still mean what they meant before it existed.
+                    "delta_away": -5.0 if kind == "ancestor" else 0.0,
                     "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
                 }
+                if kind == "ancestor":
+                    row["clean_target_logodds"] = -0.02
                 if kind == "cross_item":
                     row |= {"delta_toward_raw": 0.2, "donor_item": 1}
                 rows.append(row)
@@ -462,6 +470,9 @@ def stored_report(n_items=5, bins=(6, 13, 20, 27), *, surface_tv=0.001,
         "model": "test", "condition": "both", "n_items": n_items, "seed": 0,
         "layer_bins": list(bins), "n_layers": 28, "rows": rows,
         "verdict": verdict_str,
+        "items": [{"target_value": 3, "clean_target_logodds": -0.02,
+                   "clean_top_digit": 3, "clean_digit_mass": 1.0}
+                  for _ in range(n_items)],
     }
 
 
@@ -638,3 +649,106 @@ def test_a_report_with_cross_item_rows_still_rescores():
         gate = rescored["scoring"][policy]["gates"]["cross_item_donor"]
         assert gate["measured"] is True
         assert gate["applied_to_verdict"] is False
+
+
+# --------------------------------------------------------------------------
+# the absolute-effect floor
+# --------------------------------------------------------------------------
+#
+# Every other gate is a ratio or a one-sided comparison: the ancestor edit must
+# perturb the readout more than the controls do, and must move it in the right
+# direction. None of them asks whether the answer changed. That let the depth-2
+# and depth-3 ladder arms score `positive` on runs where the clean answer keeps
+# 0.97 of the digit readout -- `tv_ancestor` 0.026 against `tv_null_max` 0.0025
+# is a clean 10x between two numbers that are both approximately zero, and
+# `median_delta_toward` of 1.84 nats is movement from about 1e-5 to about 1e-4.
+#
+# The floor is "the clean answer no longer holds a majority of the readout",
+# which is the largest threshold that is not a free parameter: below a half it
+# cannot still be the argmax. Failing it is a scientific negative, not an
+# invalid test -- the intervention was directional, quiet and selective, and
+# simply did not change the answer.
+
+
+def floor_rows(layer, *, away, clean=-0.02, gap=True):
+    """Rows whose relative gates all pass, parameterised on absolute movement."""
+    return make_rows(
+        layer, ancestor_toward=2.0, ancestor_tv=0.8 if gap else 0.03,
+        non_ancestor_tv=0.05 if gap else 0.028,
+        surface_tv=0.04 if gap else 0.001,
+        null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02] if gap
+        else [0.002, 0.003, 0.005, 0.004, 0.003, 0.002],
+        ancestor_away=away, clean_target_logodds=clean,
+    )
+
+
+def test_an_arm_that_never_moves_the_answer_is_not_positive():
+    # The depth-2 case: the relative gates all pass, and the clean answer keeps
+    # 0.97 of the readout.
+    gates = evaluate_gates([floor_rows(0, away=-0.005)] * 5, [0])
+    assert gates["ancestor_gap"]["passes"] is True
+    assert gates["answer_moved"]["passes"] is False
+    assert verdict(gates) == "scientific negative"
+
+
+def test_an_arm_that_moves_the_answer_off_the_clean_digit_stays_positive():
+    gates = evaluate_gates([floor_rows(0, away=-5.0)] * 5, [0])
+    assert gates["answer_moved"]["passes"] is True
+    assert verdict(gates) == "positive"
+
+
+def test_failing_the_floor_is_a_negative_not_an_invalid_test():
+    # The patch measured something; it just did not change the answer. Calling
+    # that invalid would throw away a real null.
+    gates = evaluate_gates([floor_rows(0, away=-0.005)] * 5, [0])
+    assert "answer_did_not_move" not in invalid_reasons(gates)
+    assert invalid_reasons(gates) == []
+
+
+def test_the_floor_reads_the_clean_answers_share_of_the_patched_readout():
+    # exp(clean_target_logodds + delta_away) is the clean answer's share after
+    # patching, and half is the line.
+    just_over = evaluate_gates([floor_rows(0, away=-0.6, clean=0.0)] * 5, [0])
+    just_under = evaluate_gates([floor_rows(0, away=-0.8, clean=0.0)] * 5, [0])
+    assert just_over["answer_moved"]["per_layer"][0]["moved_items"] == 0
+    assert just_under["answer_moved"]["per_layer"][0]["moved_items"] == 5
+
+
+def test_the_floor_needs_a_quorum_of_items_not_just_one():
+    rows = ([floor_rows(0, away=-5.0)] * 2) + ([floor_rows(0, away=-0.005)] * 3)
+    gates = evaluate_gates(rows, [0])
+    assert gates["answer_moved"]["per_layer"][0]["moved_items"] == 2
+    assert gates["answer_moved"]["passes"] is False
+
+
+def test_the_joint_layer_requires_the_answer_to_have_moved_at_that_layer():
+    # Layer 0 separates but does not move the answer; layer 1 does both. Without
+    # the floor in the joint rule, layer 0 would qualify.
+    rows = [floor_rows(0, away=-0.005) + floor_rows(1, away=-5.0)
+            for _ in range(5)]
+    gates = evaluate_gates(rows, [0, 1])
+    assert gates["answer_moved"]["per_layer"][0]["moved_items"] == 0
+    assert gates["prospective_joint_layer"]["layers"] == [1]
+
+
+def test_a_report_without_the_clean_baseline_is_backfilled_on_rescore():
+    # The archived reports predate the field: their rows carry `delta_away` and
+    # their item summaries carry `clean_target_logodds`, so the join recovers it
+    # rather than needing a GPU replay.
+    report = stored_report()
+    for row in report["rows"]:
+        row.pop("clean_target_logodds", None)
+    rescored = rescore_report(report)
+    assert rescored["gates"]["answer_moved"]["measured"] is True
+
+
+def test_a_report_that_cannot_supply_the_baseline_says_so_instead_of_passing():
+    # An unmeasurable floor must not read as a cleared one.
+    report = stored_report()
+    for row in report["rows"]:
+        row.pop("clean_target_logodds", None)
+    for item in report["items"]:
+        item.pop("clean_target_logodds", None)
+    rescored = rescore_report(report)
+    assert rescored["gates"]["answer_moved"]["measured"] is False
+    assert rescored["gates"]["answer_moved"]["passes"] is False
