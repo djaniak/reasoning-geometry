@@ -53,6 +53,11 @@ DEFAULT_N_DECOYS = 6
 # cannot confirm it. It is inferred from the run order and the log, not derived.
 DEFAULT_CONDITION = "both"
 
+# All eight runs predate the generator split, so none names a generator. Pinned
+# rather than taking `dag_tasks.DEFAULT_GENERATOR`, which moves with the current
+# design: following it would regenerate a different family for these reports.
+ARCHIVED_GENERATOR = "v1_unpaired"
+
 # Provenance the reports may or may not state. Whether a field is inferred is a
 # property of the individual report -- `result_only` and `operand_only` do record
 # their condition, and calling it inferred there understates what we have. Only
@@ -195,6 +200,11 @@ def reconstruct_items(report: dict, encode):
 
     ``depth``/``gap`` are absent on v0 reports; both defaults reproduce what the
     generator did before those knobs existed -- depth 1 and a random decoy split.
+
+    ``generator`` likewise: every archived report predates the split, so an
+    absent field means the unpaired family. It must not follow the module
+    default, which moves when a new generator lands -- that would regenerate a
+    different family and silently invalidate the derivation.
     """
     return generate_items(
         encode,
@@ -204,6 +214,7 @@ def reconstruct_items(report: dict, encode):
         condition=report.get("condition", DEFAULT_CONDITION),
         depth=report.get("depth", 1),
         gap=report.get("gap") if isinstance(report.get("gap"), int) else None,
+        generator=report.get("generator", ARCHIVED_GENERATOR),
     )
 
 
@@ -464,14 +475,31 @@ def main() -> None:
     if args.tokenizer_report:
         from dag_tasks import check_tokenizers
 
-        report = check_tokenizers(
-            n_items=5, n_decoys=DEFAULT_N_DECOYS, seed=0, checkpoints=CHECKPOINTS,
-        )
+        # Every arm that will be run, not just one: the alignment precondition
+        # is per item family, and the paired generator's depth arms are new
+        # families the archived check never saw.
+        arms = [
+            {"generator": ARCHIVED_GENERATOR, "depth": 1, "gap": None},
+            *({"generator": "v2_paired", "depth": depth, "gap": 0}
+              for depth in (1, 2, 3)),
+            *({"generator": "v2_paired", "depth": 1, "gap": gap}
+              for gap in (1, 2)),
+        ]
+        checks = [
+            check_tokenizers(n_items=5, n_decoys=DEFAULT_N_DECOYS, seed=0,
+                             checkpoints=CHECKPOINTS, **arm)
+            for arm in arms
+        ]
+        report = {
+            "checkpoints": list(CHECKPOINTS),
+            "aligned": all(check["aligned"] for check in checks),
+            "checks": [arm | check for arm, check in zip(arms, checks)],
+        }
         (directory / "tokenizer_alignment.json").write_text(
             json.dumps(report, indent=2)
         )
         print(f"wrote {directory / 'tokenizer_alignment.json'} "
-              f"(aligned={report['aligned']})")
+              f"(aligned={report['aligned']}, {len(checks)} arms)")
     if args.table:
         print_verdict_table(verdict_table(load_artifacts(directory)))
 

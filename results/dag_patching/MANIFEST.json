@@ -1,6 +1,6 @@
 {
   "note": "Original artifacts are immutable and content-addressed. v0 fields are derived by regenerating items, never backfilled. Per artifact: `run_commit` is the commit that produced the run, `replay_command` reproduces it from the recorded settings, and `inferred_fields` names provenance the report never stated.",
-  "manifest_generation_commit": "7bfccd500abdd64cba5b64292c140402c36a79e0",
+  "manifest_generation_commit": "d258008613bb4c2cd9b3e9eece60f00e00ff5b89",
   "artifacts": [
     {
       "artifact": "feasibility.json",

@@ -27,6 +27,7 @@ from dag_evidence import (
     verdict_table,
     verify_reconstruction,
 )
+from dag_tasks import generate_items
 from test_dag_tasks import char_encode
 
 
@@ -77,6 +78,27 @@ def test_a_report_carrying_depth_and_gap_is_schema_v1():
 # --------------------------------------------------------------------------
 # reconstruction acceptance
 # --------------------------------------------------------------------------
+
+
+def test_a_report_without_a_generator_field_reconstructs_under_the_legacy_one():
+    # Every archived report predates the generator split, so an absent field
+    # means v1_unpaired. Defaulting to the current generator instead would
+    # regenerate a different family -- `verify_reconstruction` would reject it,
+    # but only when someone rebuilds the manifest with a real tokenizer, which
+    # is not something the suite runs.
+    report = {"n_items": 3, "seed": 0}
+    assert [item.token_ids for item in reconstruct_items(report, char_encode)] == \
+        [item.token_ids for item in generate_items(
+            char_encode, n_items=3, n_decoys=6, seed=0,
+            generator="v1_unpaired")]
+
+
+def test_a_report_that_names_its_generator_reconstructs_under_that_one():
+    report = {"n_items": 3, "seed": 0, "generator": "v2_paired"}
+    assert [item.token_ids for item in reconstruct_items(report, char_encode)] == \
+        [item.token_ids for item in generate_items(
+            char_encode, n_items=3, n_decoys=6, seed=0,
+            generator="v2_paired")]
 
 
 def test_reconstruction_matches_the_archived_measurements():

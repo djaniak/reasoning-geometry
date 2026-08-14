@@ -129,13 +129,66 @@ every distance are identical across conditions — so no archived field can conf
 it. `n_decoys` is unrecorded in all eight, v1 included, so it is flagged
 everywhere; a wrong value would change the token count and be rejected.
 
+### The depth ladder was never paired; the generator is now versioned
+
+The chain's steps drew from the main random stream, one draw per step. Every
+draw after them therefore landed at a different stream position, so changing
+depth re-rolled the whole item: `depth1_gap0`, `depth2_gap0` and `depth3_gap0`
+are three different item families. The depth contrast in those arms is a
+between-family difference, and no amount of extra GPU turns it into a paired
+estimate.
+
+`v2_paired` fixes it and is now the default. One chain seed is drawn from the
+main stream per item whatever the depth, and the chain is built from a separate
+stream. Everything the chain could otherwise perturb — the target value, the
+ancestor's donor line, the tag assignment, which lines the surface edit rewrites
+— is drawn before the chain exists, with a count that does not depend on depth.
+Depth-dependent *rejections* are gone for the same reason: they would
+desynchronise the family just as surely as a depth-dependent draw.
+
+What makes this possible is that every step is `value ± rhs`, so the chain is the
+affine map `v -> v + delta`. The net delta is fixed by the spine, which means the
+ancestor edit implies the *same* target value at every depth — the same
+counterfactual, reached through more steps.
+
+`v1_unpaired` stays reachable, unchanged, because the three v0 artifacts are
+re-derived by regenerating their items. `dag_evidence` pins it for any report
+that does not name a generator, which is all eight. New runs record
+`generator` and `n_decoys` in the report, so neither has to be inferred again.
+
+Item-family audit, five items, seed 0, real tokenizer, depths 1/2/3 — spine,
+target value and implied value identical for every item; only chain lines added.
+Six arms checked for checkpoint alignment (the archived family plus the five
+paired arms), all aligned. The paired family is also more regular than the old
+one: token counts are equal across items, a depth step costs exactly 12 tokens
+and a decoy line 13, so the matched pairs are close.
+
+| Arm | Ancestor distance to read (tokens) |
+|:---|:---|
+| depth 1, gap 0 | 24, 11, 11, 11, 11 |
+| depth 2, gap 0 | 36, 23, 23, 23, 23 |
+| depth 3, gap 0 | 48, 35, 35, 35, 35 |
+| depth 1, gap 1 | 37, 24, 24, 24, 24 |
+| depth 1, gap 2 | 50, 37, 37, 37, 37 |
+
+So depth 2 pairs with gap 1 at 23 vs 24 tokens, and depth 3 with gap 2 at 35 vs
+37. (Item 0 sits a line further out in every arm because the ancestor and the
+non-ancestor swap order at random; that is by design and is matched across arms.)
+
+No GPU was used. The archived arms are unaffected and were not rerun.
+
 ### Still open
 
 Unchanged by any of this: the tag edit is a floor check, not a matched control,
-so selectivity remains open until the cross-item donor experiment. The depth arms
-remain unpaired across item families, so the depth-1 to depth-2 collapse is still
-suggestive rather than an estimate. Both are prerequisites for node-by-node graph
-recovery.
+so selectivity remains open until the cross-item donor experiment — the next
+thing to build. It is a prerequisite for node-by-node graph recovery.
+
+The *archived* depth arms remain unpaired and always will be; the generator that
+produced them is frozen. The depth-1 to depth-2 collapse they report stays
+suggestive rather than an estimate, and the paired ladder has to be rerun to
+replace it. That run is also the prospective confirmation the v2 surface gate
+needs, since it will be scored under v2 and the joint-layer rule from the start
+rather than after the fact.
 
 ## 2026-08-13: Arithmetic DAG patching pilot finds a shallow stated-value channel
 

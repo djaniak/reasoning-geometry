@@ -19,7 +19,19 @@ remote on this host, which would make `.dvc/cache` the only copy.
 | `depth{1,2,3}_gap0.json` | the path-depth ladder |
 | `depth1_gap{1,2}.json` | token-distance controls for depth 1 |
 | `MANIFEST.json` | sha256, run commit, model and tokenizer revision, replay command, schema version, derived fields, and inferred fields |
-| `tokenizer_alignment.json` | the three checkpoints tokenize the same trace identically — a precondition for any Base/Instruct/Distill comparison |
+| `tokenizer_alignment.json` | the three checkpoints tokenize the same trace identically — a precondition for any Base/Instruct/Distill comparison — checked per item family, for every arm that has been or will be run |
+
+## Item family
+
+All eight runs used the `v1_unpaired` generator, which is **not paired across
+depth**: its chain steps draw from the main random stream, so an item re-rolls
+entirely when depth changes and `depth1_gap0` / `depth2_gap0` / `depth3_gap0` are
+three different families. Their depth comparison is between-family and cannot be
+read item by item.
+
+`v2_paired` is the generator for new runs and is the default. `v1_unpaired` stays
+reachable only so these artifacts remain re-derivable — `dag_evidence` pins it
+for any report that does not name a generator, which is all eight of them.
 
 ## Schema versions
 
