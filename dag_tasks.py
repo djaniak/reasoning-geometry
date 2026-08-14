@@ -73,8 +73,8 @@ TAG_POOL = "dkopqrstuvwxyz"
 # so an item re-rolls entirely with depth and the ladder compares different
 # families. It is kept reachable only because the archived artifacts are
 # re-derived by regenerating their items. `v2_paired` is what new runs use.
-GENERATORS = ("v1_unpaired", "v2_paired")
-DEFAULT_GENERATOR = "v2_paired"
+GENERATORS = ("v1_unpaired", "v2_paired", "v3_distinct")
+DEFAULT_GENERATOR = "v3_distinct"
 
 CHECKPOINTS = (
     "Qwen/Qwen2.5-Math-1.5B",
@@ -375,7 +375,7 @@ def _sample_chain(rng: random.Random, n_steps: int, start: int,
 
 
 def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
-                  depth: int, gap: int | None) -> DagItem:
+                  depth: int, gap: int | None, distinct: bool = False) -> DagItem:
     """Build an item whose spine does not move with ``depth``.
 
     Depth-1 item *i* and depth-3 item *i* must be the same trace apart from the
@@ -413,6 +413,24 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
         raise Reject("edited chain value out of range")
     if implied == value_c:
         raise Reject("edited target value unchanged")
+    if distinct and rerolled == value_c:
+        # `v3_distinct`. The digit the donor line states at the patched result
+        # position is what a readout that copies what it finds there would emit.
+        # Letting it equal the clean answer collapses "copied the digit" and
+        # "did not move" into one prediction, which is the comparison the
+        # cross-item control turned out to hinge on.
+        #
+        # Tested on `rerolled` rather than on the digit this particular
+        # condition renders, so it fires identically in all three: the clean
+        # trace has to be the same under every condition, and a rejection that
+        # consulted the rendered digit would re-roll `operand_only` at different
+        # times than `both`. Under `operand_only` the rendered digit is the
+        # ancestor's own value, which `value_c` is already drawn to avoid.
+        #
+        # Spine-only, like the two above: `value_c` and `start` are both drawn
+        # before the chain exists. A depth-dependent rejection here would
+        # desynchronise the family exactly as `v1_unpaired` was.
+        raise Reject("donor states the clean answer at the patched position")
 
     op_e = rng.choice("+-")
     value_e = _apply(op_e, value_c, nodes[NON_ANCESTOR].value)
@@ -694,7 +712,8 @@ def _ancestor_sites(item: DagItem) -> tuple[int, ...]:
                          item.value_positions[ANCESTOR])))
 
 
-def _implied_by_donor(recipient: DagItem, donor: DagItem) -> int | None:
+def _implied_by_donor(recipient: DagItem, donor: DagItem,
+                      distinct: bool = False) -> int | None:
     """Target value the donor's ancestor state implies in ``recipient``.
 
     The chain is the affine map ``v -> v + delta``, and under ``v2_paired``
@@ -714,10 +733,17 @@ def _implied_by_donor(recipient: DagItem, donor: DagItem) -> int | None:
     ``None`` means the pair is unusable: the counterfactual is not a digit, or it
     lands back on the clean answer and there is nothing for the readout to show.
     Self-donation fails the second test by construction.
+
+    ``distinct`` is ``v3_distinct``: it also rejects a donor whose stated
+    ancestor digit is the recipient's clean answer. That digit is what a readout
+    copying the patched token would emit, and the within-item rejection cannot
+    cover it because it comes from a different item.
     """
     implied = (donor.nodes[ANCESTOR].value
                + recipient.target_value - recipient.nodes[ANCESTOR].value)
     if not 0 <= implied <= 9 or implied == recipient.target_value:
+        return None
+    if distinct and donor.nodes[ANCESTOR].value == recipient.target_value:
         return None
     return implied
 
@@ -751,7 +777,8 @@ def _perfect_matching(n: int, allowed: list[list[int]]) -> list[int] | None:
     return sigma
 
 
-def _select_cross_item_batch(candidates: list[DagItem], n_items: int):
+def _select_cross_item_batch(candidates: list[DagItem], n_items: int,
+                             distinct: bool = False):
     """Pick ``n_items`` mutually donatable candidates, and who donates to whom.
 
     Two selections happen here and they are deliberately different in kind. The
@@ -774,7 +801,7 @@ def _select_cross_item_batch(candidates: list[DagItem], n_items: int):
         allowed = [
             [slot for slot, donor in enumerate(subset)
              if _implied_by_donor(candidates[recipient],
-                                  candidates[donor]) is not None]
+                                  candidates[donor], distinct) is not None]
             for recipient in subset
         ]
         sigma = _perfect_matching(n_items, allowed)
@@ -787,7 +814,8 @@ def _select_cross_item_batch(candidates: list[DagItem], n_items: int):
     )
 
 
-def _attach_cross_item_edits(items: list[DagItem], sigma: list[int]):
+def _attach_cross_item_edits(items: list[DagItem], sigma: list[int],
+                             distinct: bool = False):
     attached = []
     for index, item in enumerate(items):
         donor = items[sigma[index]]
@@ -797,7 +825,7 @@ def _attach_cross_item_edits(items: list[DagItem], sigma: list[int]):
             node=ANCESTOR,
             positions=sites,
             token_ids=donor.token_ids,
-            implied_target_value=_implied_by_donor(item, donor),
+            implied_target_value=_implied_by_donor(item, donor, distinct),
             distance_to_read=item.read_position - max(sites),
             donor_item=sigma[index],
             donor_raw_value=donor.nodes[ANCESTOR].value,
@@ -845,7 +873,13 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                          f"name and tag pools; keep n_decoys + depth <= {budget}")
     if gap is not None and not 0 <= gap <= n_decoys:
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
-    build = _build_paired if generator == "v2_paired" else _build_unpaired
+    distinct = generator == "v3_distinct"
+    if generator == "v1_unpaired":
+        build = _build_unpaired
+    else:
+        def build(rng, encode, n_decoys, condition, depth, gap):
+            return _build_paired(rng, encode, n_decoys, condition, depth,
+                                 gap, distinct=distinct)
     # Sampling a wider pool and then selecting is what lets the cross-item batch
     # be mutually donatable. Without the control the pool is the batch, so the
     # ladder's items are untouched by any of this.
@@ -868,8 +902,8 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                 f"could not sample a valid DAG item after 2000 tries: {detail}"
             )
     if cross_item:
-        items, sigma = _select_cross_item_batch(items, n_items)
-        items = _attach_cross_item_edits(items, sigma)
+        items, sigma = _select_cross_item_batch(items, n_items, distinct)
+        items = _attach_cross_item_edits(items, sigma, distinct)
     return items
 
 

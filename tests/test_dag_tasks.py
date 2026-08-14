@@ -812,3 +812,109 @@ def test_the_surface_edit_has_no_digit_to_copy():
     for item in ladder_items():
         surface = next(e for e in item.edits if e.kind == "surface_null")
         assert surface.donor_raw_value is None
+
+
+# --------------------------------------------------------------------------
+# v3_distinct: keeping the three competing digits apart
+# --------------------------------------------------------------------------
+#
+# A value edit sets up a three-way question at the read position: did the model
+# carry the donor's value through the chain (`implied_target_value`), copy the
+# digit standing at the patched position (`donor_raw_value`), or not move
+# (`target_value`)? `v2_paired` keeps `implied` off `target`, but nothing keeps
+# the *raw* digit off it -- 2 of 20 ancestor items in the paired ladder and 1 of
+# 20 in the cross-item arm wrote the clean answer at the patched position, which
+# makes "copied" and "did not move" the same prediction and the item unusable
+# for the comparison that turned out to be the informative one.
+#
+# The fix is one more rejection, and it must be decided by the spine alone or it
+# fires at some depths and not others and desynchronises the family -- the bug
+# the ladder was rebuilt to remove. `start` and `value_c` are both drawn before
+# the chain exists, and the raw digit is either the reroll or the ancestor's own
+# value, so the test is spine-only by construction.
+#
+# It moves the random stream, so it is a new family rather than a fix to
+# `v2_paired`, which stays reachable and unchanged for the artifacts already run
+# against it.
+
+V3 = "v3_distinct"
+
+
+def moving_edits(item):
+    """The edits that are supposed to change the answer.
+
+    Only these pose the three-way question. A ``null`` or ``non_ancestor`` edit
+    carries the *clean* target as its implied value by design -- a faithful model
+    should not move -- so "implied" and "did not move" coincide there on purpose
+    and the distinctness rule does not apply.
+    """
+    return [edit for edit in item.edits
+            if edit.kind in ("ancestor", "cross_item")
+            and edit.donor_raw_value is not None]
+
+
+def test_v3_never_writes_the_clean_answer_at_the_patched_position():
+    for seed in range(8):
+        for condition in DONOR_CONDITIONS:
+            items = generate_items(char_encode, n_items=5, seed=seed,
+                                   condition=condition, generator=V3)
+            for item in items:
+                for edit in moving_edits(item):
+                    assert edit.donor_raw_value != item.target_value
+
+
+def test_v3_keeps_all_three_competing_digits_distinct():
+    for seed in range(8):
+        for item in generate_items(char_encode, n_items=5, seed=seed,
+                                   generator=V3):
+            for edit in moving_edits(item):
+                assert len({edit.donor_raw_value, edit.implied_target_value,
+                            item.target_value}) == 3
+
+
+def test_v2_still_carries_the_defect_and_is_left_alone():
+    # The frozen family must not be silently repaired: artifacts were run
+    # against it, and a quiet fix would make them unreproducible.
+    ill_posed = sum(
+        edit.donor_raw_value == item.target_value
+        for seed in range(8)
+        for item in generate_items(char_encode, n_items=5, seed=seed,
+                                   generator="v2_paired")
+        for edit in moving_edits(item)
+    )
+    assert ill_posed > 0
+
+
+def test_v3_is_still_paired_across_depth():
+    # The whole reason the rejection is spine-only.
+    families = {depth: generate_items(char_encode, n_items=5, seed=0,
+                                      depth=depth, gap=0, generator=V3)
+                for depth in DEPTHS}
+    for index in range(5):
+        items = [family[index] for family in families.values()]
+        assert len({item.target_value for item in items}) == 1
+        implied = [next(e for e in item.edits if e.kind == "ancestor")
+                   .implied_target_value for item in items]
+        assert len(set(implied)) == 1
+
+
+def test_v3_cross_item_donors_are_well_posed_too():
+    for seed in range(4):
+        items = generate_items(char_encode, n_items=5, seed=seed, gap=0,
+                               cross_item=True, generator=V3)
+        for item in items:
+            edit = next(e for e in item.edits if e.kind == "cross_item")
+            assert len({edit.donor_raw_value, edit.implied_target_value,
+                        item.target_value}) == 3
+
+
+def test_v3_is_a_different_family_from_v2():
+    # If the stream had not moved, the rejection would not be doing anything.
+    v2 = generate_items(char_encode, n_items=5, seed=0, generator="v2_paired")
+    v3 = generate_items(char_encode, n_items=5, seed=0, generator=V3)
+    assert [item.target_value for item in v2] != [item.target_value for item in v3]
+
+
+def test_an_unknown_generator_is_still_refused():
+    with pytest.raises(ValueError, match="unknown generator"):
+        generate_items(char_encode, n_items=1, generator="v4_imaginary")
