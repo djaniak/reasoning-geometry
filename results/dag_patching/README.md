@@ -20,6 +20,7 @@ remote on this host, which would make `.dvc/cache` the only copy.
 | `depth1_gap{1,2}.json` | token-distance controls for depth 1 |
 | `MANIFEST.json` | sha256, run commit, model and tokenizer revision, replay command, schema version, derived fields, and inferred fields |
 | `tokenizer_alignment.json` | the three checkpoints tokenize the same trace identically — a precondition for any Base/Instruct/Distill comparison — checked per item family, for every arm that has been or will be run |
+| `POOLED.json` | every `v3_distinct` measurement at layer 13, deduplicated across arms and grouped by donor kind, depth and omission — derived, regenerate with `uv run python dag_pooling.py` |
 
 ## Item family
 

@@ -5,6 +5,73 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Pooled, the depth-1 effect is thirty-three items and does not decay with confidence
+
+No GPU. `dag_pooling.py` reads the committed arms, deduplicates by measurement
+content, and reports one outcome per item at layer 13: the argmax of the patched
+digit readout. Derived into `results/dag_patching/POOLED.json`; regenerate with
+`uv run python dag_pooling.py`. Nothing is rescored and no verdict moves.
+
+Every arm holds five items and every arm README reports its own five, so the
+strongest count anywhere in the repository was `5/5`. The arms already hold 83
+measurements. Clean-correct items, at layer 13:
+
+| donor | depth | omit | n | seeds | clean ok | implied | raw | clean | toward>raw |
+|:---|---:|:---|---:|:---|---:|---:|---:|---:|---:|
+| `ancestor` | 1 | none | 33 | 0-3 | 25/33 | **25/25** | 0/25 | 0/25 | 19/25 |
+| `ancestor` | 2 | none | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `ancestor` | 2 | decoy | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `ancestor` | 3 | none | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 2/5 |
+| `ancestor` | 3 | decoy | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `cross_item` | 1 | none | 20 | 0-3 | 16/20 | **15/16** | 1/16 | 0/16 | 6/16 |
+
+The chain-omitted rows are in the file and are deliberately not in this table:
+they hit the pre-registered stop condition, so they are a clean-behaviour
+ablation and not a patching test. Omission is a grouping key in `_arm_group` so
+they cannot merge into a written arm's rate by accident.
+
+### The confidence entanglement does not hold up
+
+The worry was recorded on 2026-08-14: the arms that clear the `answer_moved`
+floor are the arms where the clean answer is least often the model's own, so the
+effect might be nothing but a model that is easy to push when unsure. Banded
+within depth 1, clean-correct items only:
+
+| p(target) | n | landed on implied |
+|:---|---:|---:|
+| [0.00, 0.50) | 2 | 2/2 |
+| [0.50, 0.80) | 17 | 17/17 |
+| [0.80, 1.00) | 6 | 6/6 |
+
+Flat. It is not a low-confidence artefact within the range the family reaches.
+All eight misses in the depth-1 pool are items whose clean answer was already
+wrong, where there was no clean answer for the patch to move off.
+
+Bands are taken *within* a depth and never across. Depth and clean confidence
+are collinear here -- depth-1 items top out at 0.961 and every written depth-2
+item starts at 0.966 -- so a pooled top band is almost entirely depth-2 misses
+and reads as exactly the decay the table exists to rule out.
+
+### What this does not buy
+
+The two families **abut and never overlap**, so no item pair separates depth from
+confidence. The nearest pair is one observation each: depth 1 at p(target) 0.961
+gives tv 0.985, lands on the implied digit, and leaves the clean answer at
+0.0017; depth 2 at 0.966 gives tv 0.154, misses, and leaves it at 0.813.
+
+Nor is any of this held out. Layer 13 was chosen from these same runs, the three
+gap placements are repeated measures on the same DAGs, and it is one checkpoint.
+Pooling buys precision on an effect already seen; a fresh family still has to
+confirm it.
+
+### The margin and the argmax disagree, and both are reported
+
+`toward>raw` is the log-odds margin -- did the implied digit gain more than the
+raw donor digit -- and it is 19/25 and 6/16 where the argmax is 25/25 and 15/16.
+The raw digit often gains a great deal while still losing. Under the cross-item
+donor especially, "the implied digit wins" and "the implied digit moved most" are
+not the same claim, and neither is allowed to stand in for the other.
+
 ## 2026-08-15: Omitting the intermediate result does not restore the patch, and the control says why
 
 Eight arms in `results/dag_patching/written_vs_omitted/`, `v3_distinct`, seed 0,
