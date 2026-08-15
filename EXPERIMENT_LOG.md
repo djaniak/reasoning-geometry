@@ -62,6 +62,27 @@ Was `25/25` and `15/16`. Three things this changes and one it does not:
 beside them under legacy names, so the difference is auditable rather than taken
 on trust. `POOLED.json` is regenerated.
 
+### `toward>raw` is baseline-sensitive and should not be read as a contradiction
+
+The margin column falls to 17/23 and 4/14, and the entry below reads that as the
+argmax and the margin disagreeing. On the levels they do not. Medians over the
+eligible depth-1 items, clean to patched:
+
+| donor | p(implied) | p(raw) | p(target) | p(implied) > p(raw) |
+|:---|:---|:---|:---|---:|
+| `ancestor` | 0.0006 → 0.728 | 0.0009 → 0.244 | 0.702 → 0.002 | 21/23, 2 equal |
+| `cross_item` | 0.0021 → 0.585 | 0.0005 → 0.373 | 0.703 → 0.008 | 11/14, 3 equal |
+
+`delta_toward > delta_toward_raw` compares log-odds *gains*, and the raw digit
+usually starts lower, so it can gain more while finishing well behind. The
+cross-item 4/14 is mostly that, not a rival digit winning.
+
+What survives is smaller but real: the transplanted state promotes **both** the
+donor's literal digit and the recipient-transformed one, 0.0005 → 0.373 for the
+raw digit under a foreign donor. "The recipient transforms the donor value" is
+therefore too clean. The transformed digit wins; the untransformed one is also
+strongly promoted, and any claim about selectivity has to say so.
+
 ### Three sentences the omission arms do not license
 
 - **"There is no latent computation for the written trace to overwrite."** Not
