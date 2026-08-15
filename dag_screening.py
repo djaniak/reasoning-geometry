@@ -101,6 +101,9 @@ def match(records: list[dict], *, depths=(1, 2), window: tuple | None,
     ``|delta share|`` fall to the closer distance and then to a fixed record
     order, so the result does not depend on how the arms were loaded.
     """
+    if len(depths) != 2:
+        raise ValueError(
+            f"matching is between exactly two depths, got {list(depths)}")
     if window is None:
         return []
     low, high = window
@@ -163,7 +166,25 @@ def select(records: list[dict], *, depths=(1, 2),
 # --------------------------------------------------------------------------
 
 
-def screen(*, model_name: str, depth: int, n_items: int, n_decoys: int,
+def load_once(model_name: str):
+    """The model and tokenizer, loaded one time for a whole screening session.
+
+    Screening is one forward pass per item, so a per-batch load would dominate
+    the run: the first attempt reloaded 339 weight shards for each of ten seeds.
+    """
+    import torch
+    from transformers import AutoTokenizer
+
+    from collect_data import load_model
+    from dag_patching import READOUT_DTYPE
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model, _ = load_model(False, model_name=model_name,
+                          dtype=getattr(torch, READOUT_DTYPE))
+    return model, tokenizer
+
+
+def screen(*, model, tokenizer, depth: int, n_items: int, n_decoys: int,
            seed: int, gap: int | None = None,
            generator: str = DEFAULT_GENERATOR) -> list[dict]:
     """Clean readouts for one (depth, gap, seed) batch. No patching, no edits.
@@ -172,12 +193,7 @@ def screen(*, model_name: str, depth: int, n_items: int, n_decoys: int,
     not be able to produce a patched number, so the code path that would has
     been left out rather than switched off.
     """
-    import torch
-    from transformers import AutoTokenizer
-
-    from collect_data import load_model
     from dag_patching import (
-        READOUT_DTYPE,
         capture_states,
         digit_readout,
         digit_token_ids,
@@ -186,15 +202,12 @@ def screen(*, model_name: str, depth: int, n_items: int, n_decoys: int,
     )
     from dag_pooling import _tops
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     items = generate_items(
         lambda text: tokenizer.encode(text, add_special_tokens=False),
         n_items=n_items, n_decoys=n_decoys, seed=seed, condition="both",
         depth=depth, gap=gap, generator=generator, omit="none",
     )
     digit_ids = digit_token_ids(tokenizer)
-    model, _ = load_model(False, model_name=model_name,
-                          dtype=getattr(torch, READOUT_DTYPE))
     bins = layer_bins(model.config.num_hidden_layers)
 
     records = []
@@ -270,29 +283,42 @@ def main() -> None:
     else:
         if args.seeds is None:
             raise SystemExit("--seeds is required unless --screened is given")
+        model, tokenizer = load_once(args.model_name)
         records = []
         for depth in args.depths:
             for gap in args.gaps:
                 for seed in args.seeds:
                     records.extend(screen(
-                        model_name=args.model_name, depth=depth,
+                        model=model, tokenizer=tokenizer, depth=depth,
                         n_items=args.n_items, n_decoys=args.n_decoys,
                         seed=seed, gap=gap, generator=args.generator))
-    outcome = select(records, depths=tuple(args.depths))
+
+    # Written before anything is selected. Screening is the expensive half and
+    # selection is pure, so a selection that raises should cost a rerun of the
+    # rule and not of four hundred forward passes -- which is exactly what the
+    # first attempt cost.
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(
-        {"model": args.model_name, "screened": records, "selection": outcome},
-        indent=2))
-    window = outcome["window"]
+    payload = {"model": args.model_name, "screened": records, "selection": None}
+    path.write_text(json.dumps(payload, indent=2))
     print(f"screened       {len(records)} items over depths {args.depths}")
+    print(f"wrote {path}")
+
+    if len(args.depths) != 2:
+        print("selection      not run: it is a comparison between two depths, "
+              f"and this file holds {args.depths}. Re-run with --screened over "
+              "both.")
+        return
+    outcome = select(records, depths=tuple(args.depths))
+    payload["selection"] = outcome
+    path.write_text(json.dumps(payload, indent=2))
+    window = outcome["window"]
     print(f"eligible       {outcome['n_eligible']}")
     print(f"window         "
           f"{'none -- the supports do not overlap' if window is None else window}")
     print(f"matched pairs  {outcome['n_pairs']} "
           f"(floor {outcome['min_pairs']}, ceiling {outcome['max_pairs']})")
     print(f"decision       {'proceed to stage B' if outcome['proceed'] else 'STOP'}")
-    print(f"wrote {path}")
 
 
 if __name__ == "__main__":

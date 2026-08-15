@@ -254,3 +254,13 @@ def test_screened_files_are_combined_and_an_item_screened_twice_counts_once(tmp_
     loaded = load_screened(paths)
     assert len(loaded) == 4
     assert len(select(loaded, depths=(1, 2))["pairs"]) == 2
+
+
+def test_matching_one_depth_against_itself_is_refused():
+    """A single-depth screening file is half the comparison, not a small one.
+
+    It cost 200 forward passes to learn this the first time: the run screened
+    depth 2 alone, then raised unpacking `depths` and wrote nothing at all.
+    """
+    with pytest.raises(ValueError, match="two depths"):
+        select(spines(1, [0.90], 24), depths=(1,))
