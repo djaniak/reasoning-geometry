@@ -56,6 +56,14 @@ env/
 !/results/dag_patching/v3_distinct/*.json
 !/results/dag_patching/v3_distinct/README.md
 
+# And E2 stage A: clean forward passes only, no patch in the directory. What
+# makes it worth committing is when it was written -- the selection it holds was
+# computed before any stage-B measurement existed.
+!/results/dag_patching/e2_screening/
+/results/dag_patching/e2_screening/*
+!/results/dag_patching/e2_screening/*.json
+!/results/dag_patching/e2_screening/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/

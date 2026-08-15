@@ -5,6 +5,64 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: E2 stage A — the window is open, 24 pairs match, and float32 leaves no ties at all
+
+Screening only: 1,230 clean forward passes, no patch run and none runnable from
+`dag_screening.py`. Seeds 11-40, disjoint from the archived 0-3. Artifacts in
+`results/dag_patching/e2_screening/`. The protocol is the entry below, committed
+in `6f1e9a7` before any of these items existed.
+
+### Not one tie in 1,230 items
+
+| depth | screened | eligible | clean ties | p(target) min / median / max |
+|:---|---:|---:|---:|:---|
+| 1 | 630 | 480 | **0** | 0.430 / 0.707 / 0.990 |
+| 2 | 600 | 599 | **0** | 0.684 / 0.992 / 1.000 |
+
+Against 5 tied clean readouts in 33 under bfloat16. The correction below is
+confirmed from the other side: the ties were the recording precision and not
+the model, and moving off the 0.125-nat grid removes them rather than reducing
+them. Nothing else about the readout changed — depth 2 is still near-saturated
+and depth 1 still is not.
+
+### The comparison is constructible, and wider than registered
+
+Window `(0.684, 0.990)`. **24 matched pairs**, at the registered ceiling, above
+the floor of 16 — the registered decision is **proceed to stage B**. Matching is
+tight: worst pair 0.0007 in clean `p(target)` and 1 token of ancestor distance,
+over 24 distinct spines per depth, drawn from 14 depth-1 seeds and all three gap
+placements.
+
+**One registered limit is weaker than I wrote it.** The entry below predicted the
+window would sit near the top of the depth-1 range, because depth-2 confidence
+looked saturated in the five archived items. At 600 items it is not: depth 2
+reaches down to 0.684. The selected pairs span 0.696 to 0.990 with median 0.918.
+That covers the upper half of the range where the depth-1 result was obtained
+(0.53-0.96) and still not the lower half, so the caveat is narrowed rather than
+withdrawn — a stage-B null would speak to p(target) above about 0.70.
+
+### A hole in the registered rule, closed with items rather than an amendment
+
+The rule bounds ancestor distance to ±2 tokens but bounds confidence only by
+ordering the greedy, with no tolerance. On a first 410-item screen that bit:
+greedy filled to the ceiling with pairs as far apart as 0.165 in `p(target)`,
+and a 0.79-against-0.96 pair is not confidence-matched in any sense this
+experiment needs. A tolerance of 0.05 would have left 14 pairs and stopped the
+experiment; one of 0.10 would have left 17 and continued it. Choosing between
+those *after* seeing that they decide proceed-versus-stop is exactly the move
+the registration exists to prevent, even with no stage-B outcome in existence.
+
+So the rule was not touched. Screening went from 410 items to 1,230 instead,
+which is cheap — clean forwards, minutes — and the loose tail disappeared on its
+own: every one of the 24 pairs now matches to 0.0007 or better. Recorded because
+the hole is still in the rule and a future screen small enough would hit it.
+
+### Stage B, unchanged
+
+Layer 13, the 24 pairs, all five row kinds, `control_specificity` beside every
+verdict. Primary outcome the implied digit uniquely on top, one test, spine-
+cluster bootstrap. Nothing about the analysis moves on the strength of stage A.
+
 ## 2026-08-15: Pre-registration — E2, whether the depth contrast survives matching on clean confidence and ancestor distance
 
 Written before any E2 item is generated and before the float32 change below
