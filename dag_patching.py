@@ -42,12 +42,29 @@ DIGITS = tuple(str(d) for d in range(10))
 GATE_POLICIES = ("v1_two_sided", "v2_one_sided")
 ACTIVE_GATE_POLICY = "v2_one_sided"
 
-# The absolute-effect floor: the clean answer's largest share of the patched
-# digit readout that still counts as having moved the answer. A half is the
-# largest value that is not a free parameter -- below it the clean answer cannot
-# still be the argmax -- which is why the floor is stated this way rather than as
-# a tuned minimum on TV. See ``_answer_moved_gate``.
-ANSWER_MOVED_MAX_CLEAN_SHARE = 0.5
+# The absolute-effect floor's fallback threshold, for reports that stored no
+# digit distribution. The question the floor asks is whether the patched readout
+# still puts the clean answer on top; where `probs_patched` exists that is tested
+# directly and this constant is unused.
+#
+# A half is *not* the argmax boundary, though this constant was first introduced
+# claiming it was. A digit at 0.40 beats nine others averaging 0.067. For ten
+# classes the tightest scalar-only sufficient condition is a share below 0.1. The
+# share is exact in both tails -- at or above 0.5 the clean digit is necessarily
+# still the argmax, below 0.1 it necessarily is not -- and can only err by
+# over-calling movement in between. It is kept at the majority line because that
+# is the boundary on the safe side: the fallback never misses a real move, it
+# only admits some that did not happen. See ``_answer_moved_gate``.
+ANSWER_MOVED_FALLBACK_MAX_CLEAN_SHARE = 0.5
+
+# The verdict function's own version, which `gate_policy_version` is not: that
+# names the surface-control policy alone. Adding `answer_moved` changed the
+# verdict function while leaving the policy label untouched, so
+# `paired_ladder/depth2_gap0.json` reads `v2_one_sided` / `positive` on disk
+# while a rescore under that same label calls it a scientific negative. Reports
+# carrying no version were scored by `v1_gap_only`.
+VERDICT_VERSIONS = ("v1_gap_only", "v2_gap_and_floor")
+VERDICT_VERSION = "v2_gap_and_floor"
 
 # The layer-aggregation rule frozen for the next paired run. Every gate today
 # aggregates independently with `any(layer)`, so each may clear at a different
@@ -183,6 +200,12 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 # delta says how far the readout moved but not toward what, so
                 # reading the distribution below still needs the generator.
                 "implied_value": edit.implied_target_value,
+                # The third of the three competing digits, so `answer_moved` can
+                # test the argmax of `probs_patched` from the row alone. It is
+                # the same for every row of an item; a rescore recovers it for
+                # runs that predate the field, but only where the summary
+                # survived alongside the rows.
+                "clean_value": item.target_value,
                 "distance_to_read": edit.distance_to_read,
                 "tv": float(0.5 * abs(p_probs - probs).sum()),
                 "delta_toward": float(
@@ -267,46 +290,103 @@ def _answer_moved_gate(per_item: list[list[dict]], bins: list[int],
     about 1e-5 to about 1e-4. Both arms of the ladder past depth 1 were scored
     ``positive`` that way.
 
-    ``delta_away`` is the log ratio of the clean answer's share, so adding the
-    clean baseline back gives the patched share directly. Failing this is a
-    *scientific negative*, not an invalid test: such a patch was directional,
-    quiet and selective, and simply did not change the answer.
+    Where the run stored ``probs_patched`` the question is settled exactly: the
+    answer moved iff the clean digit is no longer alone at the top. A tie is not
+    a move -- which of two co-maxima a bare argmax returns is an artefact of
+    digit order, and the fresh ladder contains three exact top ties. Where the
+    distribution is absent, ``delta_away`` plus the clean baseline gives the
+    clean answer's patched share and ``ANSWER_MOVED_FALLBACK_MAX_CLEAN_SHARE``
+    decides; ``test`` records which of the two ran.
 
-    ``measured`` is False when no ancestor row carries the clean baseline, which
-    is the state a pre-backfill legacy report is in. An unmeasurable floor must
-    not read as a cleared one, so it fails.
+    Failing this is a *scientific negative*, not an invalid test: such a patch
+    was directional, quiet and selective, and simply did not change the answer.
+
+    ``measured`` is False when neither test is available for any row, which is
+    the state a pre-backfill legacy report is in. An unmeasurable floor must not
+    read as a cleared one, so it fails.
     """
-    per_layer, measured = {}, False
+    def decide(row) -> tuple[bool, float, str] | None:
+        probs, clean = row.get("probs_patched"), row.get("clean_value")
+        if probs is not None and clean is not None:
+            share = probs[clean]
+            return share < max(probs), share, "argmax"
+        baseline = row.get("clean_target_logodds")
+        if baseline is None or "delta_away" not in row:
+            return None
+        share = math.exp(baseline + row["delta_away"])
+        return share < ANSWER_MOVED_FALLBACK_MAX_CLEAN_SHARE, share, "majority"
+
+    per_layer, tests = {}, set()
     for layer in bins:
-        shares = [
-            math.exp(row["clean_target_logodds"] + row["delta_away"])
-            for rows in per_item
-            for row in rows
-            if row["kind"] == "ancestor" and row["layer"] == layer
-            and row.get("clean_target_logodds") is not None
-        ]
-        n_items = sum(
-            row["kind"] == "ancestor" and row["layer"] == layer
-            for rows in per_item for row in rows
-        )
-        measured = measured or bool(shares)
+        at_layer = [row for rows in per_item for row in rows
+                    if row["kind"] == "ancestor" and row["layer"] == layer]
+        decided = [d for d in map(decide, at_layer) if d is not None]
+        tests.update(test for _, _, test in decided)
         per_layer[layer] = {
-            "moved_items": sum(
-                share < ANSWER_MOVED_MAX_CLEAN_SHARE for share in shares),
-            "n_items": n_items,
-            "median_clean_share": statistics.median(shares) if shares else None,
+            "moved_items": sum(moved for moved, _, _ in decided),
+            "n_items": len(at_layer),
+            "median_clean_share": (
+                statistics.median(share for _, share, _ in decided)
+                if decided else None),
         }
+    # One report's rows are all measured the same way, so a mixed set means the
+    # rows disagree about what they carry and the gate should not claim either.
+    measured = bool(tests)
+    test = next(iter(tests)) if len(tests) == 1 else None
     return {
-        "rule": f"clean answer below {ANSWER_MOVED_MAX_CLEAN_SHARE} of the "
-                "digit readout, for all but one item, at some scoring layer",
+        "rule": ("clean answer no longer alone at the top of the digit readout"
+                 if test == "argmax" else
+                 f"clean answer below {ANSWER_MOVED_FALLBACK_MAX_CLEAN_SHARE} "
+                 "of the digit readout")
+                + ", for all but one item, at some scoring layer",
+        "test": test,
         "measured": measured,
-        "max_clean_share": ANSWER_MOVED_MAX_CLEAN_SHARE,
+        "fallback_max_clean_share": ANSWER_MOVED_FALLBACK_MAX_CLEAN_SHARE,
         "per_layer": per_layer,
-        "passes": measured and any(
+        "passes": test is not None and any(
             per_layer[layer]["moved_items"] >= _quorum(per_layer[layer]["n_items"])
             for layer in scored
         ),
         "applied_to_verdict": True,
+    }
+
+
+def _clean_answer_gate(items: list[dict] | None) -> dict:
+    """Is the clean answer the model's own answer, uniquely?
+
+    ``v3_distinct`` made the implied, raw and clean digits distinct. It did not
+    make the model's clean behaviour correct: in the fresh depth-1 ladder the
+    clean top digit disagrees with the target on 1/5, 1/5 and 2/5 items, and
+    three observations are exact top ties. "The patch moved the answer off the
+    clean target" is a counterfactual flip only where the clean target was the
+    answer to begin with, so ``answer_moved`` is over-counting by however many
+    items this gate reports.
+
+    Reported, never applied. Binding the verdict to it would be a third
+    retroactive policy move on runs already scored under two; the place to
+    require clean correctness is the generator of the next family.
+
+    ``n_tied`` is None for the archived reports, which store ``clean_top_digit``
+    but no distribution: correctness is knowable there and uniqueness is not.
+    """
+    tops = [(item.get("clean_top_digit"), item.get("target_value"),
+             item.get("clean_probs"))
+            for item in items or []]
+    known = [(top, target, probs) for top, target, probs in tops
+             if top is not None and target is not None]
+    with_probs = [probs for _, _, probs in known if probs]
+    n_tied = sum(sorted(probs)[-1] == sorted(probs)[-2] for probs in with_probs)
+    return {
+        "rule": "the clean readout's top digit is the target value, uniquely",
+        "measured": bool(known),
+        "n_items": len(tops),
+        "n_correct": sum(top == target for top, target, _ in known),
+        "n_tied": n_tied if len(with_probs) == len(known) and known else None,
+        "n_unique_correct": (
+            sum(top == target and sorted(probs)[-1] > sorted(probs)[-2]
+                for top, target, probs in known)
+            if len(with_probs) == len(known) and known else None),
+        "applied_to_verdict": False,
     }
 
 
@@ -464,7 +544,8 @@ def _surface_gate(passes_by_layer, bins, policy, n_by_layer, scored) -> dict:
 
 def evaluate_gates(per_item: list[list[dict]], bins: list[int],
                    policy: str = ACTIVE_GATE_POLICY,
-                   n_layers: int | None = None) -> dict:
+                   n_layers: int | None = None,
+                   items: list[dict] | None = None) -> dict:
     """The four continue-rules from the prototype specification.
 
     ``policy`` selects which surface rule the verdict is bound to. Both are
@@ -570,6 +651,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
     gates["surface_active"] = gates[f"surface_{policy}"]
     gates["cross_item_donor"] = _cross_item_gate(per_item, bins, scored)
     gates["answer_moved"] = _answer_moved_gate(per_item, bins, scored)
+    gates["clean_answer"] = _clean_answer_gate(items)
     gates["prospective_joint_layer"] = _joint_layer_gate(gates, scored)
     gates["detail"] = detail
     return gates
@@ -657,28 +739,32 @@ def unflatten_rows(report: dict) -> list[list[dict]]:
 
 def _backfilled(per_item: list[list[dict]], items: list[dict] | None
                 ) -> list[list[dict]]:
-    """Recover ``clean_target_logodds`` onto rows that predate the field.
+    """Recover the floor's inputs onto rows that predate them.
 
-    The archived reports store it once per item and ``delta_away`` per row, so
-    the absolute-effect floor is computable on them by a join -- no GPU replay,
-    and no rewriting of the archived files, which are immutable. Rows are copied
-    rather than mutated so the caller's report is untouched.
+    Two fields, both stored once per item and needed per row. The archived
+    reports have ``clean_target_logodds`` and ``delta_away``, which is enough for
+    the fallback share; the runs since the row-schema change also have
+    ``probs_patched`` and need only the clean digit -- ``target_value`` -- to be
+    testable by argmax. Both are a join away, so neither costs a GPU replay or a
+    rewrite of the archived files, which are immutable. Rows are copied rather
+    than mutated so the caller's report is untouched.
 
-    Reports that carry neither leave the floor unmeasurable, which
+    Reports supplying neither leave the floor unmeasurable, which
     ``_answer_moved_gate`` reports as a failure rather than a pass.
     """
     if not items:
         return per_item
     filled = []
     for block, summary in zip(per_item, items):
-        baseline = summary.get("clean_target_logodds")
-        if baseline is None:
-            filled.append(block)
-            continue
+        recovered = {
+            key: value for key, value in (
+                ("clean_target_logodds", summary.get("clean_target_logodds")),
+                ("clean_value", summary.get("target_value")),
+            ) if value is not None
+        }
         filled.append([
-            row if "clean_target_logodds" in row or row["kind"] != "ancestor"
-            else row | {"clean_target_logodds": baseline}
-            for row in block
+            row if row["kind"] != "ancestor"
+            else {**recovered, **row} for row in block
         ])
     return filled
 
@@ -690,12 +776,13 @@ def rescore_report(report: dict, *, active: str = ACTIVE_GATE_POLICY) -> dict:
     policies' gates and verdicts are recorded so the legacy numbers stay
     auditable against the same measurement.
     """
-    per_item = _backfilled(unflatten_rows(report), report.get("items"))
+    items = report.get("items")
+    per_item = _backfilled(unflatten_rows(report), items)
     bins = list(report["layer_bins"])
     scoring = {}
     for policy in GATE_POLICIES:
         gates = evaluate_gates(per_item, bins, policy=policy,
-                               n_layers=report.get("n_layers"))
+                               n_layers=report.get("n_layers"), items=items)
         scoring[policy] = {
             "gates": gates,
             "verdict": verdict(gates),
@@ -704,6 +791,11 @@ def rescore_report(report: dict, *, active: str = ACTIVE_GATE_POLICY) -> dict:
     rescored = dict(report)
     if "verdict" in report:
         rescored["original_verdict"] = report["verdict"]
+        # Absent means the report was written before the floor existed, so the
+        # verdict beside it came from the gap-only function.
+        rescored["original_verdict_version"] = report.get(
+            "verdict_version", VERDICT_VERSIONS[0])
+    rescored["verdict_version"] = VERDICT_VERSION
     rescored["gate_policy_version"] = active
     rescored["gates"] = scoring[active]["gates"]
     rescored["verdict"] = scoring[active]["verdict"]
@@ -841,7 +933,8 @@ def print_gate_table(report: dict) -> None:
         print(f"verdict        {report['verdict']}")
         return
     print()
-    print(f"gate policy    {report.get('gate_policy_version', ACTIVE_GATE_POLICY)}")
+    print(f"gate policy    {report.get('gate_policy_version', ACTIVE_GATE_POLICY)}"
+          f"   verdict fn {report.get('verdict_version', VERDICT_VERSIONS[0])}")
     print(f"{'gate':<32}{'passes':<10}detail")
     for name in ("directional_control", "fluency", "ancestor_gap",
                  "answer_moved",
@@ -863,10 +956,18 @@ def print_gate_table(report: dict) -> None:
         print(f"  layers where every gate clears together: "
               f"{joint['layers'] or 'none'}")
         print(f"  verdict if applied: {joint['verdict_if_applied']}")
+    clean = gates.get("clean_answer")
+    if clean and clean["measured"]:
+        print()
+        print("clean_answer (reported beside the verdict, never binding)")
+        tied = "unknown (no clean distribution stored)" if clean["n_tied"] is None \
+            else f"{clean['n_tied']}/{clean['n_items']}"
+        print(f"  clean top digit is the target: "
+              f"{clean['n_correct']}/{clean['n_items']}    top ties: {tied}")
     moved = gates.get("answer_moved")
     if moved and moved["measured"]:
         print()
-        print(f"answer_moved: {moved['rule']}")
+        print(f"answer_moved [{moved['test'] or 'mixed'}]: {moved['rule']}")
         print(f"  {'layer':<8}{'moved':<10}median clean share")
         for layer, entry in moved["per_layer"].items():
             share = entry["median_clean_share"]

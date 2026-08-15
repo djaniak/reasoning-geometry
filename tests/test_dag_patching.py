@@ -6,6 +6,7 @@ test can be tested anywhere. The hook mechanics live in
 ``test_dag_patching_hooks.py`` and need torch.
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -64,7 +65,8 @@ def test_digit_token_ids_rejects_colliding_ids():
 
 def make_rows(layer, *, ancestor_toward, ancestor_tv, non_ancestor_tv,
               surface_tv, null_tvs, mass_ratio=1.0, cross=None,
-              ancestor_away=-1.0, clean_target_logodds=-0.02):
+              ancestor_away=-1.0, clean_target_logodds=-0.02,
+              probs_patched=None, clean_value=None):
     rows = [{
         "kind": "ancestor", "node": "a", "layer": layer, "distance_to_read": 10,
         "tv": ancestor_tv, "delta_toward": ancestor_toward,
@@ -95,7 +97,17 @@ def make_rows(layer, *, ancestor_toward, ancestor_tv, non_ancestor_tv,
             "delta_toward": toward, "delta_toward_raw": raw, "delta_away": 0.0,
             "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
         })
+    if probs_patched is not None:
+        rows[0]["probs_patched"] = list(probs_patched)
+    if clean_value is not None:
+        rows[0]["clean_value"] = clean_value
     return rows
+
+
+def spread(clean_share, clean_value=3, n=10):
+    """A ten-way distribution giving ``clean_value`` a share, rest uniform."""
+    rest = (1.0 - clean_share) / (n - 1)
+    return [clean_share if d == clean_value else rest for d in range(n)]
 
 
 def item_rows(**kwargs):
@@ -670,7 +682,7 @@ def test_a_report_with_cross_item_rows_still_rescores():
 # simply did not change the answer.
 
 
-def floor_rows(layer, *, away, clean=-0.02, gap=True):
+def floor_rows(layer, *, away, clean=-0.02, gap=True, **kwargs):
     """Rows whose relative gates all pass, parameterised on absolute movement."""
     return make_rows(
         layer, ancestor_toward=2.0, ancestor_tv=0.8 if gap else 0.03,
@@ -678,7 +690,7 @@ def floor_rows(layer, *, away, clean=-0.02, gap=True):
         surface_tv=0.04 if gap else 0.001,
         null_tvs=[0.02, 0.03, 0.05, 0.04, 0.03, 0.02] if gap
         else [0.002, 0.003, 0.005, 0.004, 0.003, 0.002],
-        ancestor_away=away, clean_target_logodds=clean,
+        ancestor_away=away, clean_target_logodds=clean, **kwargs,
     )
 
 
@@ -752,3 +764,188 @@ def test_a_report_that_cannot_supply_the_baseline_says_so_instead_of_passing():
     rescored = rescore_report(report)
     assert rescored["gates"]["answer_moved"]["measured"] is False
     assert rescored["gates"]["answer_moved"]["passes"] is False
+
+
+# --------------------------------------------------------------------------
+# the floor tests the argmax, and falls back to the majority only when blind
+# --------------------------------------------------------------------------
+#
+# The floor was first written as "the clean answer no longer holds a majority
+# of the readout", justified as the largest threshold that is not a free
+# parameter because below a half the clean answer cannot still be the argmax.
+# That justification is false. A half is the majority boundary, not the argmax
+# boundary: a digit at 0.40 beats nine others averaging 0.067. The tightest
+# scalar-only sufficient condition for ten classes is a share below 0.1.
+#
+# The share is exact in both tails -- at or above 0.5 the clean digit is
+# necessarily still the argmax, below 0.1 it necessarily is not -- and can only
+# err by over-calling movement in between. On the stored runs 37 of 360 ancestor
+# rows sit in that band and 5 of them are called moved while the clean digit is
+# still on top.
+#
+# Where the run stored `probs_patched`, none of this needs deciding: test the
+# argmax. The share survives only as the fallback for the archived reports,
+# which predate the field, and the gate records which test it ran.
+
+
+def argmax_rows(layer, *, clean_share, stored=True, **kwargs):
+    """Floor rows carrying a real ten-way distribution for the ancestor edit."""
+    probs = spread(clean_share)
+    return floor_rows(
+        layer,
+        # `delta_away` and the clean baseline are kept consistent with the
+        # distribution, so the two tests disagree only where they genuinely do.
+        away=math.log(clean_share) - math.log(0.98), clean=math.log(0.98),
+        probs_patched=probs if stored else None,
+        clean_value=3 if stored else None,
+        **kwargs,
+    )
+
+
+def test_the_floor_tests_the_argmax_when_the_distribution_is_stored():
+    # 0.45 is below the majority line but far above the other nine digits, so
+    # the answer did not move. The majority rule would call this five for five.
+    gates = evaluate_gates([argmax_rows(0, clean_share=0.45)] * 5, [0])
+    assert gates["answer_moved"]["per_layer"][0]["moved_items"] == 0
+    assert gates["answer_moved"]["passes"] is False
+    assert verdict(gates) == "scientific negative"
+
+
+def test_the_majority_fallback_is_what_a_blind_report_gets():
+    # Same share, no distribution: the fallback over-calls it, which is the
+    # error the archived reports are exposed to and cannot be rescued from.
+    gates = evaluate_gates([argmax_rows(0, clean_share=0.45, stored=False)] * 5,
+                           [0])
+    assert gates["answer_moved"]["per_layer"][0]["moved_items"] == 5
+
+
+def test_the_gate_records_which_test_decided_each_layer():
+    stored = evaluate_gates([argmax_rows(0, clean_share=0.45)] * 5, [0])
+    blind = evaluate_gates([argmax_rows(0, clean_share=0.45, stored=False)] * 5,
+                           [0])
+    assert stored["answer_moved"]["test"] == "argmax"
+    assert blind["answer_moved"]["test"] == "majority"
+
+
+def test_the_two_tests_agree_wherever_the_share_is_decisive():
+    # Above a half and below a tenth the share settles the argmax on its own.
+    for share in (0.7, 0.05):
+        stored = evaluate_gates([argmax_rows(0, clean_share=share)] * 5, [0])
+        blind = evaluate_gates(
+            [argmax_rows(0, clean_share=share, stored=False)] * 5, [0])
+        assert (stored["answer_moved"]["per_layer"][0]["moved_items"]
+                == blind["answer_moved"]["per_layer"][0]["moved_items"])
+
+
+def test_a_tie_at_the_top_does_not_count_as_having_moved_the_answer():
+    # Two digits share the maximum, one of them the clean answer. Which one a
+    # bare argmax returns is an artefact of digit order, so a tie is not a move.
+    probs = [0.0] * 10
+    probs[3] = probs[7] = 0.5
+    rows = floor_rows(0, away=math.log(0.5), clean=0.0,
+                      probs_patched=probs, clean_value=3)
+    gates = evaluate_gates([rows] * 5, [0])
+    assert gates["answer_moved"]["per_layer"][0]["moved_items"] == 0
+
+
+def test_the_clean_digit_is_recovered_from_the_item_summary_on_rescore():
+    # A run stored before `clean_value` existed still has the distribution and
+    # an item summary naming the target, so the argmax test is a join away.
+    report = stored_report()
+    for row in report["rows"]:
+        if row["kind"] == "ancestor":
+            row["probs_patched"] = spread(0.45)
+            row.pop("clean_value", None)
+    rescored = rescore_report(report)
+    assert rescored["gates"]["answer_moved"]["test"] == "argmax"
+    assert rescored["gates"]["answer_moved"]["passes"] is False
+
+
+# --------------------------------------------------------------------------
+# is the clean answer the model's own answer?
+# --------------------------------------------------------------------------
+#
+# `v3_distinct` made the three competing digits distinct. It did not make the
+# model's clean behaviour correct: in the fresh depth-1 ladder the clean top
+# digit disagrees with the target on 1/5, 1/5 and 2/5 items, and three
+# observations are exact top ties. "The patch moved the answer off the clean
+# target" is only a counterfactual flip when the clean target was the answer.
+#
+# Reported, never applied. Binding the verdict to it would be a third
+# retroactive policy move on runs that are already scored; the fix belongs in
+# the generator of the next family, not in a rescore of this one.
+
+
+def clean_probs_for(top, share=0.6):
+    return spread(share, clean_value=top)
+
+
+def report_with_clean(tops, share=0.6):
+    report = stored_report()
+    report["items"] = [
+        {"target_value": 3, "clean_target_logodds": -0.02,
+         "clean_top_digit": top, "clean_digit_mass": 1.0,
+         "clean_probs": clean_probs_for(top, share)}
+        for top in tops
+    ]
+    return report
+
+
+def test_the_diagnostic_counts_items_whose_clean_top_digit_is_the_target():
+    rescored = rescore_report(report_with_clean([3, 3, 3, 2, 3]))
+    gate = rescored["gates"]["clean_answer"]
+    assert gate["n_items"] == 5
+    assert gate["n_correct"] == 4
+
+
+def test_a_tie_at_the_top_of_the_clean_readout_is_not_a_unique_answer():
+    report = report_with_clean([3, 3, 3, 3, 3])
+    tied = [0.0] * 10
+    tied[3] = tied[8] = 0.5
+    report["items"][0]["clean_probs"] = tied
+    gate = rescore_report(report)["gates"]["clean_answer"]
+    assert gate["n_tied"] == 1
+    assert gate["n_unique_correct"] == 4
+
+
+def test_the_clean_answer_diagnostic_never_decides_the_verdict():
+    good = rescore_report(report_with_clean([3, 3, 3, 3, 3]))
+    bad = rescore_report(report_with_clean([2, 2, 2, 2, 2]))
+    assert bad["gates"]["clean_answer"]["n_correct"] == 0
+    assert bad["gates"]["clean_answer"]["applied_to_verdict"] is False
+    assert bad["verdict"] == good["verdict"]
+
+
+def test_the_diagnostic_says_it_is_unmeasured_without_a_clean_distribution():
+    # The archived reports store `clean_top_digit` but no distribution, so
+    # correctness is knowable there and uniqueness is not.
+    gate = rescore_report(stored_report())["gates"]["clean_answer"]
+    assert gate["measured"] is True
+    assert gate["n_tied"] is None
+
+
+# --------------------------------------------------------------------------
+# which verdict function produced this verdict
+# --------------------------------------------------------------------------
+#
+# `gate_policy_version` names the surface-control policy, not the verdict
+# function. Adding the floor changed the verdict function while leaving that
+# label alone, so `paired_ladder/depth2_gap0.json` reads `v2_one_sided` and
+# `positive` on disk while a rescore under the same label calls it a scientific
+# negative. One name, two functions. The version below is what tells them apart.
+
+
+def test_the_report_records_which_verdict_function_scored_it():
+    from dag_patching import VERDICT_VERSION
+
+    rescored = rescore_report(stored_report())
+    assert rescored["verdict_version"] == VERDICT_VERSION
+
+
+def test_a_report_scored_before_the_floor_keeps_its_old_verdict_labelled():
+    # The stored verdict and the version that produced it both survive the
+    # rescore, so a changed verdict is attributable rather than mysterious.
+    report = stored_report(verdict_str="positive")
+    rescored = rescore_report(report)
+    assert rescored["original_verdict"] == "positive"
+    assert rescored["original_verdict_version"] == "v1_gap_only"
