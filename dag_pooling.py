@@ -215,12 +215,26 @@ def pool(reports: dict[str, dict], *, layer: int = POOLED_LAYER,
     coincide, so "landed on the implied digit" does not mean there what it means
     here. Raises if no surviving arm measured ``layer`` -- an empty pool because
     of a mistyped layer should not read as an empty result.
+
+    Arms recorded at different readout precisions are refused for the same
+    reason. A bfloat16 digit logit sits on a 0.125-nat grid, which is what makes
+    exact two-digit ties ordinary and forced the tie policy above; a float32
+    readout mostly cannot tie. Averaging the two into one rate would put a
+    change of instrument into the numerator. The eight archived runs predate the
+    field and are all bfloat16, so *absent* is one precision like any other --
+    it just may not be mixed with a recorded one.
     """
     kept = {name: report for name, report in reports.items()
             if generator is None or report.get("generator") == generator}
     if kept and not any(layer in report.get("layer_bins", [])
                         for report in kept.values()):
         raise ValueError(f"no arm measured layer {layer}")
+    precisions = {report.get("readout_dtype") for report in kept.values()}
+    if len(precisions) > 1:
+        named = ", ".join(sorted(str(p) for p in precisions))
+        raise ValueError(
+            f"arms disagree on readout_dtype ({named}); they are different "
+            "measurements and cannot share a rate")
     merged: dict[tuple, dict] = {}
     for name, report in sorted(kept.items()):
         for record in outcomes(report, layer=layer):

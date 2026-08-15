@@ -93,7 +93,15 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_model(quantize: bool, model_name: str = DEFAULT_MODEL_NAME):
+def load_model(quantize: bool, model_name: str = DEFAULT_MODEL_NAME,
+               dtype: "torch.dtype" = torch.bfloat16):
+    """``dtype`` defaults to bfloat16, which is what every existing caller got.
+
+    It is a parameter because bfloat16 puts a digit logit on a 0.125-nat grid,
+    and the patching readout needs finer than that to tell two digits apart --
+    see `EXPERIMENT_LOG.md`, 2026-08-15. Whatever is asked for here, the run
+    should record what the loaded model actually reports, not this argument.
+    """
     hf_token = os.environ.get("HF_TOKEN", None)
     offline_mode = (
         os.environ.get("HF_HUB_OFFLINE", "").strip() == "1"
@@ -102,7 +110,7 @@ def load_model(quantize: bool, model_name: str = DEFAULT_MODEL_NAME):
     if quantize:
         quant_config = BitsAndBytesConfig(
             load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_compute_dtype=dtype,
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -115,7 +123,7 @@ def load_model(quantize: bool, model_name: str = DEFAULT_MODEL_NAME):
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=dtype,
             device_map="auto",
             attn_implementation="sdpa",
             token=hf_token,

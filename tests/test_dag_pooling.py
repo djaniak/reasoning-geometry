@@ -376,3 +376,53 @@ def test_an_omitted_arm_is_never_pooled_into_the_written_rate():
         {"a": written, "b": omitted}, layer=13))}
     assert rows["none"]["n_on_implied"] == 0
     assert rows["chain"]["n_on_implied"] == 1
+
+
+# --------------------------------------------------------------------------
+# Two readout precisions are two measurements, and must not share a rate
+# --------------------------------------------------------------------------
+
+
+def test_arms_recorded_at_one_precision_pool_normally():
+    arms = {"a": {**report(*ONE, implied=5, raw=8), "readout_dtype": "float32"},
+            "b": {**report((4, 4, 0.7), implied=6, raw=9), "readout_dtype": "float32"}}
+    assert len(pool(arms, layer=13)) == 2
+
+
+def test_the_archived_arms_pool_although_none_of_them_records_a_precision():
+    """Absent is a state, not a mismatch.
+
+    The eight archived runs predate the field entirely. They were all bfloat16,
+    so they are one precision and one rate; refusing them would make the fix
+    retroactively unusable on the only data that exists.
+    """
+    assert len(pool({"a": report(*ONE, implied=5, raw=8)}, layer=13)) == 1
+
+
+def test_a_float32_arm_and_an_archived_arm_are_refused_rather_than_merged():
+    """The whole point of rerunning in float32 is that it is a different readout.
+
+    A bfloat16 digit logit is on a 0.125-nat grid and ties at that resolution
+    are what forced the tie policy. Pooling a float32 arm into the archived
+    counts would compare a rate that can tie against one that mostly cannot,
+    and the difference would read as an effect.
+    """
+    arms = {"archived": report(*ONE, implied=5, raw=8),
+            "fresh": {**report((4, 4, 0.7), implied=6, raw=9), "readout_dtype": "float32"}}
+    with pytest.raises(ValueError, match="readout_dtype"):
+        pool(arms, layer=13)
+
+
+def test_two_recorded_precisions_are_refused_as_well():
+    arms = {"a": {**report(*ONE, implied=5, raw=8), "readout_dtype": "bfloat16"},
+            "b": {**report((4, 4, 0.7), implied=6, raw=9), "readout_dtype": "float32"}}
+    with pytest.raises(ValueError, match="readout_dtype"):
+        pool(arms, layer=13)
+
+
+def test_a_precision_mismatch_outside_the_pooled_generator_is_not_a_mismatch():
+    """The filter runs first: an arm that is not in the family cannot conflict."""
+    arms = {"a": report(*ONE, implied=5, raw=8),
+            "b": {**report((4, 4, 0.7), implied=6, raw=9, generator="v1_unpaired"),
+                  "readout_dtype": "float32"}}
+    assert len(pool(arms, layer=13, generator="v3_distinct")) == 1

@@ -76,6 +76,27 @@ VERDICT_VERSION = "v2_gap_and_floor"
 # move. See `_joint_layer_gate`.
 PROSPECTIVE_LAYER_RULE = "joint_layer"
 
+# The precision the digit readout is taken at. The eight archived runs are
+# bfloat16 -- not by choice, but because `load_model` had no other setting --
+# which puts a digit logit on a 0.125-nat grid and makes exact two-digit ties
+# ordinary: eight of the fifty-three depth-1 readouts have one. float32 is
+# registered for E2 (`EXPERIMENT_LOG.md`, 2026-08-15). A name and not a
+# `torch.dtype` because this module imports torch lazily, so the gate logic
+# stays testable without it; resolved against `torch` at load time.
+READOUT_DTYPE = "float32"
+
+
+def readout_dtype(model) -> str:
+    """What the loaded model reports, which is not always what was asked for.
+
+    A quantized load, an unsupported dtype, or a config that overrides the
+    request all produce a model that is not the one requested. The archived
+    reports record no precision at all and it had to be traced through the call
+    chain afterwards; this field exists so that never happens again, and it is
+    only worth having if it describes the model that ran.
+    """
+    return str(model.dtype).removeprefix("torch.")
+
 
 def layer_bins(n_layers: int, fractions=LAYER_FRACTIONS) -> list[int]:
     """Four relative-depth decoder-layer indices, fixed once per checkpoint.
@@ -889,6 +910,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         condition: str = "both", depth: int = 1, gap: int | None = None,
         generator: str = DEFAULT_GENERATOR, cross_item: bool = False,
         omit: str = "none") -> dict:
+    import torch
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -908,7 +930,8 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
     )
     digit_ids = digit_token_ids(tokenizer)
 
-    model, _ = load_model(False, model_name=model_name)
+    model, _ = load_model(False, model_name=model_name,
+                          dtype=getattr(torch, READOUT_DTYPE))
     bins = layer_bins(model.config.num_hidden_layers)
 
     identity = identity_patch_check(
@@ -919,6 +942,11 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         # Recorded from the start, so no later run has to have it inferred
         # the way the archived eight did.
         "generator": generator,
+        # Read off the loaded model, not off `READOUT_DTYPE`: the request and
+        # what ran are not the same claim, and only the second one is evidence.
+        # Absent in the archived eight, which are all bfloat16; `dag_pooling`
+        # refuses to pool across a difference here.
+        "readout_dtype": readout_dtype(model),
         "n_decoys": n_decoys,
         # The cross-item batch is selected for mutual donatability, so it is a
         # different batch from a plain run at the same seed. Recorded, not
