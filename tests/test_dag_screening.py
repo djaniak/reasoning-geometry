@@ -13,6 +13,7 @@ patched outcome in existence when it runs, so it cannot be tuned toward one --
 which is what these tests are mostly here to pin.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from dag_screening import (
     MIN_PAIRS,
     confidence_window,
     eligible,
+    load_screened,
     select,
 )
 
@@ -228,3 +230,27 @@ def test_the_order_the_items_arrive_in_does_not_change_the_selection():
     forward = select(records, depths=(1, 2))["pairs"]
     backward = select(list(reversed(records)), depths=(1, 2))["pairs"]
     assert forward == backward
+
+
+# --------------------------------------------------------------------------
+# Screening the two depths separately, then selecting over both at once
+# --------------------------------------------------------------------------
+
+
+def test_screened_files_are_combined_and_an_item_screened_twice_counts_once(tmp_path):
+    """Depth 1 needs the gap sweep to reach depth 2's distances; depth 2 does not.
+
+    So the two are separate forward runs, and the registered rule has to be
+    applied over the union -- by the committed code, since a selection rule
+    applied by a one-off script is not the rule that was registered.
+    """
+    paths = []
+    for name, records in (("one", spines(1, [0.90, 0.91], 24)),
+                          ("two", spines(2, [0.90, 0.91], 23, start=100))):
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps({"screened": records}))
+        paths.append(path)
+    paths.append(paths[0])
+    loaded = load_screened(paths)
+    assert len(loaded) == 4
+    assert len(select(loaded, depths=(1, 2))["pairs"]) == 2

@@ -232,8 +232,16 @@ def parse_args() -> argparse.Namespace:
                         help="Extra ancestor-distance placements. A distance "
                              "sampler only: one placement per spine survives "
                              "selection.")
-    parser.add_argument("--seeds", type=int, nargs="+", required=True,
-                        help="Disjoint from 0-3, which the archived runs used.")
+    parser.add_argument("--seeds", type=int, nargs="+", default=None,
+                        help="Disjoint from 0-3, which the archived runs used. "
+                             "Required unless --screened is given.")
+    parser.add_argument("--screened", nargs="+", default=None, metavar="JSON",
+                        help="Select over already-screened files instead of "
+                             "running forwards. Depth 1 needs the gap sweep to "
+                             "widen its ancestor distances and depth 2 does "
+                             "not, so the two are screened separately and the "
+                             "registered rule is applied over both at once -- "
+                             "by this code, not by a one-off script.")
     parser.add_argument("--n_items", type=int, default=10)
     parser.add_argument("--n_decoys", type=int, default=6)
     parser.add_argument("--generator", default=DEFAULT_GENERATOR)
@@ -241,16 +249,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_screened(paths) -> list[dict]:
+    """Records from earlier screening files, deduplicated by what identifies one.
+
+    Two files can legitimately hold the same item -- rerunning a seed, or
+    overlapping seed ranges -- and one item screened twice is still one item.
+    """
+    seen = {}
+    for path in paths:
+        for record in json.loads(Path(path).read_text())["screened"]:
+            seen[(record["depth"], record["seed"], record["index"],
+                  record["gap"], record.get("generator"))] = record
+    return [seen[key] for key in sorted(seen)]
+
+
 def main() -> None:
     args = parse_args()
-    records = []
-    for depth in args.depths:
-        for gap in args.gaps:
-            for seed in args.seeds:
-                records.extend(screen(
-                    model_name=args.model_name, depth=depth, n_items=args.n_items,
-                    n_decoys=args.n_decoys, seed=seed, gap=gap,
-                    generator=args.generator))
+    if args.screened:
+        records = load_screened(args.screened)
+    else:
+        if args.seeds is None:
+            raise SystemExit("--seeds is required unless --screened is given")
+        records = []
+        for depth in args.depths:
+            for gap in args.gaps:
+                for seed in args.seeds:
+                    records.extend(screen(
+                        model_name=args.model_name, depth=depth,
+                        n_items=args.n_items, n_decoys=args.n_decoys,
+                        seed=seed, gap=gap, generator=args.generator))
     outcome = select(records, depths=tuple(args.depths))
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
