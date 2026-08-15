@@ -5,6 +5,84 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: E2 stage B — the depth contrast survives matching, and one arm gets two verdicts
+
+The 24 matched pairs, patched at layer 13. Artifacts in
+`results/dag_patching/e2_stage_b/`. The protocol is the pre-registration two
+entries below, committed in `6f1e9a7` before the selection rule existed. Nothing
+in the analysis moved between stage A and stage B.
+
+### The registered outcome is the second of the three
+
+| depth | n | implied uniquely top | ties | clean p(target) min / median / max | ancestor distance |
+|---:|---:|:---|---:|:---|:---|
+| 1 | 24 | **24/24** | 0 | 0.696 / 0.914 / 0.990 | 24–37 |
+| 2 | 24 | **0/24** | 0 | 0.696 / 0.913 / 0.990 | 23–36 |
+
+Difference 1.00, 95% interval [1.000, 1.000] over 1,000 bootstrap replicates of
+whole pairs; Fisher's exact one-sided p = 3.1e-14. The confidence quantiles agree
+to three decimals and the distance supports overlap, which is what stage A was
+for. **The contrast persists after matching, so the depth result is about graph
+depth** and not about the clean confidence or the token distance that move with
+it.
+
+The interval is degenerate because the separation is perfect, not because the
+estimate is precise. Zero discordant pairs leaves a resampler nothing to vary,
+and [1.000, 1.000] means "no item went the other way", not a tight bound.
+
+### One arm, two verdicts, and the registration did not foresee it
+
+The registered validity gate is null flips at 20%. Both arms are nowhere near it:
+nulls 0/144, surface-nulls 0/24, non-ancestors 0/24, at both depths.
+`control_specificity` is 24/24 on the implied digit against 0/192 control rows
+moving at depth 1, and 0/24 against 0/192 at depth 2.
+
+But `dag_patching` scores the depth-2 arm as an **invalid test**, on
+`directional_control_failed` and `surface_above_null`. Its gates are relative, and
+at depth 2 nothing moves for a relative gate to be relative to. So by the gate
+registered for E2 the arm is a valid negative, and by the project's own arm
+scorer it is unreadable. Both labels are in the artifacts and neither has been
+edited to agree with the other.
+
+They are answering different questions — the arm scorer asks whether one arm's
+gates can be read, E2 asks whether the ancestor edit installs its digit at one
+depth and not the other — but the registration named the null-flip gate as stage
+B's validity criterion and did not anticipate a second verdict on the same rows.
+That is a hole in the registration, not in the measurement. The defensible
+reading is that the contrast stands on the paired comparison, and the depth-2 arm
+taken alone is not independently scoreable.
+
+### The depth-2 patch is not inert, it is unaimed
+
+Median TV at layer 13: ancestor 0.9868 at depth 1 against 0.0877 at depth 2, with
+nulls at 0.0043 and 0.0046. So the depth-2 donor state reaches the read position
+and moves it about twenty times as much as a null edit does. It simply does not
+put the implied digit anywhere near the top.
+
+| depth | p(implied) | p(raw) | p(target) | remaining |
+|---:|:---|:---|:---|:---|
+| 1 | 0.0006 → 0.8579 | 0.0005 → 0.1065 | 0.9136 → 0.0023 | 0.0781 → 0.0150 |
+| 2 | 0.0006 → 0.0013 | 0.0006 → 0.0028 | 0.9132 → 0.8040 | 0.0777 → 0.1616 |
+
+At depth 2 the mass leaving the clean answer goes to the *other* digits — the
+remaining mass roughly doubles — while p(implied) stays at 0.001. The patch adds
+noise rather than an answer. And at depth 1 the donor's literal digit is promoted
+about two hundredfold, 0.0005 → 0.1065, while never once winning (0/24): the
+2026-08-15 correction's point that "the recipient transforms the donor value" is
+too clean a sentence survives into the matched run.
+
+### What this does not establish
+
+Layer 13 is inherited from the `v3_distinct` discovery table and was not
+re-searched, so the depth-1 rate is not a fresh test — the layer was chosen on
+data that produced it. The matched window is p(target) 0.696–0.990, so this is
+the high-confidence regime and not the lower half of the range the original
+depth-1 result came from. Four of the five registered row kinds ran; the
+cross-item donor needs a batch selected for mutual donatability, which is a
+different batch from the one the matched items come from, so that arm is
+untouched here. Depth 3, the omission arms, and every mechanistic reading are
+outside this run.
+
 ## 2026-08-15: E2 stage A — the window is open, 24 pairs match, and float32 leaves no ties at all
 
 Screening only: 1,230 clean forward passes, no patch run and none runnable from

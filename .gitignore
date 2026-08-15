@@ -64,6 +64,14 @@ env/
 !/results/dag_patching/e2_screening/*.json
 !/results/dag_patching/e2_screening/README.md
 
+# And E2 stage B: the patched run over the pairs stage A chose. Kept beside the
+# screening rather than inside it, because that directory's claim is that it
+# holds no patched number and this one is nothing but patched numbers.
+!/results/dag_patching/e2_stage_b/
+/results/dag_patching/e2_stage_b/*
+!/results/dag_patching/e2_stage_b/*.json
+!/results/dag_patching/e2_stage_b/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/
