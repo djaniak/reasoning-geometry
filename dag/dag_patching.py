@@ -76,17 +76,21 @@ VERDICT_VERSION = "v2_gap_and_floor"
 # move. See `_joint_layer_gate`.
 PROSPECTIVE_LAYER_RULE = "joint_layer"
 
-# The precision the digit readout is taken at. The eight archived runs are
-# bfloat16 -- not by choice, but because `load_model` had no other setting --
-# which puts a digit logit on a 0.125-nat grid and makes exact two-digit ties
-# ordinary: eight of the fifty-three depth-1 readouts have one. float32 is
-# registered for E2 (`EXPERIMENT_LOG.md`, 2026-08-15). A name and not a
-# `torch.dtype` because this module imports torch lazily, so the gate logic
+# The precision the *model* is loaded and run at. It reaches `from_pretrained`,
+# so it sets every matmul in the forward pass and not only the softmax the digits
+# are read from -- the name below said "readout" until 2026-08-15 and was wrong
+# about which claim it licensed. See `model_dtype`.
+#
+# The eight archived runs are bfloat16 -- not by choice, but because `load_model`
+# had no other setting -- which puts a digit logit on a 0.125-nat grid and makes
+# exact two-digit ties ordinary: eight of the fifty-three depth-1 readouts have
+# one. float32 is registered for E2 (`EXPERIMENT_LOG.md`, 2026-08-15). A name and
+# not a `torch.dtype` because this module imports torch lazily, so the gate logic
 # stays testable without it; resolved against `torch` at load time.
-READOUT_DTYPE = "float32"
+MODEL_DTYPE = "float32"
 
 
-def readout_dtype(model) -> str:
+def model_dtype(model) -> str:
     """What the loaded model reports, which is not always what was asked for.
 
     A quantized load, an unsupported dtype, or a config that overrides the
@@ -94,6 +98,12 @@ def readout_dtype(model) -> str:
     reports record no precision at all and it had to be traced through the call
     chain afterwards; this field exists so that never happens again, and it is
     only worth having if it describes the model that ran.
+
+    Reports store it under the key ``readout_dtype``. The key is frozen: the
+    committed E2 artifacts carry it and `dag_pooling` refuses to pool across a
+    difference in it. Its *value* has always been the model's compute dtype,
+    which the readout inherits rather than chooses; only the name was ever
+    narrower than the thing.
     """
     return str(model.dtype).removeprefix("torch.")
 
@@ -931,7 +941,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
     digit_ids = digit_token_ids(tokenizer)
 
     model, _ = load_model(False, model_name=model_name,
-                          dtype=getattr(torch, READOUT_DTYPE))
+                          dtype=getattr(torch, MODEL_DTYPE))
     bins = layer_bins(model.config.num_hidden_layers)
 
     identity = identity_patch_check(
@@ -942,11 +952,12 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         # Recorded from the start, so no later run has to have it inferred
         # the way the archived eight did.
         "generator": generator,
-        # Read off the loaded model, not off `READOUT_DTYPE`: the request and
-        # what ran are not the same claim, and only the second one is evidence.
-        # Absent in the archived eight, which are all bfloat16; `dag_pooling`
-        # refuses to pool across a difference here.
-        "readout_dtype": readout_dtype(model),
+        # Read off the loaded model, not off `MODEL_DTYPE`: the request and what
+        # ran are not the same claim, and only the second one is evidence. The
+        # key name is narrower than the value -- see `model_dtype` -- and is kept
+        # because the committed artifacts carry it. Absent in the archived eight,
+        # which are all bfloat16; `dag_pooling` refuses to pool across it.
+        "readout_dtype": model_dtype(model),
         "n_decoys": n_decoys,
         # The cross-item batch is selected for mutual donatability, so it is a
         # different batch from a plain run at the same seed. Recorded, not

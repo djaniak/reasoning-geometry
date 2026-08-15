@@ -176,11 +176,11 @@ def load_once(model_name: str):
     from transformers import AutoTokenizer
 
     from data.collect_data import load_model
-    from dag.dag_patching import READOUT_DTYPE
+    from dag.dag_patching import MODEL_DTYPE
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model, _ = load_model(False, model_name=model_name,
-                          dtype=getattr(torch, READOUT_DTYPE))
+                          dtype=getattr(torch, MODEL_DTYPE))
     return model, tokenizer
 
 
@@ -198,7 +198,7 @@ def screen(*, model, tokenizer, depth: int, n_items: int, n_decoys: int,
         digit_readout,
         digit_token_ids,
         layer_bins,
-        readout_dtype,
+        model_dtype,
     )
     from dag.dag_pooling import _tops
 
@@ -223,7 +223,7 @@ def screen(*, model, tokenizer, depth: int, n_items: int, n_decoys: int,
             "seed": seed,
             "index": index,
             "generator": generator,
-            "readout_dtype": readout_dtype(model),
+            "readout_dtype": model_dtype(model),
             "ancestor_distance": next(
                 edit.distance_to_read for edit in item.edits
                 if edit.kind == "ancestor"),

@@ -21,6 +21,13 @@ open for adjustment now that stage A has run:
   them with nulls flipping 23/40.
 
 The one thing stage B cannot do is the fifth row kind. See `ROW_KINDS`.
+
+One reading was added after the run and is marked as such wherever it appears:
+the exact paired test in `exact_paired`, because the registered bootstrap turned
+out to be degenerate on a perfect separation and says nothing about how large the
+difference is. It is reported beside the interval, never instead of it, and it
+changes no number the run recorded. `--reanalyse` is how it reached the committed
+artifact without a second patch run.
 """
 
 from __future__ import annotations
@@ -28,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from math import comb
 from pathlib import Path
 from statistics import median
 
@@ -321,6 +329,44 @@ def bootstrap(by_pair: dict, *, depths: tuple, replicates: int, seed: int) -> di
     }
 
 
+def exact_paired(by_pair: dict, *, depths: tuple) -> dict:
+    """The one-sided exact test a matched design calls for.
+
+    **Added 2026-08-15, after stage B ran, and not registered.** The registration
+    named the bootstrap above and no p-value at all. This is here because the
+    bootstrap cannot express the result it was registered beside: zero discordant
+    pairs leaves a resampler nothing to vary, so `[1.000, 1.000]` reports the
+    absence of a counterexample rather than the precision of an estimate. Both
+    are returned; neither replaces the other.
+
+    Concordant pairs carry no information about a difference, so under the null
+    that a discordant pair falls either way with equal probability the discordant
+    ones are the whole evidence. That is the sign test on them, which is exact
+    McNemar. It is also the conservative reading: Fisher's exact on the same 2x2
+    treats the arms as two independent samples, which a design that matched them
+    item for item is not, and it reports 3.1e-14 where this reports 6.0e-8.
+    """
+    keys = sorted(pair for pair, sides in by_pair.items()
+                  if all(depth in sides for depth in depths))
+    first, second = depths
+    favourable = sum(1 for pair in keys
+                     if by_pair[pair][first] > by_pair[pair][second])
+    against = sum(1 for pair in keys
+                  if by_pair[pair][first] < by_pair[pair][second])
+    discordant = favourable + against
+    if not discordant:
+        return {"n_pairs": len(keys), "discordant": 0, "favourable": 0,
+                "against": 0, "p_value": None}
+    tail = sum(comb(discordant, k) for k in range(favourable, discordant + 1))
+    return {
+        "n_pairs": len(keys),
+        "discordant": discordant,
+        "favourable": favourable,
+        "against": against,
+        "p_value": tail * 0.5 ** discordant,
+    }
+
+
 def primary(reports: dict, *, layer: int = LAYER,
             replicates: int = BOOTSTRAP_REPLICATES,
             seed: int = BOOTSTRAP_SEED, depths: tuple = (1, 2)) -> dict:
@@ -352,6 +398,9 @@ def primary(reports: dict, *, layer: int = LAYER,
         "replicates": resampled["replicates"],
         "n_pairs": resampled["n_pairs"],
         "interval": resampled["interval"],
+        # Not registered, and reported beside the interval rather than instead
+        # of it. See `exact_paired`.
+        "exact_paired": exact_paired(by_pair, depths=depths),
         "per_depth": per_depth,
     }
 
@@ -375,7 +424,7 @@ def measure(*, model, tokenizer, selection: dict, n_decoys: int,
         identity_patch_check,
         layer_bins,
         measure_item,
-        readout_dtype,
+        model_dtype,
         rescore_report,
     )
 
@@ -407,7 +456,7 @@ def measure(*, model, tokenizer, selection: dict, n_decoys: int,
             check_clean(entry["record"], summary)
             arm = arms.setdefault(batch["depth"], {
                 "model": model_name, "generator": batch["generator"],
-                "readout_dtype": readout_dtype(model), "n_decoys": n_decoys,
+                "readout_dtype": model_dtype(model), "n_decoys": n_decoys,
                 "cross_item": False, "donor_map": None, "condition": condition,
                 "depth": batch["depth"], "omit": "none", "seed": None,
                 "layer_bins": bins, "n_layers": model.config.num_hidden_layers,
@@ -470,13 +519,35 @@ def analyse(arms: dict, *, layer: int = LAYER,
 # --------------------------------------------------------------------------
 
 
+def load_arms(directory: Path) -> dict:
+    """Read arms a patched run already wrote, keyed by depth the way `analyse` wants.
+
+    The depth comes off the arm rather than off the filename: the filename is a
+    convention and the field is what the run recorded.
+    """
+    arms = {}
+    for path in sorted(directory.glob("depth*.json")):
+        arm = json.loads(path.read_text())
+        arms[int(arm["depth"])] = arm
+    if not arms:
+        raise SystemExit(f"no depth*.json in {directory}")
+    return arms
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model_name",
                         default="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
-    parser.add_argument("--selection", required=True,
+    parser.add_argument("--selection",
                         help="A stage-A SELECTION.json. Stage B measures the "
                              "pairs in it and nothing else.")
+    parser.add_argument("--reanalyse", metavar="DIR",
+                        help="Read the arms a patched run already wrote in DIR "
+                             "and analyse them again, with no model and no "
+                             "patch. For adding a reading to a run that has "
+                             "happened: the arm files are read and never "
+                             "written, so no number here can come from anywhere "
+                             "but the run that produced them.")
     parser.add_argument("--n_decoys", type=int, default=6,
                         help="Must be what stage A screened with; every item "
                              "is checked against its screened measurement and "
@@ -505,6 +576,13 @@ def print_summary(analysis: dict) -> None:
     print(f"difference     {primary_outcome['difference']}"
           f"{'' if interval is None else f'  95% CI [{interval[0]:.3f}, {interval[1]:.3f}]'}"
           f"  over {primary_outcome['n_pairs']} pairs")
+    exact = primary_outcome.get("exact_paired")
+    if exact:
+        p_value = exact["p_value"]
+        print(f"exact paired   {exact['favourable']} for / {exact['against']} "
+              f"against, of {exact['discordant']} discordant"
+              f"{'' if p_value is None else f'  one-sided p = {p_value:.2e}'}"
+              f"   (not registered)")
     for depth, split in sorted(analysis["level_split"].items()):
         parts = ", ".join(
             f"p({name}) {split[name]['clean']:.4f} -> {split[name]['patched']:.4f}"
@@ -515,30 +593,46 @@ def print_summary(analysis: dict) -> None:
 
 def main() -> None:
     args = parse_args()
-    selection = json.loads(Path(args.selection).read_text())
-    if not selection["selection"]["proceed"]:
+    if bool(args.selection) == bool(args.reanalyse):
         raise SystemExit(
-            "stage A did not reach the registered floor; the registered "
-            "outcome is to stop and close the depth claim, not to patch anyway")
+            "pass exactly one of --selection (patch the pairs stage A chose) "
+            "or --reanalyse (read arms a patch run already wrote)")
 
-    from dag.dag_screening import load_once
+    directory = Path(args.output_dir)
+    if args.reanalyse:
+        arms = load_arms(Path(args.reanalyse))
+        # Carried from the run being re-read, not from this invocation: these
+        # two fields say what was patched, and re-stating them from flags would
+        # let a reanalysis claim a provenance it does not have.
+        source = json.loads((Path(args.reanalyse) / "ANALYSIS.json").read_text())
+        selection_path, n_decoys = source["selection"], source["n_decoys"]
+    else:
+        selection = json.loads(Path(args.selection).read_text())
+        if not selection["selection"]["proceed"]:
+            raise SystemExit(
+                "stage A did not reach the registered floor; the registered "
+                "outcome is to stop and close the depth claim, not to patch anyway")
 
-    model, tokenizer = load_once(args.model_name)
-    arms = measure(model=model, tokenizer=tokenizer, selection=selection,
-                   n_decoys=args.n_decoys, model_name=args.model_name)
+        from dag.dag_screening import load_once
+
+        model, tokenizer = load_once(args.model_name)
+        arms = measure(model=model, tokenizer=tokenizer, selection=selection,
+                       n_decoys=args.n_decoys, model_name=args.model_name)
+        selection_path, n_decoys = args.selection, args.n_decoys
+
     analysis = analyse(arms, layer=args.layer, replicates=args.replicates,
                        seed=args.bootstrap_seed)
 
-    directory = Path(args.output_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    for depth, arm in sorted(arms.items()):
-        path = directory / f"depth{depth}.json"
-        path.write_text(json.dumps(arm, indent=2))
-        print(f"wrote {path}")
+    if not args.reanalyse:
+        for depth, arm in sorted(arms.items()):
+            path = directory / f"depth{depth}.json"
+            path.write_text(json.dumps(arm, indent=2))
+            print(f"wrote {path}")
     path = directory / "ANALYSIS.json"
     path.write_text(json.dumps({
-        "selection": args.selection,
-        "n_decoys": args.n_decoys,
+        "selection": selection_path,
+        "n_decoys": n_decoys,
         "analysis": analysis,
     }, indent=2))
     print(f"wrote {path}")

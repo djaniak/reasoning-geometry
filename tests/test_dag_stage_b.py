@@ -16,6 +16,7 @@ invalid test rather than a negative one.
 """
 
 import sys
+from math import comb
 from pathlib import Path
 
 import pytest
@@ -314,6 +315,69 @@ def test_resampling_takes_whole_pairs_rather_than_the_two_arms_separately():
     outcome = primary(arms, replicates=500)
     assert outcome["difference"] == 0.0
     assert outcome["interval"] == [0.0, 0.0]
+
+
+# --------------------------------------------------------------------------
+# The exact paired test, added after the run because the interval went degenerate
+# --------------------------------------------------------------------------
+
+
+def test_the_exact_test_counts_discordant_pairs_and_ignores_the_rest():
+    """A pair where both depths agree carries no evidence about a difference,
+    whichever way it agreed. Six pairs, two of them discordant, both favourable:
+    the test sees n=2, not n=6."""
+    win, lose = probs(d6=0.8), probs(d3=0.9)
+    arms = {1: report([item(win)] * 4 + [item(lose)] * 2, depth=1),
+            2: report([item(win)] * 2 + [item(lose)] * 4, depth=2)}
+    exact = primary(arms, replicates=200)["exact_paired"]
+    assert (exact["n_pairs"], exact["discordant"]) == (6, 2)
+    assert (exact["favourable"], exact["against"]) == (2, 0)
+    assert exact["p_value"] == pytest.approx(0.25)
+
+
+def test_a_pair_that_goes_the_other_way_counts_against():
+    win, lose = probs(d6=0.8), probs(d3=0.9)
+    arms = {1: report([item(win)] * 3 + [item(lose)], depth=1),
+            2: report([item(lose)] * 3 + [item(win)], depth=2)}
+    exact = primary(arms, replicates=200)["exact_paired"]
+    assert (exact["favourable"], exact["against"]) == (3, 1)
+    # P(3 or 4 favourable of 4) = (4 + 1) / 16.
+    assert exact["p_value"] == pytest.approx(5 / 16)
+
+
+def test_a_perfect_separation_gets_a_finite_p_where_the_interval_gets_none():
+    """The whole reason this exists. The bootstrap has nothing to resample and
+    returns `[1.000, 1.000]`, which is not a statement about how big the
+    difference is; the sign test on the same 24 pairs returns 2**-24."""
+    win, lose = probs(d6=0.8), probs(d3=0.9)
+    arms = {1: report([item(win)] * 24, depth=1),
+            2: report([item(lose)] * 24, depth=2)}
+    outcome = primary(arms, replicates=200)
+    assert outcome["interval"] == [1.0, 1.0]
+    assert outcome["exact_paired"]["p_value"] == pytest.approx(2.0 ** -24)
+
+
+def test_no_discordant_pairs_gets_no_p_value_rather_than_one_point_oh():
+    """Every pair agreeing is not evidence of no difference at p = 1; it is a
+    test with no evidence in it. `None` says so and a float would not."""
+    win = probs(d6=0.8)
+    arms = {1: report([item(win)] * 5, depth=1),
+            2: report([item(win)] * 5, depth=2)}
+    exact = primary(arms, replicates=200)["exact_paired"]
+    assert exact["discordant"] == 0
+    assert exact["p_value"] is None
+
+
+def test_the_exact_test_is_more_conservative_than_treating_the_arms_as_independent():
+    """Fisher's exact on the same 2x2 gives 1 / C(48, 24) = 3.1e-14, six orders
+    of magnitude smaller, because it credits the design with 48 independent
+    observations. It has 24 matched pairs. Whichever number the write-up quotes,
+    it must not be the smaller one by accident."""
+    win, lose = probs(d6=0.8), probs(d3=0.9)
+    arms = {1: report([item(win)] * 24, depth=1),
+            2: report([item(lose)] * 24, depth=2)}
+    p_value = primary(arms, replicates=200)["exact_paired"]["p_value"]
+    assert p_value > 1 / comb(48, 24)
 
 
 # --------------------------------------------------------------------------
