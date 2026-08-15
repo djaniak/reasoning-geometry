@@ -32,6 +32,7 @@ from dag_tasks import (
     DEFAULT_GENERATOR,
     DONOR_CONDITIONS,
     GENERATORS,
+    OMIT_MODES,
     generate_items,
 )
 
@@ -351,6 +352,59 @@ def _answer_moved_gate(per_item: list[list[dict]], bins: list[int],
     }
 
 
+def _control_specificity_gate(per_item: list[list[dict]], bins: list[int]) -> dict:
+    """Did the ancestor land on the digit it predicts, against a quiet background?
+
+    ``answer_moved`` catches an arm where nothing moves. The written-versus-
+    omitted run produced the mirror image. With the intermediate results
+    unwritten the model stops solving the task, the clean readout goes nearly
+    flat, and every edit flips the argmax: at ``depth2_omitted``, nulls 18/30
+    and a comment-tag rewrite 3/5, on an arm the scorer calls positive. Every
+    gate is relative, so a background that moves as much as the ancestor does
+    clears all of them.
+
+    The separating statistic is where the ancestor lands, not that it moved.
+    ``ancestor_implied`` is the count landing on the donor-implied digit, which
+    a control has no reason to produce; ``control_moved`` is how much of the
+    background moved at all.
+
+    Reported, never applied. Control flips are not unique to the broken arm --
+    the published depth-1 positives have them at a lower rate -- so gating on
+    them would be a retroactive policy move on evidence that does not yet
+    support one. The archived eight store no distributions and cannot be checked
+    this way at all.
+    """
+    controls = ("null", "surface_null", "non_ancestor")
+    per_layer, measured = {}, False
+    for layer in bins:
+        counts = dict(ancestor_implied=0, ancestor_moved=0, n_items=0,
+                      control_moved=0, n_control=0)
+        for rows in per_item:
+            for row in rows:
+                probs, clean = row.get("probs_patched"), row.get("clean_value")
+                if row["layer"] != layer or probs is None or clean is None:
+                    continue
+                measured = True
+                moved = probs[clean] < max(probs)
+                if row["kind"] == "ancestor":
+                    counts["n_items"] += 1
+                    counts["ancestor_moved"] += moved
+                    counts["ancestor_implied"] += (
+                        max(range(len(probs)), key=lambda d: probs[d])
+                        == row.get("implied_value"))
+                elif row["kind"] in controls:
+                    counts["n_control"] += 1
+                    counts["control_moved"] += moved
+        per_layer[layer] = counts
+    return {
+        "rule": "the ancestor lands on the implied digit while the controls "
+                "stay on the clean one",
+        "measured": measured,
+        "per_layer": per_layer,
+        "applied_to_verdict": False,
+    }
+
+
 def _clean_answer_gate(items: list[dict] | None) -> dict:
     """Is the clean answer the model's own answer, uniquely?
 
@@ -652,6 +706,7 @@ def evaluate_gates(per_item: list[list[dict]], bins: list[int],
     gates["cross_item_donor"] = _cross_item_gate(per_item, bins, scored)
     gates["answer_moved"] = _answer_moved_gate(per_item, bins, scored)
     gates["clean_answer"] = _clean_answer_gate(items)
+    gates["control_specificity"] = _control_specificity_gate(per_item, bins)
     gates["prospective_joint_layer"] = _joint_layer_gate(gates, scored)
     gates["detail"] = detail
     return gates
@@ -833,7 +888,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
         condition: str = "both", depth: int = 1, gap: int | None = None,
         generator: str = DEFAULT_GENERATOR, cross_item: bool = False,
-        omit_intermediate: bool = False) -> dict:
+        omit: str = "none") -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -849,7 +904,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         gap=gap,
         generator=generator,
         cross_item=cross_item,
-        omit_intermediate=omit_intermediate,
+        omit=omit,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -879,7 +934,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         # Which lines state no result. Both the flag and the realised per-item
         # node names, because at depth 1 the flag is set and nothing is omitted,
         # and telling those apart is the contrast's own control.
-        "omit_intermediate": omit_intermediate,
+        "omit": omit,
         "omitted_nodes": [list(item.omit) for item in items],
         "gap": [item.gap for item in items],
         "n_items": len(items),
@@ -1017,11 +1072,13 @@ def parse_args() -> argparse.Namespace:
                         help="add the cross-item donor control; selects a "
                              "mutually donatable batch, so it is its own arm "
                              "and not comparable item-by-item to the ladder")
-    parser.add_argument("--omit_intermediate", action="store_true",
-                        help="render the chain lines without stating their "
-                             "results, padded to the same token count; the "
-                             "written/omitted contrast for the depth "
-                             "collapse. A no-op at depth 1")
+    parser.add_argument("--omit", choices=OMIT_MODES, default="none",
+                        help="render some lines without stating their results, "
+                             "padded to the same token count. 'chain' is the "
+                             "written/omitted contrast for the depth collapse; "
+                             "'decoy' omits as many values from lines the "
+                             "target does not depend on, which is the control "
+                             "for the notation itself. A no-op at depth 1")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -1051,7 +1108,7 @@ def main() -> None:
         depth=args.depth,
         gap=args.gap,
         cross_item=args.cross_item,
-        omit_intermediate=args.omit_intermediate,
+        omit=args.omit,
         output_path=args.output,
         self_test_only=args.self_test,
     )

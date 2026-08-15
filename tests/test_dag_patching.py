@@ -951,3 +951,73 @@ def test_a_report_scored_before_the_floor_keeps_its_old_verdict_labelled():
     rescored = rescore_report(report)
     assert rescored["original_verdict"] == "positive"
     assert rescored["original_verdict_version"] == "v1_gap_only"
+
+
+# --------------------------------------------------------------------------
+# specificity: did the ancestor land somewhere, or did everything move?
+# --------------------------------------------------------------------------
+#
+# `answer_moved` catches an arm where nothing moves. The written-versus-omitted
+# run produced the mirror image: with the intermediate results unwritten, the
+# model stops solving the task, the clean readout goes nearly flat, and *every*
+# edit flips the argmax -- nulls 18/30 and a comment-tag rewrite 3/5, at
+# `depth2_omitted`, which the scorer calls positive. Every existing gate is
+# relative, so a background that moves as much as the ancestor does passes them.
+#
+# The separating statistic is not "did the answer move" but "did it land on the
+# digit the edit predicts, against a background that did not move". Reported,
+# never binding: control flips are not unique to the broken arm -- the published
+# depth-1 positives have them too, at a lower rate -- so making this a gate
+# would be a retroactive policy move on evidence that does not yet support one.
+
+
+def specificity_rows(layer, *, ancestor_probs, control_probs, clean=3,
+                     implied=7):
+    rows = floor_rows(layer, away=-5.0, probs_patched=ancestor_probs,
+                      clean_value=clean)
+    rows[0]["implied_value"] = implied
+    for row in rows[1:]:
+        row |= {"probs_patched": list(control_probs), "clean_value": clean}
+    return rows
+
+
+def test_the_diagnostic_counts_controls_that_flip_the_answer():
+    quiet = spread(0.9)
+    loud = spread(0.05)
+    gates = evaluate_gates(
+        [specificity_rows(0, ancestor_probs=spread(0.9, clean_value=7),
+                          control_probs=loud)] * 5, [0])
+    entry = gates["control_specificity"]["per_layer"][0]
+    assert entry["control_moved"] == entry["n_control"]
+
+    gates = evaluate_gates(
+        [specificity_rows(0, ancestor_probs=spread(0.9, clean_value=7),
+                          control_probs=quiet)] * 5, [0])
+    assert gates["control_specificity"]["per_layer"][0]["control_moved"] == 0
+
+
+def test_the_diagnostic_counts_ancestors_landing_on_the_implied_digit():
+    # Off the clean answer is not the same as onto the predicted one.
+    onto = evaluate_gates(
+        [specificity_rows(0, ancestor_probs=spread(0.9, clean_value=7),
+                          control_probs=spread(0.9))] * 5, [0])
+    elsewhere = evaluate_gates(
+        [specificity_rows(0, ancestor_probs=spread(0.9, clean_value=1),
+                          control_probs=spread(0.9))] * 5, [0])
+    assert onto["control_specificity"]["per_layer"][0]["ancestor_implied"] == 5
+    assert elsewhere["control_specificity"]["per_layer"][0]["ancestor_implied"] == 0
+    assert elsewhere["control_specificity"]["per_layer"][0]["ancestor_moved"] == 5
+
+
+def test_the_specificity_diagnostic_never_decides_the_verdict():
+    gates = evaluate_gates(
+        [specificity_rows(0, ancestor_probs=spread(0.9, clean_value=7),
+                          control_probs=spread(0.05))] * 5, [0])
+    assert gates["control_specificity"]["applied_to_verdict"] is False
+    assert verdict(gates) == "positive"
+
+
+def test_the_specificity_diagnostic_needs_the_distributions():
+    # The archived eight store none, so this cannot be checked on them at all.
+    gates = evaluate_gates([floor_rows(0, away=-5.0)] * 5, [0])
+    assert gates["control_specificity"]["measured"] is False

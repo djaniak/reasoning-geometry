@@ -943,7 +943,7 @@ def test_an_unknown_generator_is_still_refused():
 def written_and_omitted(depth, **kwargs):
     common = dict(n_items=5, seed=0, gap=0, generator=V3, depth=depth, **kwargs)
     return (generate_items(char_encode, **common),
-            generate_items(char_encode, omit_intermediate=True, **common))
+            generate_items(char_encode, omit="chain", **common))
 
 
 def test_the_omitted_trace_does_not_state_the_intermediate_value():
@@ -1036,10 +1036,44 @@ def test_the_omitted_lines_still_carry_their_tag_last():
 
 def test_cross_item_donors_still_work_under_omission():
     items = generate_items(char_encode, n_items=5, seed=0, gap=0, depth=2,
-                           cross_item=True, generator=V3,
-                           omit_intermediate=True)
+                           cross_item=True, generator=V3, omit="chain")
     for item in items:
         edit = next(e for e in item.edits if e.kind == "cross_item")
         assert len(edit.token_ids) == len(item.token_ids)
         assert len({edit.donor_raw_value, edit.implied_target_value,
                     item.target_value}) == 3
+
+
+def test_the_decoy_mode_omits_as_many_values_off_the_path():
+    # The control for the notation itself: same filler, same count, but the
+    # target does not depend on those lines, so the answer stays computable from
+    # what is written. A model that fails here fails at reading the format, not
+    # at carrying a value.
+    for depth in (2, 3):
+        common = dict(n_items=5, seed=0, gap=0, generator=V3, depth=depth)
+        chain = generate_items(char_encode, omit="chain", **common)
+        decoy = generate_items(char_encode, omit="decoy", **common)
+        written = generate_items(char_encode, **common)
+        for one, two, three in zip(chain, decoy, written):
+            assert len(one.omit) == len(two.omit) == depth - 1
+            assert not set(one.omit) & set(two.omit)
+            assert len(one.token_ids) == len(two.token_ids) == len(three.token_ids)
+            # Nothing the target depends on is unwritten in the decoy arm.
+            parents = {name for name, child in three.edges if child == TARGET}
+            assert not set(two.omit) & ({ANCESTOR, TARGET} | parents)
+
+
+def test_an_omitted_line_contributes_no_null_edit():
+    # It has no result position left to rewrite. The null spread is then over
+    # one fewer decoy, which the per-layer quorum takes from the row count.
+    common = dict(n_items=5, seed=0, gap=0, generator=V3, depth=3)
+    written = generate_items(char_encode, **common)
+    decoy = generate_items(char_encode, omit="decoy", **common)
+    for one, two in zip(written, decoy):
+        nulls = lambda item: sum(e.kind == "null" for e in item.edits)
+        assert nulls(one) - nulls(two) == 2
+
+
+def test_an_unknown_omit_mode_is_refused():
+    with pytest.raises(ValueError, match="unknown omit mode"):
+        generate_items(char_encode, n_items=1, omit="everything")

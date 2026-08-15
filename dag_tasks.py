@@ -248,6 +248,11 @@ def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str]
 # three under a character tokenizer.
 OMITTED_VALUE_MARKER = " #"
 
+# Which lines state no result. `chain` is the experiment -- the values between
+# the ancestor and the target; `decoy` is its control, the same count of values
+# from lines the target does not depend on.
+OMIT_MODES = ("none", "chain", "decoy")
+
 
 def _omission_pad(encode, value: str) -> str:
     """Filler matching the token count of the ``" = <digit>"`` it replaces.
@@ -418,7 +423,7 @@ def _sample_chain(rng: random.Random, n_steps: int, start: int,
 
 def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
                   depth: int, gap: int | None, distinct: bool = False,
-                  omit_intermediate: bool = False) -> DagItem:
+                  omit: str = "none") -> DagItem:
     """Build an item whose spine does not move with ``depth``.
 
     Depth-1 item *i* and depth-3 item *i* must be the same trace apart from the
@@ -516,12 +521,21 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
     order = (*decoys[:cut], *pair, *chain, *decoys[cut:], TARGET, MERGE)
     tags = dict(zip(spine, spine_letters)) | dict(zip(chain, chain_letters))
 
-    # Only the chain: the target's value is what the readout reads and the
-    # ancestor's is what the patch overwrites, so neither can be omitted, and the
-    # decoys are not downstream of anything. At depth 1 the chain is empty and
-    # the flag is a no-op, which makes depth 1 the contrast's own control.
+    # `chain` omits the values between the ancestor and the target: the target's
+    # own value is what the readout reads and the ancestor's is what the patch
+    # overwrites, so neither can go. At depth 1 the chain is empty and the flag
+    # is a no-op, which makes depth 1 the contrast's own control.
+    #
+    # `decoy` omits the same number of values from lines the target does not
+    # depend on. Same notation, same token budget, but the answer stays
+    # computable from what is written. It is the control for the notation
+    # itself: if the model fails here too, `chain`'s failure says nothing about
+    # carrying a value, only that it cannot read the format.
+    omitted = {"chain": chain,
+               "decoy": tuple(decoys[:depth - 1]),
+               "none": ()}[omit]
     omit_pad = {name: _omission_pad(encode, str(nodes[name].value))
-                for name in chain} if omit_intermediate else {}
+                for name in omitted}
 
     chunks = _render(nodes, order, tags, omit_pad)
     ids, sites = encode_chunks(chunks, encode)
@@ -560,6 +574,11 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
                   names=edited_tags, letters=spare_letters),
     ]
     for name in decoys:
+        # An omitted line has no result position to rewrite, so it contributes
+        # no null edit. The null spread is then over one fewer decoy per omitted
+        # line, which the per-layer quorum already takes from the row count.
+        if name in omit_pad:
+            continue
         edits.append(_value_edit(rng, item, nodes, order, tags, encode, name,
                                  "null", condition, chain))
     return dataclasses.replace(item, edits=tuple(edits))
@@ -891,7 +910,7 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                    condition: str = "both", depth: int = 1, gap: int | None = None,
                    generator: str = DEFAULT_GENERATOR,
                    cross_item: bool = False, oversample: int | None = None,
-                   omit_intermediate: bool = False):
+                   omit: str = "none"):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
@@ -911,11 +930,11 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     so it changes the batch: a cross-item run is its own arm and its numbers are
     not the ladder's. ``oversample`` is how many candidates to sample from.
 
-    ``omit_intermediate`` renders the chain lines without stating their results.
-    It is a rendering choice and consumes nothing from the stream, so the omitted
-    batch is the *same* batch as the written one, item for item -- which is what
-    makes the two directly comparable and what distinguishes depth from the
-    amount of correct arithmetic already written into the trace.
+    ``omit`` renders some lines without stating their results: ``chain`` drops
+    the values between the ancestor and the target, ``decoy`` drops the same
+    number from lines the target does not depend on. It is a rendering choice
+    and consumes nothing from the stream, so an omitted batch is the *same*
+    batch as the written one, item for item.
     """
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}, "
@@ -925,6 +944,8 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                          f"expected one of {DONOR_CONDITIONS}")
     if depth < 1:
         raise ValueError(f"depth must be at least 1, got {depth}")
+    if omit not in OMIT_MODES:
+        raise ValueError(f"unknown omit mode {omit!r}, expected one of {OMIT_MODES}")
     # Chain steps consume decoy names, every line consumes a line tag, and the
     # surface-null edit needs two tags left over.
     budget = min(len(DECOY_NAMES) + 1, len(TAG_POOL) - 5)
@@ -935,15 +956,14 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
     distinct = generator == "v3_distinct"
     if generator == "v1_unpaired":
-        if omit_intermediate:
-            raise ValueError("v1_unpaired predates omit_intermediate and is "
-                             "frozen; use v2_paired or v3_distinct")
+        if omit != "none":
+            raise ValueError("v1_unpaired predates omission and is frozen; "
+                             "use v2_paired or v3_distinct")
         build = _build_unpaired
     else:
         def build(rng, encode, n_decoys, condition, depth, gap):
             return _build_paired(rng, encode, n_decoys, condition, depth,
-                                 gap, distinct=distinct,
-                                 omit_intermediate=omit_intermediate)
+                                 gap, distinct=distinct, omit=omit)
     # Sampling a wider pool and then selecting is what lets the cross-item batch
     # be mutually donatable. Without the control the pool is the batch, so the
     # ladder's items are untouched by any of this.

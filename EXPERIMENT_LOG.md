@@ -5,6 +5,104 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Omitting the intermediate result does not restore the patch, and the control says why
+
+Eight arms in `results/dag_patching/written_vs_omitted/`, `v3_distinct`, seed 0,
+`n_items 5`, `condition both`. The registered prediction is in `78a6461`.
+
+The hypothesis under test, from the review: the depth collapse might not be
+about graph depth at all, because depth 2 and 3 also add **written correct
+intermediate values**. If the model computes the answer latently and the written
+value overwrites or dominates that, then unwriting it should restore the patch.
+
+`--omit chain` renders the chain lines without their results, padded with
+comment markers to the exact token count of the ` = <digit>` they replace:
+
+```
+m = a - 2 = 3 # w        ->    m = a - 2 # # # # w
+```
+
+Same length -- 139 tokens either way at depth 2 -- same positions, same batch:
+omission draws nothing from the stream, so it is the same item rendered twice.
+
+At layer 13:
+
+| Arm | clean top = target | clean p(target) | ancestor -> implied | ancestor moved | controls moved |
+|:---|---:|---:|---:|---:|---:|
+| `depth1_none` / `depth1_chain` | 4/5 | 0.666 | **5/5** | 5/5 | 4/40 |
+| `depth2_none` | 5/5 | 0.996 | 0/5 | 0/5 | 0/40 |
+| `depth2_decoy` | 5/5 | 0.997 | 0/5 | 0/5 | 0/35 |
+| `depth2_chain` | 2/5 | 0.240 | 1/5 | 4/5 | **23/40** |
+| `depth3_none` | 5/5 | 0.999 | 0/5 | 0/5 | 0/40 |
+| `depth3_decoy` | 5/5 | 0.999 | 0/5 | 0/5 | 0/30 |
+| `depth3_chain` | 1/5 | 0.050 | 0/5 | 4/5 | **33/40** |
+
+### The first read was wrong, and the control is what caught it
+
+The `chain` arms move the answer 4/5 where the written arms move it 0/5. Taken
+alone that reads as the hypothesis confirmed, and `depth2_chain` is **scored
+`positive` by the scorer**. It is not. Three things say so, none of them a gate:
+
+- The ancestor lands on the digit it predicts 1/5 and 0/5 of the time, against
+  5/5 at depth 1.
+- The background moves with it: nulls 23/40 and 33/40, and a *comment-tag*
+  rewrite flips the answer 3/5 and 4/5.
+- Clean correctness collapses to 2/5 and 1/5, and the clean target's share to
+  0.240 and 0.050. The model has stopped solving the task.
+
+Every gate in the scorer is relative -- ancestor against nulls, surface against
+nulls -- so a background that moves as much as the ancestor clears all of them.
+The floor added yesterday catches an arm where *nothing* moves; nothing caught
+the mirror case where *everything* does. New `control_specificity` diagnostic,
+reported and never binding, records exactly the three numbers above.
+
+It is a diagnostic rather than a gate because control flips are not unique to
+the broken arm: `paired_ladder/depth1_gap0` has nulls at 16/30 and tags at 3/5,
+and the published depth-1 positives would all be caught by a naive version of
+it. What separates depth 1 is not that the background is silent but that the
+ancestor lands on the *implied* digit, 14/15 across the arms, which a control
+has no reason to produce. Gating on background movement alone would be a fourth
+retroactive policy move on evidence that does not support one.
+
+### The decoy control is what makes the result interpretable
+
+Clean accuracy differing sharply between formats was the pre-registered stop
+condition: the manipulation changed two things at once, so the interaction could
+not be read. `--omit decoy` separates them. It omits the same number of values,
+with the same notation and the same token budget, from lines the target does not
+depend on -- so the answer stays computable from what is written.
+
+**The decoy arms are indistinguishable from the written arms**: 5/5 clean at
+p(target) 0.997 and 0.999, nothing moved, no control movement. The notation is
+perfectly legible. The model reads ` # # # #` without difficulty.
+
+So the collapse in the `chain` arms is attributable to the missing value on the
+dependency path and to nothing else.
+
+### What that means
+
+The hypothesis is **not supported**, and the reason is more interesting than a
+null would have been. There is no latent computation for the written trace to
+overwrite: with the path value unwritten, the model cannot produce the answer at
+all -- p(target) 0.240 at depth 2 and 0.050 at depth 3, against 0.996 and 0.999
+when it is written. It is *reading* the intermediate value, not computing it.
+
+Which reframes the depth collapse. It is not that a patched state is suppressed
+by a competing written value. It is that at depth 2 and beyond the answer is
+determined by the written intermediate token, the patch does not touch that
+token, and nothing downstream reads the state the patch does write. The depth-1
+result stands unchanged and is now the more precise claim: one step, into a
+value the trace states next, is where a patched residual state is read.
+
+Depth 1 is the manipulation's own control and behaves exactly as it must:
+`depth1_none` and `depth1_chain` are identical files apart from the recorded
+flag, because there is no chain to omit.
+
+Five items, one seed, one checkpoint, one notation for omission. A model that
+never learned to carry an unstated intermediate is not the same claim as a model
+that cannot; distinguishing those needs a checkpoint that was trained on traces
+with unstated steps, which this one was not.
+
 ## 2026-08-15: Corrections — a wrong justification, two layer-selected counts, and a diagnostic that reframes the depth-1 positives
 
 An external review of `5877120` (codex) found four defects in the two entries
