@@ -22,6 +22,21 @@ remote on this host, which would make `.dvc/cache` the only copy.
 | `tokenizer_alignment.json` | the three checkpoints tokenize the same trace identically — a precondition for any Base/Instruct/Distill comparison — checked per item family, for every arm that has been or will be run |
 | `POOLED.json` | every `v3_distinct` measurement at layer 13, deduplicated across arms and grouped by donor kind, depth and omission; rates are over uniquely-clean-correct items with bfloat16 ties counted apart — derived, regenerate with `uv run python dag_pooling.py` |
 
+## Readout precision
+
+All eight were taken in **bfloat16**, which none of them says: `load_model` had
+no other setting, and the dtype had to be traced through the call chain after
+the fact. It matters, because a bfloat16 digit logit sits on a 0.125-nat grid —
+eight of the fifty-three depth-1 readouts have two digits at bit-identical
+probability, and a bare argmax was resolving those by digit order.
+
+Runs from `26449cf` onward record `readout_dtype` from the loaded model, and
+`dag_patching` asks for float32. `dag_pooling.pool` **refuses** to pool arms that
+disagree: a float32 readout mostly cannot tie, so merging one into these counts
+would put a change of instrument into the numerator. Absent is a precision like
+any other — these eight pool together as they always have — it simply may not be
+mixed with a recorded one.
+
 ## Item family
 
 All eight runs used the `v1_unpaired` generator, which is **not paired across
