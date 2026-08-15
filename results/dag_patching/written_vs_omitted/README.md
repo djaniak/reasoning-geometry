@@ -81,19 +81,34 @@ patched by hand; the diagnostic is in the same file.
 
 ## Reading it
 
-The decoy control is what makes the rest interpretable. With the same notation
-and the same token count, but the unwritten values off the dependency path, the
-model is at 5/5 clean and p(target) 0.997 -- **identical to the written arm**.
-The format is legible.
+The decoy control is what makes the **clean-behaviour ablation** interpretable.
+With the same notation and the same token count, but the unwritten values off
+the dependency path, the model is at 5/5 clean and p(target) 0.997 --
+**identical to the written arm**. The format is legible, so the collapse in the
+`chain` arms, to 2/5 and 1/5 with p(target) 0.240 and 0.050, is not the model
+failing to read ` # # # #`.
 
-So the collapse in the `chain` arms, to 2/5 and 1/5 with p(target) 0.240 and
-0.050, is about the missing value on the path and nothing else. The model does
-not carry the intermediate value; it reads it off the text.
+It does not make the *patching* arms interpretable. Those hit the pre-registered
+stop condition, and a control added afterwards does not convert a stopped
+contrast into a valid causal test.
 
-That is the answer to the question the experiment was built for, and it is not
-the hypothesis it was built to test. There is no latent computation for the
-written trace to overwrite. At depth 2 and 3 the target's answer is fixed by the
-written intermediate token, which the patch does not touch, and the patched
-ancestor state has nothing downstream that reads it.
+Two limits on how far the decoy carries even for the ablation. It omits
+`decoys[:depth-1]` -- the first decoys, not position-matched substitutes for the
+path lines -- so it isolates notation legibility rather than every path-specific
+effect. And the model still answers correctly 2/5 and 1/5 with the path value
+unwritten: clean behaviour *collapses*, it does not vanish.
+
+What the arms support is that **no behaviourally usable carried intermediate was
+detected**. That is weaker than "there is no latent computation", and
+deliberately so: a behavioural failure after removing a written value cannot
+separate computing the value from binding, retaining, or retrieving it, and
+nothing here read an activation at a matched slot for the omitted result. The
+mechanism the depth collapse is consistent with -- the answer at depth 2 and 3
+being fixed by the written intermediate token, which the patch does not touch --
+remains a hypothesis this experiment did not test.
 
 Five items, one seed, one checkpoint. The counts are descriptive.
+
+The readout is bfloat16, so the digit logits sit on a 0.125-nat grid and exact
+two-digit ties are ordinary. `EXPERIMENT_LOG.md` carries the tie-aware counts;
+the `ancestor -> implied` column above is a bare argmax.

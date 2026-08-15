@@ -5,7 +5,89 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Corrections — the readout is bfloat16, so `25/25` was a tie-break, and three claims the omission arms do not license
+
+A second external review (codex) of `5f6c899` found that the pooled table
+published in the entry below breaks exact ties by digit order, and that three
+sentences in the omission entry claim more than the intervention identifies.
+Both are mine. The counts here supersede the table below; the wording
+corrections are applied in place in
+`results/dag_patching/written_vs_omitted/README.md` and restated here. No
+verdict moves and no artifact is rewritten.
+
+### The digit readout is on a 0.125-nat grid, and eight depth-1 readouts are exact ties
+
+`dag_patching` loads through `collect_data.load_model(False, ...)`, which is
+`torch_dtype=torch.bfloat16`. The logits are therefore bfloat16 and the digit
+readout inherits its resolution: across every `v3_distinct` readout the top-two
+logit gap takes only the values 0, 0.125, 0.25, 0.375, ... — exact multiples of
+one bfloat16 ulp at this magnitude. Nothing finer was ever measured.
+
+Two digits at *bit-identical* probability are consequently common, not freakish:
+
+- 8 of the 53 depth-1 patched readouts have two digits sharing the maximum.
+- 5 of the 33 depth-1 clean readouts do.
+
+`probs.index(max(probs))` resolves those by returning the lowest tying digit.
+That is a property of `list.index`, and in the pooled table it broke every tie
+in the flattering direction, because the review's own tie policy — stated in
+`dag_patching` and not applied in `dag_pooling` — says a bare argmax on a tie is
+an artefact.
+
+### The corrected depth-1 counts
+
+Denominator: items whose clean answer is *uniquely* on top. Numerator: the
+implied digit *uniquely* on top. Ties counted apart rather than resolved.
+
+| donor | depth | n | clean uniquely right | clean tied | implied uniquely top | tied implied/raw | raw uniquely top | toward>raw |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `ancestor` | 1 | 33 | 23 | 5 | **21/23** | 2 | 0/23 | 17/23 |
+| `cross_item` | 1 | 20 | 14 | 3 | **11/14** | 3 | 0/14 | 4/14 |
+
+Was `25/25` and `15/16`. Three things this changes and one it does not:
+
+- The implied digit never *loses*. In all 23 and all 14 it is at least tied for
+  the top; the corrections are all ties, never a third digit winning.
+- The raw donor digit is uniquely top **zero** times, against `1/16` before.
+  That one cross-item raw win was a clean-tied item and is now out of the
+  denominator entirely.
+- The lowest confidence band **empties**. Both depth-1 items under p(target)
+  0.50 were clean ties, so the eligible depth-1 range is now 0.53 to 0.96 and
+  the flat-in-confidence claim is made over a narrower span than stated below:
+  `[0.50, 0.80)` 15/17 with 2 ties, `[0.80, 1.00)` 6/6.
+- The depth contrast does not move. Depth 2 and 3 stay at 0 implied wins with no
+  ties at all, so the failure there is not a resolution problem.
+
+`dag_pooling` now reports the unique counts and keeps the bare-argmax ones
+beside them under legacy names, so the difference is auditable rather than taken
+on trust. `POOLED.json` is regenerated.
+
+### Three sentences the omission arms do not license
+
+- **"There is no latent computation for the written trace to overwrite."** Not
+  identified. Behavioural failure after removing a written value cannot separate
+  computing the value, binding it, retaining it, and retrieving it; no
+  activation was read at a matched slot for the omitted result. What the arms
+  support is that **no behaviourally usable carried intermediate was detected**.
+- **"The model cannot produce the answer at all."** It produces it 2/5 and 1/5.
+  The word is *collapses*.
+- **"The collapse is attributable to the missing value on the path and to
+  nothing else."** The decoy arms omit `decoys[:depth-1]` — the first decoys,
+  not position-matched substitutes for the path lines. They establish that the
+  ` # # # #` notation is legible; they do not rule out every path-specific
+  effect other than the value.
+
+One scope error alongside them, which is mine and not in either document: I have
+been treating the decoy control as making *the experiment* interpretable. It
+makes the **clean-behaviour ablation** interpretable. The patching arms at depth
+2 and 3 still hit the pre-registered stop condition, and a control added
+afterwards does not convert a stopped contrast into a valid causal test.
+
 ## 2026-08-15: Pooled, the depth-1 effect is thirty-three items and does not decay with confidence
+
+**Superseded in part by the corrections entry above**: the counts in this entry
+break exact bfloat16 ties by digit order. Read `21/23` and `11/14` for the
+bolded numbers below.
 
 No GPU. `dag_pooling.py` reads the committed arms, deduplicates by measurement
 content, and reports one outcome per item at layer 13: the argmax of the patched
@@ -73,6 +155,9 @@ donor especially, "the implied digit wins" and "the implied digit moved most" ar
 not the same claim, and neither is allowed to stand in for the other.
 
 ## 2026-08-15: Omitting the intermediate result does not restore the patch, and the control says why
+
+**Three sentences in this entry overclaim**; see the corrections entry at the
+top of the file. Left as written, with the corrections stated there.
 
 Eight arms in `results/dag_patching/written_vs_omitted/`, `v3_distinct`, seed 0,
 `n_items 5`, `condition both`. The registered prediction is in `78a6461`.
