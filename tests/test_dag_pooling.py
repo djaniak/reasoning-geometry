@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dag_pooling import (
+from dag.dag_pooling import (
     CONFIDENCE_BANDS,
     DONOR_KINDS,
     band_table,

@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deepconf_asymmetry import (
+from baselines.deepconf_asymmetry import (
     DEEPCONF_FEATURES,
     auroc,
     bootstrap_auroc,
@@ -15,7 +15,7 @@ from deepconf_asymmetry import (
     load_all_deepconf_scores,
     trace_length_summary,
 )
-from incremental_abstention import _auacc
+from applications.incremental_abstention import _auacc
 
 
 def test_auroc_ignores_the_base_rate_but_auacc_does_not():

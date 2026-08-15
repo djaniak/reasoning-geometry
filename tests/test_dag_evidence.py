@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dag_evidence import (
+from dag.dag_evidence import (
     RUN_COMMITS,
     SCHEMA_INTRODUCED,
     derive_v0_fields,
@@ -27,7 +27,7 @@ from dag_evidence import (
     verdict_table,
     verify_reconstruction,
 )
-from dag_tasks import generate_items
+from dag.dag_tasks import generate_items
 from test_dag_tasks import char_encode
 
 

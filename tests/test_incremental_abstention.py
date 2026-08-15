@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from incremental_abstention import (
+from applications.incremental_abstention import (
     FEATURE_NAMES,
     _load_prompt_states,
     aggregate_prompt_features,

@@ -22,8 +22,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import dag_stage_b
-from dag_stage_b import (
+import dag.dag_stage_b as dag_stage_b
+from dag.dag_stage_b import (
     LAYER,
     NULL_FLIP_LIMIT,
     batches,
@@ -352,7 +352,7 @@ def test_the_level_split_counts_ties_apart_rather_than_resolving_them():
 def test_the_layer_is_the_one_inherited_from_the_discovery_table():
     """Not re-searched here. That is what makes stage B confirmatory for the
     depth contrast and not for the layer."""
-    from dag_pooling import POOLED_LAYER
+    from dag.dag_pooling import POOLED_LAYER
 
     assert LAYER == POOLED_LAYER == 13
 

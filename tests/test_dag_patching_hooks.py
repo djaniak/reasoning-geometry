@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 torch = pytest.importorskip("torch")
 
-from dag_patching import (  # noqa: E402
+from dag.dag_patching import (  # noqa: E402
     capture_states,
     digit_readout,
     evaluate_gates,
@@ -182,7 +182,7 @@ def toy_encode(text):
 
 def toy_items(n_items=1):
     """Generator items encoded into the toy model's vocabulary."""
-    from dag_tasks import generate_items
+    from dag.dag_tasks import generate_items
 
     return generate_items(toy_encode, n_items=n_items, seed=0)
 
@@ -255,7 +255,7 @@ def test_measure_item_records_what_the_cross_item_control_needs(model):
     # The control compares movement toward the propagated digit against movement
     # toward the donor's own. The second is only computable while the logits are
     # in hand, so `measure_item` has to emit it -- a rescore cannot recover it.
-    from dag_tasks import generate_items
+    from dag.dag_tasks import generate_items
 
     items = generate_items(toy_encode, n_items=5, seed=0, gap=0,
                            cross_item=True)

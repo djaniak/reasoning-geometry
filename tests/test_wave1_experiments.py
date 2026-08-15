@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wave1_experiments import (
+from applications.wave1_experiments import (
     aggregate_prompt_scores,
     answer_cluster_eligibility,
     crossfit_incremental_probes,
@@ -17,7 +17,7 @@ from wave1_experiments import (
     prompt_abstention_bootstrap,
     separated_entropy_events,
 )
-from cross_model_confirmation import summarize_model
+from controls.cross_model_confirmation import summarize_model
 
 
 def _row(prompt_id, trace_id, correct, answer, score, length=4):

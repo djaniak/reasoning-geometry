@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from incremental_abstention import BASE_FEATURE_NAMES
-from peer_difficulty_control import (
+from applications.incremental_abstention import BASE_FEATURE_NAMES
+from controls.peer_difficulty_control import (
     CONTRASTS,
     METRICS,
     NEAR_ORACLE_SPEARMAN,
@@ -205,7 +205,7 @@ def test_holm_never_lets_an_adjusted_p_fall_below_an_earlier_one():
 
 def test_oracle_aurc_is_the_floor_a_perfect_ranker_reaches():
     """AURC does not bottom out at zero, and the floor rises as accuracy falls."""
-    from peer_difficulty_control import oracle_aurc
+    from controls.peer_difficulty_control import oracle_aurc
 
     easy = np.array([1.0] * 9 + [0.0])
     hard = np.array([1.0] * 5 + [0.0] * 5)
@@ -215,8 +215,8 @@ def test_oracle_aurc_is_the_floor_a_perfect_ranker_reaches():
 
 
 def test_a_perfectly_ranked_readout_has_no_headroom_left():
-    from incremental_abstention import prompt_metrics
-    from peer_difficulty_control import oracle_aurc
+    from applications.incremental_abstention import prompt_metrics
+    from controls.peer_difficulty_control import oracle_aurc
 
     outcomes = np.array([1.0, 1.0, 1.0, 0.0, 0.0])
 
@@ -225,7 +225,7 @@ def test_a_perfectly_ranked_readout_has_no_headroom_left():
 
 def test_share_of_headroom_is_undefined_rather_than_huge_when_none_is_left():
     """A readout at the floor has nothing to give up; any ratio there is denominator noise."""
-    from peer_difficulty_control import _share
+    from controls.peer_difficulty_control import _share
 
     assert _share(0.01, 0.04) == pytest.approx(0.25)
     assert np.isnan(_share(0.001, 0.0))

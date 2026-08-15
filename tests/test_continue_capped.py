@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from continue_capped import (
+from controls.continue_capped import (
     capped_traces,
     classify,
     select_traces,
@@ -179,7 +179,7 @@ def test_selection_is_reproducible_under_a_seed(tmp_path):
 
 
 def test_merged_shards_cover_the_population_once(tmp_path):
-    from continue_capped import merge_shards
+    from controls.continue_capped import merge_shards
 
     entries = [
         {"trace_id": i, "outcome": "completed_correct", "terminated": True,
@@ -199,7 +199,7 @@ def test_merged_shards_cover_the_population_once(tmp_path):
 
 
 def test_overlapping_shards_are_rejected_rather_than_double_counted(tmp_path):
-    from continue_capped import merge_shards
+    from controls.continue_capped import merge_shards
 
     entry = {"trace_id": 1, "outcome": "still_unfinished", "terminated": False,
              "correct": False, "continuation_tokens": 8192,

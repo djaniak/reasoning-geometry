@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from prompt_decomposition import (
+from applications.prompt_decomposition import (
     CONTRASTIVE_METHODS,
     E2_PROBE_METHODS,
     add_crossfit_probe_scores,
@@ -20,7 +20,7 @@ from prompt_decomposition import (
     score_contrastive_trace,
     write_markdown,
 )
-from prompt_selection import evaluate_prompt_selection
+from applications.prompt_selection import evaluate_prompt_selection
 
 
 def _trace(prompt_id, trace_id, is_correct, predicted_answer="42"):

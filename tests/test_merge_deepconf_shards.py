@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from merge_deepconf_shards import merge
+from baselines.merge_deepconf_shards import merge
 
 
 def _shard(root: Path, name: str, *, prompt_ids, checks, mismatches: int = 0) -> Path:

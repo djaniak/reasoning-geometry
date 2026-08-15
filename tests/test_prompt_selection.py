@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import prompt_selection
-from prompt_selection import (
+import applications.prompt_selection as prompt_selection
+from applications.prompt_selection import (
     INVALID_ANSWER,
     evaluate_prompt_selection,
     majority_cluster_mean_tiebreak_answer,

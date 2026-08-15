@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from rmd_qmd_geometry import choose_plane, mahal
+from geometry.rmd_qmd_geometry import choose_plane, mahal
 
 
 def _rotation(dim: int, seed: int) -> np.ndarray:

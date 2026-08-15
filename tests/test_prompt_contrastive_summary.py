@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from summarize import render_prompt_decomposition_section
+from analysis.summarize import render_prompt_decomposition_section
 
 
 def test_summary_separates_parseable_contrastive_results():

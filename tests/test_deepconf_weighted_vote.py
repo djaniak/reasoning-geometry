@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deepconf_weighted_vote import (
+from baselines.deepconf_weighted_vote import (
     DEEPCONF_STATISTICS,
     FILTER_KEEP,
     _readout_specs,

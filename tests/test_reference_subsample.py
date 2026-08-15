@@ -13,8 +13,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import analyze
-from analyze import (
+import analysis.analyze as analyze
+from analysis.analyze import (
     _concatenate_hidden_tokens,
     _reference_subsample_plan,
     get_max_reference_tokens,

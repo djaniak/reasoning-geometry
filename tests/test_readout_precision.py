@@ -20,8 +20,8 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import collect_data
-import dag_patching
+import data.collect_data as collect_data
+import dag.dag_patching as dag_patching
 
 
 class FakeModel:

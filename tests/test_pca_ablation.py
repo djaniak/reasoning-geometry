@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pca_ablation import aggregate_pca_ablation, parse_pca_dims
+from geometry.pca_ablation import aggregate_pca_ablation, parse_pca_dims
 
 
 def _write_result(path: Path, pca_dim: int, layer_metrics: dict):

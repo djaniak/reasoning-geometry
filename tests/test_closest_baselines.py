@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from closest_baselines import (
+from baselines.closest_baselines import (
     CONTRASTS,
     EXTRA_FEATURE_NAMES,
     READOUT_SPECS,
@@ -20,7 +20,7 @@ from closest_baselines import (
     tail_window_sizes,
     window_strata,
 )
-from incremental_abstention import BASE_FEATURE_NAMES
+from applications.incremental_abstention import BASE_FEATURE_NAMES
 
 
 def _row(prompt_id, answer, rmd):

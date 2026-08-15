@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dag_patching import (
+from dag.dag_patching import (
     ACTIVE_GATE_POLICY,
     GATE_POLICIES,
     digit_token_ids,
@@ -938,7 +938,7 @@ def test_the_diagnostic_says_it_is_unmeasured_without_a_clean_distribution():
 
 
 def test_the_report_records_which_verdict_function_scored_it():
-    from dag_patching import VERDICT_VERSION
+    from dag.dag_patching import VERDICT_VERSION
 
     rescored = rescore_report(stored_report())
     assert rescored["verdict_version"] == VERDICT_VERSION

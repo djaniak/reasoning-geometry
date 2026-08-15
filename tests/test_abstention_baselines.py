@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from abstention_baselines import (
+from baselines.abstention_baselines import (
     calibration_metrics,
     decision_values,
     group_confidences,
@@ -16,7 +16,7 @@ from abstention_baselines import (
     prompt_vote_scores,
     trace_confidence_scores,
 )
-from prompt_decomposition import region_indices
+from applications.prompt_decomposition import region_indices
 
 
 def _ranked_toy(n=100, base=0.6):
@@ -212,7 +212,7 @@ def test_calibration_does_not_leak_labels_across_folds():
     would pick up sample-specific structure and beat p*(1-p). Fitting strictly
     inside the training folds leaves it at the base rate.
     """
-    from abstention_baselines import _oof_probabilities
+    from baselines.abstention_baselines import _oof_probabilities
 
     rng = np.random.default_rng(7)
     n, base = 500, 0.62
@@ -224,7 +224,7 @@ def test_calibration_does_not_leak_labels_across_folds():
 
 
 def test_calibration_rewards_an_informative_score():
-    from abstention_baselines import _oof_probabilities
+    from baselines.abstention_baselines import _oof_probabilities
 
     rng = np.random.default_rng(8)
     n = 500

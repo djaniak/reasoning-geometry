@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from application_alignment import build_application_alignment
+from applications.application_alignment import build_application_alignment
 
 
 def _decomposition():

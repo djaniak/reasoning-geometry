@@ -6,15 +6,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from analyze import (
+from analysis.analyze import (
     compute_relative_mahal_distances,
     extend_reference_with_background_safe,
 )
-from incremental_abstention import prompt_metrics
-from prompt_decomposition import region_indices, score_localized_rmd, trace_region_mean
+from applications.incremental_abstention import prompt_metrics
+from applications.prompt_decomposition import region_indices, score_localized_rmd, trace_region_mean
 
-import label_efficiency as le
-from label_efficiency import (
+import geometry.label_efficiency as le
+from geometry.label_efficiency import (
     GEOMETRY_FEATURE,
     PROBE_FEATURE,
     QUADRATIC_FEATURE,
