@@ -5,7 +5,119 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Corrections — E2 says less about depth than I wrote, its interval is not an interval, and the float32 run was the whole model
+
+A third external review (codex) of `39224f9` found five things wrong with how the
+two E2 entries below report themselves. Four are corrections and one is a rule
+for the next screen. **No measured number moves.** `ANALYSIS.json` was regenerated
+from the committed arm files with `dag_stage_b --reanalyse`, which loads no model;
+the regenerated file is byte-identical to the one the run wrote apart from a
+single added key, and that was checked field by field rather than assumed. The
+arm files themselves are untouched.
+
+### 1. "The depth result is about graph depth" is not what was tested
+
+The stage-B entry says the contrast persisting after matching means "the depth
+result is about graph depth". It does not, and `dag_tasks` has said so in its own
+module docstring since before the run: depth adds an operation, a written
+intermediate result, a new variable binding and a changed local context all at
+once, so the ladder measures whether a patched state still moves the answer when
+a written intermediate contradicts it — "not 'distance in the graph', and the
+numbers must not be read that way". Matching two observed covariates removes two
+alternative explanations; it does not turn the remaining bundle into one variable.
+
+The sentence the evidence supports is:
+
+> The one-versus-two-step contrast persists after matching on clean confidence
+> and ancestor token distance.
+
+Applied in place in `results/dag_patching/e2_stage_b/README.md`. The entry below
+is left as written, with this correction pointing at it.
+
+### 2. `[1.000, 1.000]` is the absence of a counterexample, not a bound
+
+The registered bootstrap resamples 24 pairs whose outcomes are all `(1, 0)`, so
+every replicate is exactly 1 by construction. The entry below already says the
+interval is degenerate, then quotes it as a 95% interval anyway. It should not be
+read as uncertainty at all.
+
+The test a matched design calls for is the one-sided exact test on the discordant
+pairs — concordant pairs carry no information about a difference — which is the
+sign test, which is exact McNemar. With 24 discordant pairs and none against:
+
+| reading | value | what it assumes |
+|:---|:---|:---|
+| paired bootstrap (registered) | difference 1.00, interval [1.000, 1.000] | nothing; it has nothing to resample |
+| **exact paired, one-sided** | **p = 2⁻²⁴ = 5.96e-8** | 24 matched pairs |
+| Fisher's exact, one-sided | p = 3.1e-14 | 48 independent observations |
+
+Fisher's is the number the entry below leads with and it is the wrong model for
+this design: it credits a matched-pair experiment with twice the independent
+observations it has. Quote 5.96e-8. `dag_stage_b.exact_paired` computes it, the
+artifact now carries it, and both it and the bootstrap are reported together —
+neither is registered as a p-value, since the registration named the bootstrap
+and no p-value at all.
+
+### 3. float32 changed the model, and the readout was never the variable
+
+`MODEL_DTYPE` (was `READOUT_DTYPE`) reaches `from_pretrained`, so E2 ran the whole
+forward pass in float32 — every matmul, not the softmax the digits come out of.
+E2 is internally valid, because both depths ran at the same precision, but it is
+**not** a same-precision replication of the archived bfloat16 depth-1 result, and
+nothing below should be read as one.
+
+The stage-A entry goes further and says "the ties were the recording precision and
+not the model". That is false, and the code alone settles it: `digit_readout`
+calls `.float()` before it softmaxes and always did, so the archived bfloat16 runs
+took their readouts in float32 too. The recording precision was never bfloat16
+and was never the variable.
+
+What the archived ties actually are, then: bit-identical bfloat16 *logits*. All
+nine archived files with tied clean readouts are bfloat16 runs; every tie is exact
+float equality in the stored probabilities; and one step of the bfloat16 grid at
+this magnitude separates two float32 probabilities by about 1e-6, some three to
+five orders of magnitude above what float32 resolves there. No readout precision
+would have broken those ties. A different model run did.
+
+So the honest version of the stage-A headline is that float32 removes the ties
+because it changes the arithmetic that produces the logits, not because it records
+the answer more finely.
+
+### 4. The missing cross-item arm is a protocol deviation
+
+The registration named all five row kinds. Stage B ran four. The reason is in
+`dag_stage_b.ROW_KINDS` and in the entry below — a cross-item batch is selected
+for mutual donatability and is therefore a different batch from the one stage A
+matched — and the artifacts record it in `unreachable_row_kinds`. What was missing
+is the label: this is a **deviation from the registered protocol**, not a design
+detail. It does not touch the registered ancestor outcome, and it leaves the
+matched run without its strongest portable-state control, which is the one that
+would show the transplanted state carries content across items rather than within
+one. Restoring it is the next small run.
+
+### 5. The matching rule needs a caliper before the next screen, not after
+
+Recorded below and not corrected, because there is nothing to correct: the
+registered rule bounds ancestor distance to ±2 tokens and bounds confidence only
+by ordering the greedy. Screening was widened from 410 items to 1,230 rather than
+picking a tolerance after seeing which tolerance decided proceed-versus-stop, and
+the loose tail disappeared on its own. That was the right call with no stage-B
+outcome in existence. It is still discretion a replication should not have to
+exercise, so **the frozen protocol for any further checkpoint carries a confidence
+caliper and a screening cap fixed in advance.**
+
+### What none of this changes
+
+24/24 against 0/24, at worst 0.0007 apart in clean `p(target)` and one token of
+ancestor distance, over 24 distinct spines per arm, with 0/192 control rows moving
+in either arm. The result stands; four sentences about it did not.
+
 ## 2026-08-15: E2 stage B — the depth contrast survives matching, and one arm gets two verdicts
+
+**Three claims in this entry overreach**: the depth wording, the interval quoted
+as a 95% interval, and Fisher's exact as the inferential number. See the
+corrections entry at the top of the file. Left as written, with the corrections
+stated there.
 
 The 24 matched pairs, patched at layer 13. Artifacts in
 `results/dag_patching/e2_stage_b/`. The protocol is the pre-registration two
@@ -84,6 +196,11 @@ untouched here. Depth 3, the omission arms, and every mechanistic reading are
 outside this run.
 
 ## 2026-08-15: E2 stage A — the window is open, 24 pairs match, and float32 leaves no ties at all
+
+**One sentence in this entry is false** — "the ties were the recording precision
+and not the model". The readout was float32 in every run, archived ones included.
+See the corrections entry at the top of the file. Left as written, with the
+correction stated there.
 
 Screening only: 1,230 clean forward passes, no patch run and none runnable from
 `dag_screening.py`. Seeds 11-40, disjoint from the archived 0-3. Artifacts in

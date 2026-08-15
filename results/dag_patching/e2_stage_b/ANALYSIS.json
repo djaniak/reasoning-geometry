@@ -107,6 +107,13 @@
         1.0,
         1.0
       ],
+      "exact_paired": {
+        "n_pairs": 24,
+        "discordant": 24,
+        "favourable": 24,
+        "against": 0,
+        "p_value": 5.960464477539063e-08
+      },
       "per_depth": {
         "1": {
           "depth": 1,

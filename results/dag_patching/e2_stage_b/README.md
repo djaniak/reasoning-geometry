@@ -12,7 +12,7 @@ and the selection it holds was computed before this directory existed.
 | File | What it is |
 |:---|:---|
 | `depth1.json`, `depth2.json` | one arm per depth, 24 items each, in the archived row schema |
-| `ANALYSIS.json` | every registered reading of the two arms |
+| `ANALYSIS.json` | every registered reading of the two arms, plus `primary.exact_paired` |
 
 ```
 CUDA_VISIBLE_DEVICES=1 uv run python dag_stage_b.py \
@@ -20,8 +20,17 @@ CUDA_VISIBLE_DEVICES=1 uv run python dag_stage_b.py \
   --n_decoys 6 --output_dir results/dag_patching/e2_stage_b
 ```
 
-`ANALYSIS.json` re-derives byte-identically from the two arm files by
-`dag_stage_b.analyse`, with no GPU. Every item was checked against its stage-A
+`ANALYSIS.json` re-derives from the two arm files by `dag_stage_b.analyse` with
+no GPU, which is how `primary.exact_paired` was added on 2026-08-15 after the run:
+
+```
+uv run python -m dag.dag_stage_b \
+  --reanalyse results/dag_patching/e2_stage_b \
+  --output_dir results/dag_patching/e2_stage_b
+```
+
+The regenerated file is identical to the one the run wrote apart from that one
+added key, checked field by field. The arm files are read and never written. Every item was checked against its stage-A
 measurement before being patched — ancestor distance, target value, gap, and the
 clean readout to 1e-6 — because the screening file records `(depth, seed, index,
 gap)` but not `n_decoys`, and `n_decoys` changes the trace.
@@ -35,19 +44,37 @@ The depth contrast survives matching, at full strength.
 | 1 | 24 | **24/24** | 0 | 0.696 / 0.914 / 0.990 | 24–37 |
 | 2 | 24 | **0/24** | 0 | 0.696 / 0.913 / 0.990 | 23–36 |
 
-Difference 1.00, 95% interval [1.000, 1.000] from a 1,000-replicate bootstrap
-over whole pairs. Fisher's exact, one-sided, p = 3.1e-14.
+Difference 1.00. Three readings of it, and only the first was registered:
 
-The interval is degenerate because the separation is perfect, not because the
-estimate is precise. With 24 pairs and no discordant one there is nothing for a
-resampler to vary, and an interval of zero width should be read as "no item went
-the other way", not as a tight bound.
+| reading | value | what it assumes |
+|:---|:---|:---|
+| paired bootstrap over whole pairs, 1,000 replicates | interval [1.000, 1.000] | nothing; it has nothing to resample |
+| **exact paired, one-sided** | **p = 2⁻²⁴ = 5.96e-8** | 24 matched pairs |
+| Fisher's exact, one-sided | p = 3.1e-14 | 48 independent observations |
 
-This is the second of the three registered outcomes: **the contrast persists
-after matching, so the depth result is about graph depth** and not about the
-clean confidence or the token distance that travel with it. Those two are now
-matched — the depth-1 and depth-2 confidence quantiles agree to three decimals
-and the distances overlap — and the rates did not move toward each other at all.
+**Quote 5.96e-8.** The interval is degenerate because the separation is perfect,
+not because the estimate is precise: with 24 pairs and no discordant one there is
+nothing for a resampler to vary, and zero width means "no item went the other
+way", not a tight bound. Fisher's exact is smaller by six orders of magnitude
+because it treats the two arms as independent samples, which a design that
+matched them item for item is not. The exact paired test — the sign test on the
+discordant pairs, which is exact McNemar — is the one this design licenses.
+Neither p-value was registered; the registration named the bootstrap and no
+p-value at all.
+
+This is the second of the three registered outcomes. What it establishes:
+
+> **The one-versus-two-step contrast persists after matching on clean confidence
+> and ancestor token distance.**
+
+Those two are now matched — the depth-1 and depth-2 confidence quantiles agree to
+three decimals and the distances overlap — and the rates did not move toward each
+other at all. It does **not** establish that the contrast is about graph depth.
+Depth bundles an added operation, a written intermediate result, a new variable
+binding and a changed local context, and matching two observed covariates removes
+two rival explanations without unbundling the rest. `dag_tasks` states the bundle
+in its module docstring; the ladder measures whether a patched state still moves
+the answer when a written intermediate contradicts it.
 
 ## The validity gate, and a disagreement it does not settle
 
@@ -119,11 +146,22 @@ Two readings a reader will want:
 - **High-confidence regime only.** The matched window is p(target) 0.696 to
   0.990, median 0.914. That covers the upper half of the range the original
   depth-1 result was obtained in (0.53–0.96) and not the lower half.
-- **Four row kinds, not five.** A cross-item batch is selected for mutual
+- **Four row kinds, not five — a deviation from the registered protocol.** The
+  registration named all five; a cross-item batch is selected for mutual
   donatability, so it is a different batch from a plain run at the same seed and
-  the matched items do not occur in one. The cross-item donor claim is
-  exploratory in the registration and is untouched by this run.
+  the matched items do not occur in one. Recorded in `unreachable_row_kinds` in
+  both arms. It does not touch the registered ancestor outcome, but it leaves the
+  matched run without its strongest portable-state control — the one that would
+  show the transplanted state carries content *across* items rather than within
+  one. The cross-item donor claim is exploratory in the registration and is
+  untouched by this run.
 - **24 pairs, 24 distinct spines per depth**, seeds 11–40, disjoint from the
-  archived 0–3. float32 throughout, so these counts may not be pooled with the
-  eight archived bfloat16 arms — `dag_pooling.pool` refuses to.
+  archived 0–3.
+- **float32 is a model run, not a readout.** The dtype reaches `from_pretrained`,
+  so every matmul in the forward pass ran at it. Both depths ran at the same
+  precision, which is what E2's internal validity needs, but this is **not** a
+  same-precision replication of the archived bfloat16 depth-1 result and these
+  counts may not be pooled with the eight archived arms — `dag_pooling.pool`
+  refuses to. The readout itself was float32 in every run, archived ones
+  included: `digit_readout` casts before it softmaxes.
 - Nothing here speaks to depth 3, to the omission arms, or to any mechanism.
