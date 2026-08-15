@@ -5,6 +5,160 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Pre-registration — E2, whether the depth contrast survives matching on clean confidence and ancestor distance
+
+Written before any E2 item is generated and before the float32 change below
+exists, so that neither the selection rule nor the stop condition can be a
+post-hoc choice. Nothing here rescores or reinterprets an archived run. Committed
+alone, ahead of the code, so the commit timestamp is the registration timestamp.
+
+### What E1 leaves open
+
+The depth ladder collapses after depth 1 — `21/23` implied wins at depth 1 and
+`0/5` at depth 2 and 3, with no ties at either failing depth, so the failure is
+not the bfloat16 resolution artefact corrected in the entry below. But depth is
+confounded with two other quantities that move with it, and the archived runs
+cannot separate them.
+
+**Clean confidence.** The written arms, `v3_distinct` at layer 13, seed 0:
+
+| depth | eligible clean p(target) | pooled range |
+|---:|:---|:---|
+| 1 | 0.666, 0.725, 0.961 | 0.53 – 0.96 across seeds 0-3 |
+| 2 (`none`) | 0.966, 0.975, 0.996, 0.997, 0.999 | — |
+| 3 (`none`) | 0.997 – 0.999 | — |
+
+The supports do not overlap at all: the largest depth-1 value is 0.961 and the
+smallest depth-2 value is 0.966. Every depth-1 success is on an item the model
+was unsure of, and every depth-2 failure is on an item it was sure of. A patch
+that fails to move a near-saturated readout is not evidence about graph depth.
+
+**Ancestor token distance.** `ancestor_distance` at gap 0 is `{11, 24}` at
+depth 1, `{23, 36}` at depth 2, `{35, 48}` at depth 3. Adjacent depths overlap
+to within one token; non-adjacent depths do not overlap at all.
+
+**Clustering.** The `21/23` rests on 17 distinct spines, not 23 independent
+draws: four spines contribute three or four gap placements each. (The
+`cross_item` `11/14` is 14 distinct spines with no repeats, so that arm is not
+clustered.) This was raised in external review as "5 spines"; the true figure is
+17, which is milder but still not 23.
+
+### What is not being tested
+
+Layer 13 only, fixed from the `v3_distinct` discovery table and **not** re-searched
+here. That makes this run confirmatory for the depth *contrast* and not for the
+layer: the depth-1 rate is not a fresh test of anything, because the layer was
+chosen on data that produced it. Also outside the confirmatory set, and not to be
+reported as a result of this run: depth 3, the `cross_item` donor claim, the
+omission arms, any other layer, and anything mechanistic. Those are exploratory
+if run at all.
+
+### The measurement change: a float32 readout, recorded rather than inferred
+
+`collect_data.load_model` hardcodes `torch_dtype=torch.bfloat16`, which is why
+the digit logits sit on a 0.125-nat grid and eight of the fifty-three depth-1
+readouts are exact two-digit ties. A 1.5B model in float32 is about 6 GB of
+weights against 46 GB of A40, so this costs nothing worth counting.
+
+Registered as a precondition of stage A, with tests, before any item is generated:
+
+- `load_model` gains an explicit `dtype`, defaulting to `torch.bfloat16` so no
+  existing behaviour moves.
+- `dag_patching` requests `torch.float32` and writes `readout_dtype` into the
+  report. The archived eight had their dtype traced through a call chain after
+  the fact; no future run should need that.
+- `dag_pooling` **refuses** to pool records of differing `readout_dtype` into one
+  rate. The E2 counts must not be compared against the archived bf16 counts as
+  though they were the same measurement, and the tool should enforce that rather
+  than a reader remembering it.
+
+Tie-aware scoring stays exactly as committed. float32 is expected to decide most
+of the current ties, not to make the tie policy unnecessary.
+
+### Stage A — screening, clean forwards only
+
+`v3_distinct`, `--omit none`, `--condition both`, float32, no patching. 200 items
+at depth 1 and 200 at depth 2, over fresh seeds disjoint from 0-3. Depth 1 is
+generated at gaps 0, 1 and 2 to widen the `ancestor_distance` support toward the
+depth-2 range; the gap sweep is a distance sampler only, and the one-item-per-spine
+rule below removes the placement repeats before anything is compared.
+
+Recorded per item: `clean_probs`, `clean_correct_unique`, `clean_target_share`,
+`ancestor_distance`, `gap`, seed, index, `readout_dtype`. Archived even if stage
+A stops the experiment.
+
+### The selection algorithm, fixed here
+
+It runs on stage-A clean measurements only. No patched outcome exists when it
+runs, which is the property that makes it a selection rule rather than a choice.
+
+1. **Eligible** = clean target uniquely on top (`clean_correct_unique`), float32.
+2. **Confidence window** `W = [max(min₁, min₂), min(max₁, max₂)]` over the
+   eligible per-depth supports of `clean_target_share`. Empirical, but computable
+   from clean data alone.
+3. **Distance matching.** One-to-one greedy pairing of eligible depth-2 items to
+   eligible depth-1 items inside `W`, requiring `|Δ ancestor_distance| ≤ 2`
+   tokens, ordered by `|Δ clean_target_share|` then `|Δ ancestor_distance|`, no
+   item reused.
+4. **One item per spine**, enforced on the selected set: at most one `(seed,
+   index)` per depth, keeping the best-matching placement.
+5. Take up to 24 matched pairs; stop taking at 24.
+
+### Stage A stop condition, and the three registered outcomes
+
+Minimum **16 matched pairs**. Fisher's exact at n = 16 per arm has 0.93 power
+against a fall from 0.9 to 0.3 and only 0.58 against a fall to 0.5, so this run
+is powered to detect a *collapse* and not an attenuation. An intermediate result
+is a registered possibility and will be reported as inconclusive, not as either
+verdict.
+
+- **Fewer than 16 pairs.** Stop at stage A, run no patches. The depth contrast is
+  confounded with clean confidence and cannot be unconfounded within this item
+  family. Close the depth claim and report one step only.
+- **Contrast persists** after matching → the depth result is about graph depth.
+- **Rates converge** after matching → the contrast was confidence, not depth, and
+  the result is a caution about patching into near-saturated readouts.
+
+All three are reportable. That is the point of running it.
+
+### Stage B — the patched run
+
+Layer 13, the matched pairs only, all five row kinds retained (`ancestor`,
+`non_ancestor`, `null`, `surface_null`, `cross_item`), `control_specificity`
+reported beside every verdict.
+
+**Primary outcome:** the implied digit uniquely on top under the `ancestor` patch.
+Test: the depth-1 minus depth-2 difference in that proportion, 95% interval from a
+1,000-replicate spine-cluster bootstrap. One test, no others in the confirmatory
+set.
+
+**Secondary, reported and not gated:** the full four-way level split — median
+clean → patched `p(implied)`, `p(raw)`, `p(target)`, and the remaining mass — per
+depth, with ties counted apart. This is the split that matters, because at depth 1
+the transplanted state promotes the donor's *literal* digit too (0.0005 → 0.373
+under a foreign donor), and a reader will ask. `delta_toward` is reported but is
+**not** an outcome: it is a log-odds gain from a baseline that differs by digit,
+which is why the `cross_item` margin column read 4/14 while the argmax read 11/14.
+
+**Validity gate, keeping the verdict space three-valued:** if null edits flip the
+answer on 20% or more of an arm's control rows, that arm is an **invalid test** and
+the comparison is not made for it. `depth2_chain` is the precedent — nulls flipped
+23/40 there and every relative gate passed anyway.
+
+### Budget
+
+400 clean forwards for stage A; at most 48 items × the row-and-layer sweep for
+stage B. Single GPU, one checkpoint, no new item family.
+
+### Limits of this design, stated in advance
+
+`W` will sit near the *top* of the depth-1 confidence range — the archived depth-1
+support reaches 0.961 and depth 2 begins at 0.966 — so the matched comparison
+tests the depth contrast in the high-confidence regime only. A null in stage B is
+evidence about that regime. It neither restores nor refutes the depth claim at the
+moderate confidences where the depth-1 result was actually obtained, and it will
+not be written up as though it did.
+
 ## 2026-08-15: Corrections — the readout is bfloat16, so `25/25` was a tie-break, and three claims the omission arms do not license
 
 A second external review (codex) of `5f6c899` found that the pooled table
