@@ -16,6 +16,7 @@ by walking up to the repo root, so `archive/` needs no path changes.
 
 | Notebook | Regime | Bottom line |
 |:---|:---|:---|
+| [14_paper_story](14_paper_story.ipynb) | All | **Start here.** The narrative spine in two halves: §1–7 the selective-prediction result, what collapsed under control, the increment on three models, the four controls it survives and the four things geometry does not do; §8–13 the DAG patching line in full — arm inventory, the `v3_distinct` depth ladder with its specificity profile, the distance / cross-item / written-vs-omitted controls, and E2 stages A and B. Reads every number out of a committed artifact. |
 | [13_deepconf_null_and_label_efficiency](13_deepconf_null_and_label_efficiency.ipynb) | Between-prompt | **Most recent.** DeepConf is at chance on both models in all three framings, so no external baseline is left to beat. Against a supervised probe on the same states, one-class geometry leads below a crossing at 60–226 labels — but because the LDA collapses there, not because the Gaussian excels. ~2× label saving, confined to 25–100 labels. |
 | [11_prompt_geometry_core_experiments](11_prompt_geometry_core_experiments.ipynb) | Within-prompt | **Primary analysis.** Entropy-localized RMD beats full-trace RMD at every layer (+0.052/+0.055/+0.058, p ≤ 0.006) and is entropy-specific, but only *ties* free output baselines. Sample selection is negative with a structural ceiling. |
 | [12_wave1_abstention](12_wave1_abstention.ipynb) | Between-prompt | **Headline positive.** `rmd_tail_q20` hits 0.852 acc@50% coverage vs length 0.748 / entropy 0.692; beats the length confound baseline by +0.069 AURC (p < 0.001). Mechanism follow-ups E4–E7 all negative. |
@@ -40,10 +41,17 @@ kept for provenance only.
 
 ## Reading order
 
-Start at 12 (where geometry wins), then 11 (where it does not), then 13 for what
-survives once the baselines and the supervised probe have both had their turn,
-then 02 for the layer story. 01 is the historical headline and should be read
-with its caveat.
+Start at 14 for the whole argument end to end, then follow it into the detail:
+12 (where geometry wins), 11 (where it does not), 13 for what survives once the
+baselines and the supervised probe have both had their turn, then 02 for the
+layer story. 01 is the historical headline and should be read with its caveat.
+
+14 loads committed result JSON and formats it, so it stays honest by breaking
+when an artifact moves; the aggregation it does do (medians over stored per-item
+gate diagnostics, the arm inventory, Fisher on the stage-B 2×2) is stated in the
+cell that does it. It is also the only write-up of the DAG patching line outside
+`results/dag_patching/` and `EXPERIMENT_LOG.md` — that thread has no notebook of
+its own, so §8–13 are where to read it.
 Skim `archive/` before proposing any follow-up in those directions — the
 questions are answered.
 
