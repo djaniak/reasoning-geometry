@@ -24,6 +24,15 @@ that mattered is visible: every record carries the arms it was found in.
 And it does not make the result held-out. Layer 13 was selected from these same
 runs. Pooling buys precision on an effect already seen, not independent
 confirmation of it, and a held-out family is still the experiment to run.
+
+One measurement limit runs through all of it. The model is loaded in bfloat16,
+so the digit logits are recorded on a 0.125-nat grid and two digits can be
+*exactly* equal -- eight of the fifty-three depth-1 patched readouts are, and so
+are five clean ones. A bare argmax breaks those ties by digit index, which is an
+artefact of ``list.index`` and not a fact about the model. Every rate here is
+therefore reported over items whose clean answer is *uniquely* on top, counting
+a uniquely-top implied digit as the win and reporting the ties separately.
+``on_implied`` and its siblings are kept as the legacy bare-argmax reading.
 """
 
 from __future__ import annotations
@@ -103,11 +112,23 @@ def _group_order(entry):
     return DONOR_KINDS.index(kind), depth or 0, omit
 
 
-def _unique_top(probs: list[float] | None) -> bool | None:
+def _tops(probs: list[float] | None) -> list[int] | None:
+    """Every digit holding the maximum, not the first one that reaches it.
+
+    The readout comes out of a bfloat16 model, so the digit logits land on a
+    0.125-nat grid and exact ties between two digits are common rather than
+    freakish. ``probs.index(max(probs))`` resolves those by digit order, which
+    would make digit 2 beat digit 4 for no reason available to the model.
+    """
     if not probs:
         return None
-    ordered = sorted(probs)
-    return ordered[-1] > ordered[-2]
+    top = max(probs)
+    return [digit for digit, value in enumerate(probs) if value == top]
+
+
+def _unique_top(probs: list[float] | None) -> bool | None:
+    tops = _tops(probs)
+    return None if tops is None else len(tops) == 1
 
 
 def outcomes(report: dict, *, layer: int = POOLED_LAYER) -> list[dict]:
@@ -117,6 +138,12 @@ def outcomes(report: dict, *, layer: int = POOLED_LAYER) -> list[dict]:
     of. Those items keep a record -- they were run, and the count of what could
     not be read is part of the reading -- but they answer nothing, so every
     outcome field is None rather than False.
+
+    Two readings of the same distribution are stored side by side. The
+    ``*_top_unique`` fields require the digit to hold the maximum alone and are
+    what the summaries count; ``on_*`` is the bare argmax, kept because it is
+    what the earlier tables reported and a reader should be able to see the
+    difference rather than take the correction on trust.
     """
     blocks = unflatten_rows(report)
     records = []
@@ -130,9 +157,12 @@ def outcomes(report: dict, *, layer: int = POOLED_LAYER) -> list[dict]:
                 continue
             row = at_layer[0]
             probs = row.get("probs_patched")
-            top = probs.index(max(probs)) if probs else None
+            tops = _tops(probs)
+            top = tops[0] if tops else None
             clean = item.get("clean_probs")
+            clean_tops = _tops(clean)
             target = item.get("target_value")
+            implied, raw = row.get("implied_value"), row.get("raw_value")
             toward, toward_raw = (row.get("delta_toward"),
                                   row.get("delta_toward_raw"))
             records.append({
@@ -144,18 +174,30 @@ def outcomes(report: dict, *, layer: int = POOLED_LAYER) -> list[dict]:
                 "seed": report.get("seed"),
                 "layer": layer,
                 "target_value": target,
-                "implied_value": row.get("implied_value"),
-                "raw_value": row.get("raw_value"),
+                "implied_value": implied,
+                "raw_value": raw,
                 "patched_top": top,
+                "patched_tops": tops,
+                "patched_tied": None if tops is None else len(tops) > 1,
                 "tv": row.get("tv"),
                 "clean_correct": item.get("clean_top_digit") == target,
                 "clean_unique": _unique_top(clean),
+                # The eligibility the rates use: the target alone on top, so
+                # there is an unambiguous clean answer for the patch to move off.
+                "clean_correct_unique": (None if clean_tops is None
+                                         else clean_tops == [target]),
                 "clean_target_share": (clean[target] if clean and
                                        target is not None else None),
                 "measured": probs is not None,
-                "on_implied": None if top is None
-                else top == row.get("implied_value"),
-                "on_raw": None if top is None else top == row.get("raw_value"),
+                "implied_top_unique": (None if tops is None
+                                       else tops == [implied]),
+                "implied_top_tied": (None if tops is None else
+                                     implied in tops and len(tops) > 1),
+                "raw_top_unique": None if tops is None else tops == [raw],
+                "clean_top_unique": None if tops is None else tops == [target],
+                # Legacy: the bare argmax the first pooled table reported.
+                "on_implied": None if top is None else top == implied,
+                "on_raw": None if top is None else top == raw,
                 "on_clean": None if top is None else top == target,
                 "toward_implied_over_raw": (
                     None if toward is None or toward_raw is None
@@ -198,31 +240,46 @@ def summarize(pooled: list[dict]) -> list[dict]:
     move off, so the implied-hit rate there measures something else. ``seeds``
     travels with the counts because thirty-three measurements over four seeds
     are not thirty-three independent draws.
+
+    The denominator is *uniquely* clean-correct, and the numerator is a uniquely
+    top implied digit. An item whose clean readout has two digits at the same
+    bfloat16 probability has no clean answer the model committed to, and a
+    patched readout tied between the implied and the raw digit did not pick one;
+    both are reported (``n_clean_tied``, ``n_implied_tied``) rather than
+    resolved by digit order.
     """
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for record in pooled:
         groups[_arm_group(record)].append(record)
     rows = []
     for (kind, depth, omit), records in sorted(groups.items(), key=_group_order):
-        correct = [r for r in records if r["clean_correct"] and r["measured"]]
+        measured = [r for r in records if r["measured"]]
+        unique = [r for r in measured if r["clean_correct_unique"]]
+        legacy = [r for r in measured if r["clean_correct"]]
         rows.append({
             "kind": kind,
             "depth": depth,
             "omit": omit,
             "n_items": len(records),
-            "n_measured": sum(r["measured"] for r in records),
-            "n_clean_correct": sum(bool(r["clean_correct"]) for r in records),
-            "n_on_implied": sum(bool(r["on_implied"]) for r in records),
-            "n_clean_correct_measured": len(correct),
-            "n_on_implied_clean_correct": sum(bool(r["on_implied"])
-                                              for r in correct),
-            "n_on_raw_clean_correct": sum(bool(r["on_raw"]) for r in correct),
-            "n_on_clean_clean_correct": sum(bool(r["on_clean"])
-                                            for r in correct),
-            "n_toward_implied_over_raw_clean_correct": sum(
-                bool(r["toward_implied_over_raw"]) for r in correct),
+            "n_measured": len(measured),
+            "n_clean_correct_unique": len(unique),
+            "n_clean_tied": sum(r["clean_unique"] is False for r in measured),
+            "n_implied_top_unique": sum(bool(r["implied_top_unique"])
+                                        for r in unique),
+            "n_implied_tied": sum(bool(r["implied_top_tied"]) for r in unique),
+            "n_raw_top_unique": sum(bool(r["raw_top_unique"]) for r in unique),
+            "n_clean_top_unique": sum(bool(r["clean_top_unique"])
+                                      for r in unique),
+            "n_toward_implied_over_raw": sum(
+                bool(r["toward_implied_over_raw"]) for r in unique),
             "seeds": sorted({r["seed"] for r in records if r["seed"] is not None}),
             "n_arms_max": max((r["n_arms"] for r in records), default=0),
+            # Legacy bare-argmax counts, superseded by the columns above.
+            "n_clean_correct": sum(bool(r["clean_correct"]) for r in records),
+            "n_on_implied": sum(bool(r["on_implied"]) for r in records),
+            "n_clean_correct_measured": len(legacy),
+            "n_on_implied_clean_correct": sum(bool(r["on_implied"])
+                                              for r in legacy),
         })
     return rows
 
@@ -240,7 +297,7 @@ def band_table(pooled: list[dict], bands=CONFIDENCE_BANDS) -> list[dict]:
     table exists to look for.
     """
     eligible = [record for record in pooled
-                if record["measured"] and record["clean_correct"]
+                if record["measured"] and record["clean_correct_unique"]
                 and record["clean_target_share"] is not None]
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for record in pooled:
@@ -260,8 +317,12 @@ def band_table(pooled: list[dict], bands=CONFIDENCE_BANDS) -> list[dict]:
                 "omit": omit,
                 "band": (lower, upper),
                 "n_items": len(inside),
-                "n_on_implied": sum(bool(r["on_implied"]) for r in inside),
-                "n_on_raw": sum(bool(r["on_raw"]) for r in inside),
+                "n_implied_top_unique": sum(bool(r["implied_top_unique"])
+                                            for r in inside),
+                "n_implied_tied": sum(bool(r["implied_top_tied"])
+                                      for r in inside),
+                "n_raw_top_unique": sum(bool(r["raw_top_unique"])
+                                        for r in inside),
             })
     return rows
 
@@ -310,22 +371,27 @@ def print_summary(built: dict) -> None:
     print(f"pooled at layer {built['layer']}, generator {built['generator']}: "
           f"{built['n_measurements']} measurements from {built['n_arms']} arms")
     print()
+    print("rates over uniquely-clean-correct items; a win is a uniquely top "
+          "digit, ties counted apart")
+    print()
     header = (f"{'donor':>10} {'depth':>5} {'omit':>6} {'n':>3} {'seeds':>8} "
-              f"{'clean ok':>9} | {'implied':>9} {'raw':>7} {'clean':>7} "
-              f"{'toward>raw':>10}")
+              f"{'clean ok':>9} {'clean tie':>9} | {'implied':>9} {'tied':>5} "
+              f"{'raw':>7} {'clean':>7} {'toward>raw':>10}")
     print(header)
     print("-" * len(header))
     for row in built["by_kind_and_depth"]:
-        n = row["n_clean_correct_measured"]
+        n = row["n_clean_correct_unique"]
         print(f"{row['kind']:>10} {row['depth']:>5} {row['omit']:>6} "
               f"{row['n_items']:>3} {','.join(map(str, row['seeds'])):>8} "
-              f"{_rate(row['n_clean_correct'], row['n_items']):>9} | "
-              f"{_rate(row['n_on_implied_clean_correct'], n):>9} "
-              f"{_rate(row['n_on_raw_clean_correct'], n):>7} "
-              f"{_rate(row['n_on_clean_clean_correct'], n):>7} "
-              f"{_rate(row['n_toward_implied_over_raw_clean_correct'], n):>10}")
+              f"{_rate(n, row['n_items']):>9} {row['n_clean_tied']:>9} | "
+              f"{_rate(row['n_implied_top_unique'], n):>9} "
+              f"{row['n_implied_tied']:>5} "
+              f"{_rate(row['n_raw_top_unique'], n):>7} "
+              f"{_rate(row['n_clean_top_unique'], n):>7} "
+              f"{_rate(row['n_toward_implied_over_raw'], n):>10}")
     print()
-    print("implied-digit rate against clean confidence, clean-correct items:")
+    print("implied-digit rate against clean confidence, "
+          "uniquely-clean-correct items:")
     for row in built["by_confidence_band"]:
         if not row["n_items"]:
             continue
@@ -333,8 +399,9 @@ def print_summary(built: dict) -> None:
         print(f"  {row['kind']:>10} depth {row['depth']} {row['omit']:>6}  "
               f"p(target) [{low:.2f}, {high:.2f})  "
               f"n={row['n_items']:>3}  implied "
-              f"{_rate(row['n_on_implied'], row['n_items']):>7}  raw "
-              f"{_rate(row['n_on_raw'], row['n_items']):>7}")
+              f"{_rate(row['n_implied_top_unique'], row['n_items']):>7}  "
+              f"tied {row['n_implied_tied']:>2}  raw "
+              f"{_rate(row['n_raw_top_unique'], row['n_items']):>7}")
 
 
 def parse_args() -> argparse.Namespace:

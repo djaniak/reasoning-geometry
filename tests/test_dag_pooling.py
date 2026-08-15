@@ -34,6 +34,17 @@ def spread(top, value, n=10):
     return [top if digit == value else rest for digit in range(n)]
 
 
+def tied(low, high, top=0.45, n=10):
+    """A readout where two digits hold the maximum at exactly equal shares.
+
+    Not a contrived case: the model runs in bfloat16, so the digit logits sit
+    on a 0.125-nat grid and eight of the fifty-three depth-1 patched readouts
+    have two digits at bit-identical probability.
+    """
+    rest = (1.0 - 2 * top) / (n - 2)
+    return [top if digit in (low, high) else rest for digit in range(n)]
+
+
 def block(kind, *, implied, raw, target, tv=0.9, toward=5.0, toward_raw=1.0,
           probs=None, layers=BINS):
     return [{
@@ -155,6 +166,64 @@ def test_only_the_requested_layer_is_read():
 
 
 # --------------------------------------------------------------------------
+# Ties, which the recorded precision cannot break and neither may we
+# --------------------------------------------------------------------------
+
+
+def test_a_patched_tie_between_implied_and_raw_is_not_a_win_for_either():
+    """Digit order decided five of these in the first pooled table.
+
+    ``probs.index(max(probs))`` returns the lowest tying digit, so the implied
+    digit beat the raw one whenever it happened to be the smaller numeral. That
+    is a fact about ``list.index``, not about the model.
+    """
+    (record,) = outcomes(
+        report(*ONE, implied=2, raw=4, probs=tied(2, 4)), layer=13)
+    assert record["implied_top_unique"] is False
+    assert record["raw_top_unique"] is False
+    assert record["implied_top_tied"] is True
+    assert record["on_implied"] is True  # the legacy reading, kept visible
+
+
+def test_a_tie_is_counted_and_not_folded_into_the_miss_column():
+    pooled = pool({"a": report(*ONE, implied=2, raw=4, probs=tied(2, 4))},
+                  layer=13)
+    (group,) = summarize(pooled)
+    assert group["n_clean_correct_unique"] == 1
+    assert group["n_implied_top_unique"] == 0
+    assert group["n_implied_tied"] == 1
+
+
+def test_an_item_whose_clean_answer_is_tied_is_not_a_clean_correct_item():
+    """A clean readout with two digits on top is no answer to move the model off.
+
+    The stored ``clean_top_digit`` resolves it by digit order, so two of the
+    thirty-three depth-1 items counted as clean-correct on a coin the model
+    never flipped.
+    """
+    arm = report((3, 3, 0.7), implied=5, raw=8)
+    arm["items"][0]["clean_probs"] = tied(3, 5)
+    (record,) = outcomes(arm, layer=13)
+    assert record["clean_correct"] is True  # by stored digit order
+    assert record["clean_correct_unique"] is False
+
+
+def test_a_tied_clean_item_is_reported_rather_than_quietly_dropped():
+    arm = report((3, 3, 0.7), implied=5, raw=8)
+    arm["items"][0]["clean_probs"] = tied(3, 5)
+    (group,) = summarize(pool({"a": arm}, layer=13))
+    assert (group["n_items"], group["n_clean_correct_unique"]) == (1, 0)
+    assert group["n_clean_tied"] == 1
+
+
+def test_a_tied_clean_item_is_outside_the_confidence_bands():
+    arm = report((3, 3, 0.7), implied=5, raw=8)
+    arm["items"][0]["clean_probs"] = tied(3, 5)
+    assert sum(row["n_items"] for row in band_table(pool({"a": arm},
+                                                         layer=13))) == 0
+
+
+# --------------------------------------------------------------------------
 # What the arm cannot support, it does not get to answer
 # --------------------------------------------------------------------------
 
@@ -271,8 +340,8 @@ def test_the_bands_are_taken_within_a_depth_and_never_across_depths():
                                probs=spread(0.9, 4))}, layer=13)
     top = {(row["depth"]): row for row in band_table(pooled)
            if row["band"] == CONFIDENCE_BANDS[-1]}
-    assert top[1]["n_on_implied"] == 1 and top[1]["n_items"] == 1
-    assert top[2]["n_on_implied"] == 0 and top[2]["n_items"] == 1
+    assert top[1]["n_implied_top_unique"] == 1 and top[1]["n_items"] == 1
+    assert top[2]["n_implied_top_unique"] == 0 and top[2]["n_items"] == 1
 
 
 def test_a_flat_rate_across_bands_is_visible_as_such():
@@ -280,7 +349,7 @@ def test_a_flat_rate_across_bands_is_visible_as_such():
                                implied=7, raw=8)}, layer=13)
     rows = [row for row in band_table(pooled) if row["n_items"]]
     assert len(rows) == len(CONFIDENCE_BANDS)
-    assert all(row["n_on_implied"] == row["n_items"] for row in rows)
+    assert all(row["n_implied_top_unique"] == row["n_items"] for row in rows)
 
 
 def test_pooling_an_empty_set_of_arms_is_empty_not_an_error():
