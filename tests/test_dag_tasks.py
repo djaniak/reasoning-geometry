@@ -918,3 +918,128 @@ def test_v3_is_a_different_family_from_v2():
 def test_an_unknown_generator_is_still_refused():
     with pytest.raises(ValueError, match="unknown generator"):
         generate_items(char_encode, n_items=1, generator="v4_imaginary")
+
+
+# --------------------------------------------------------------------------
+# omitting the downstream intermediate results
+# --------------------------------------------------------------------------
+#
+# The depth ladder collapses after depth 1, and pairing does not explain why.
+# Pairing fixed the item family and the token distance, but depth also adds
+# *written correct intermediate values*: at depth 2 the trace states the chain
+# node's result, at depth 3 it states two of them. Depth and the amount of
+# correct scaffolding already in the text move together, and clean confidence
+# rises from about 0.6 to about 0.99 across the same step. A teacher-forced
+# trace overwriting or dominating the latent state would look exactly like this.
+#
+# The contrast that separates them changes only whether those values are stated.
+# Same spine, same donor, same target operation, same item index, same patch
+# anchor -- the ancestor line is always upstream of the chain, so its positions
+# do not move -- and the omitted lines are padded with comment markers to the
+# token count of the ` = <digit>` they replace, so nothing downstream shifts
+# either.
+
+
+def written_and_omitted(depth, **kwargs):
+    common = dict(n_items=5, seed=0, gap=0, generator=V3, depth=depth, **kwargs)
+    return (generate_items(char_encode, **common),
+            generate_items(char_encode, omit_intermediate=True, **common))
+
+
+def test_the_omitted_trace_does_not_state_the_intermediate_value():
+    def line_of(item, name):
+        return next(line for line in item.text.splitlines()
+                    if line.startswith(f"{name} = "))
+
+    for written, omitted in zip(*written_and_omitted(2)):
+        (name,) = omitted.omit
+        value = written.nodes[name].value
+        # The written line states the result; the omitted one still defines the
+        # node from its parent, so the value stays computable, just unwritten.
+        assert line_of(written, name).count(" = ") == 2
+        assert f"= {value} #" in line_of(written, name)
+        assert line_of(omitted, name).count(" = ") == 1
+        # No result position at all -- not merely a different digit there. The
+        # operand digit stays, and may coincidentally equal the value.
+        assert name in written.value_positions
+        assert name not in omitted.value_positions
+
+
+def test_omitting_a_value_costs_no_tokens_anywhere():
+    # The pad is matched to the ` = <digit>` it replaces, so the two formats are
+    # the same length and every position downstream of the chain is unmoved.
+    for depth in (2, 3):
+        for written, omitted in zip(*written_and_omitted(depth)):
+            assert len(written.token_ids) == len(omitted.token_ids)
+            assert written.read_position == omitted.read_position
+            assert written.value_positions[ANCESTOR] == \
+                omitted.value_positions[ANCESTOR]
+
+
+def test_the_patch_lands_at_the_same_distance_under_both_formats():
+    # If the ancestor edit sat closer to the read position in one format, the
+    # contrast would be the depth/token-distance confound again, one level down.
+    for depth in (2, 3):
+        for written, omitted in zip(*written_and_omitted(depth)):
+            for kind in ("ancestor", "non_ancestor", "surface_null"):
+                one = next(e for e in written.edits if e.kind == kind)
+                two = next(e for e in omitted.edits if e.kind == kind)
+                assert one.positions == two.positions
+                assert one.distance_to_read == two.distance_to_read
+
+
+def test_the_two_formats_are_the_same_item():
+    # Omission is a rendering choice, not a draw: it must not touch the stream,
+    # or the contrast is between two families rather than two formats.
+    for depth in (2, 3):
+        for written, omitted in zip(*written_and_omitted(depth)):
+            assert written.target_value == omitted.target_value
+            assert written.order == omitted.order
+            assert {n: v.value for n, v in written.nodes.items()} == \
+                {n: v.value for n, v in omitted.nodes.items()}
+            assert (next(e for e in written.edits if e.kind == "ancestor")
+                    .implied_target_value
+                    == next(e for e in omitted.edits if e.kind == "ancestor")
+                    .implied_target_value)
+
+
+def test_at_depth_one_there_is_nothing_to_omit():
+    # No node stands between the ancestor and the target, so the flag is a no-op
+    # and the two arms are the same trace. That is the experiment's own control:
+    # any depth-1 difference would be an artefact of the flag itself.
+    written, omitted = written_and_omitted(1)
+    for one, two in zip(written, omitted):
+        assert one.text == two.text
+        assert one.omit == ()
+
+
+def test_the_answer_and_the_patch_site_are_never_omitted():
+    # The target's value is what we read, and the ancestor's is what we patch.
+    for depth in (2, 3):
+        for _, omitted in zip(*written_and_omitted(depth)):
+            assert TARGET not in omitted.omit
+            assert ANCESTOR not in omitted.omit
+            assert len(omitted.omit) == depth - 1
+
+
+def test_the_omitted_lines_still_carry_their_tag_last():
+    # The surface control rewrites line tags, so every line keeps one -- and it
+    # has to stay last on the line, which is why the pad goes before it: a
+    # trailing marker merges with the newline and the token count stops matching.
+    for _, omitted in zip(*written_and_omitted(3)):
+        lines = dict(line.split(" = ", 1)[0:1] + [line]
+                     for line in omitted.text.splitlines())
+        for name in omitted.omit:
+            assert lines[name].rstrip()[-1].isalpha()
+            assert " #" in lines[name]
+
+
+def test_cross_item_donors_still_work_under_omission():
+    items = generate_items(char_encode, n_items=5, seed=0, gap=0, depth=2,
+                           cross_item=True, generator=V3,
+                           omit_intermediate=True)
+    for item in items:
+        edit = next(e for e in item.edits if e.kind == "cross_item")
+        assert len(edit.token_ids) == len(item.token_ids)
+        assert len({edit.donor_raw_value, edit.implied_target_value,
+                    item.target_value}) == 3

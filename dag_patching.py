@@ -832,7 +832,8 @@ def identity_patch_check(model, token_ids, bins, positions) -> dict:
 def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
         condition: str = "both", depth: int = 1, gap: int | None = None,
-        generator: str = DEFAULT_GENERATOR, cross_item: bool = False) -> dict:
+        generator: str = DEFAULT_GENERATOR, cross_item: bool = False,
+        omit_intermediate: bool = False) -> dict:
     from transformers import AutoTokenizer
 
     from collect_data import load_model
@@ -848,6 +849,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         gap=gap,
         generator=generator,
         cross_item=cross_item,
+        omit_intermediate=omit_intermediate,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -874,6 +876,11 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         ] if cross_item else None,
         "condition": condition,
         "depth": depth,
+        # Which lines state no result. Both the flag and the realised per-item
+        # node names, because at depth 1 the flag is set and nothing is omitted,
+        # and telling those apart is the contrast's own control.
+        "omit_intermediate": omit_intermediate,
+        "omitted_nodes": [list(item.omit) for item in items],
         "gap": [item.gap for item in items],
         "n_items": len(items),
         "seed": seed,
@@ -1010,6 +1017,11 @@ def parse_args() -> argparse.Namespace:
                         help="add the cross-item donor control; selects a "
                              "mutually donatable batch, so it is its own arm "
                              "and not comparable item-by-item to the ladder")
+    parser.add_argument("--omit_intermediate", action="store_true",
+                        help="render the chain lines without stating their "
+                             "results, padded to the same token count; the "
+                             "written/omitted contrast for the depth "
+                             "collapse. A no-op at depth 1")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -1039,6 +1051,7 @@ def main() -> None:
         depth=args.depth,
         gap=args.gap,
         cross_item=args.cross_item,
+        omit_intermediate=args.omit_intermediate,
         output_path=args.output,
         self_test_only=args.self_test,
     )

@@ -138,7 +138,15 @@ class DagItem:
     condition: str = "both"
     depth: int = 1  # steps from the ancestor to the target
     gap: int = 0  # decoy lines between the chain and the target
+    # Chain nodes whose result the trace does not state, and the token-matched
+    # filler standing in for each. Empty is the written format; at depth 1 there
+    # is nothing between the ancestor and the target, so it is empty either way.
+    omit_pad: dict[str, str] = field(default_factory=dict)
     edits: tuple[Edit, ...] = field(default_factory=tuple)
+
+    @property
+    def omit(self) -> tuple[str, ...]:
+        return tuple(name for name in self.order if name in self.omit_pad)
 
     @property
     def target_value(self) -> int:
@@ -191,7 +199,8 @@ def ancestors(edges: set[tuple[str, str]], node: str) -> set[str]:
 # --------------------------------------------------------------------------
 
 
-def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str]):
+def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str],
+            omit_pad: dict[str, str] | None = None):
     """Build the trace as (text, site) chunks, one line per node.
 
     ``site`` is ``None`` for structural text, or a key naming a patchable
@@ -203,6 +212,13 @@ def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str]
     the letter after it. So digit sites are bare with the space left in the
     preceding chunk, and the line tag carries its own leading space and sits at
     the end of the line, where nothing can merge into it.
+
+    ``omit_pad`` names the lines that state no result, each mapped to the filler
+    standing in for its ``" = <digit>"``. The line still defines the node, so the
+    graph is unchanged and the value is computable; it is simply not written
+    down. The filler goes *before* the tag, not after: the tag has to stay last
+    on the line or a trailing marker merges with the newline and the token count
+    stops matching the written format.
     """
     chunks: list[tuple[str, str | None]] = []
     for name in order:
@@ -214,12 +230,38 @@ def _render(nodes: dict[str, Node], order: tuple[str, ...], tags: dict[str, str]
             # The merge node's operand is a variable, never edited, so it needs
             # no site of its own -- and a name must keep its leading space.
             chunks[-1] = (chunks[-1][0].rstrip() + f" {node.rhs}", None)
-        chunks.append((" = ", None))
-        chunks.append((str(node.value), f"result:{name}"))
-        chunks.append((" #", None))
+        if omit_pad and name in omit_pad:
+            chunks.append((" #" + omit_pad[name], None))
+        else:
+            chunks.append((" = ", None))
+            chunks.append((str(node.value), f"result:{name}"))
+            chunks.append((" #", None))
         chunks.append((f" {tags[name]}", f"tag:{name}"))
         chunks.append(("\n", None))
     return chunks
+
+
+# What stands in for an omitted ``" = <digit>"``: repeated comment markers,
+# which cannot be read as a variable name or a tag and which the surface control
+# already shows are inert. The repeat count is solved against the tokenizer
+# rather than fixed, because " = " is two tokens under the Qwen vocabularies and
+# three under a character tokenizer.
+OMITTED_VALUE_MARKER = " #"
+
+
+def _omission_pad(encode, value: str) -> str:
+    """Filler matching the token count of the ``" = <digit>"`` it replaces.
+
+    Token-matched or nothing: a pad that is a token short would shift every
+    position downstream and turn the written/omitted contrast back into the
+    token-distance confound the paired ladder exists to remove.
+    """
+    removed = len(list(encode(" = "))) + len(list(encode(value)))
+    for repeat in range(1, removed + 1):
+        pad = OMITTED_VALUE_MARKER * repeat
+        if len(list(encode(pad))) == removed:
+            return pad
+    raise Reject("no comment pad matches the omitted value's token count")
 
 
 def encode_chunks(chunks, encode):
@@ -375,7 +417,8 @@ def _sample_chain(rng: random.Random, n_steps: int, start: int,
 
 
 def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
-                  depth: int, gap: int | None, distinct: bool = False) -> DagItem:
+                  depth: int, gap: int | None, distinct: bool = False,
+                  omit_intermediate: bool = False) -> DagItem:
     """Build an item whose spine does not move with ``depth``.
 
     Depth-1 item *i* and depth-3 item *i* must be the same trace apart from the
@@ -473,7 +516,14 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
     order = (*decoys[:cut], *pair, *chain, *decoys[cut:], TARGET, MERGE)
     tags = dict(zip(spine, spine_letters)) | dict(zip(chain, chain_letters))
 
-    chunks = _render(nodes, order, tags)
+    # Only the chain: the target's value is what the readout reads and the
+    # ancestor's is what the patch overwrites, so neither can be omitted, and the
+    # decoys are not downstream of anything. At depth 1 the chain is empty and
+    # the flag is a no-op, which makes depth 1 the contrast's own control.
+    omit_pad = {name: _omission_pad(encode, str(nodes[name].value))
+                for name in chain} if omit_intermediate else {}
+
+    chunks = _render(nodes, order, tags, omit_pad)
     ids, sites = encode_chunks(chunks, encode)
     read_position = sites[f"result:{TARGET}"] - 1
 
@@ -488,7 +538,8 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
         target=TARGET,
         text="".join(text for text, _ in chunks),
         token_ids=tuple(ids),
-        value_positions={name: sites[f"result:{name}"] for name in order},
+        value_positions={name: sites[f"result:{name}"] for name in order
+                         if f"result:{name}" in sites},
         operand_positions={
             name: sites[f"operand:{name}"] for name in order
             if f"operand:{name}" in sites
@@ -497,6 +548,7 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
         condition=condition,
         depth=depth,
         gap=len(decoys) - cut,
+        omit_pad=omit_pad,
     )
 
     edits = [
@@ -605,7 +657,7 @@ def _build_unpaired(rng: random.Random, encode, n_decoys: int, condition: str,
 
 def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
                  force_positions=None, donor_raw_value=None) -> Edit:
-    ids, _ = encode_chunks(_render(nodes, order, tags), encode)
+    ids, _ = encode_chunks(_render(nodes, order, tags, item.omit_pad), encode)
     if len(ids) != len(item.token_ids):
         raise Reject("donor length differs from clean")
     differing = tuple(i for i, (x, y) in enumerate(zip(ids, item.token_ids)) if x != y)
@@ -671,7 +723,8 @@ def _tag_edit(rng, item, nodes, order, tags, encode, names=None,
         if len(spare) < 2:
             raise Reject("not enough spare tag letters")
         upstream = [name for name in order
-                    if item.value_positions[name] < item.read_position]
+                    if name in item.value_positions
+                    and item.value_positions[name] < item.read_position]
         names, letters = rng.sample(upstream, 2), rng.sample(spare, 2)
     edited = dict(tags)
     for name, letter in zip(names, letters):
@@ -837,7 +890,8 @@ def _attach_cross_item_edits(items: list[DagItem], sigma: list[int],
 def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0,
                    condition: str = "both", depth: int = 1, gap: int | None = None,
                    generator: str = DEFAULT_GENERATOR,
-                   cross_item: bool = False, oversample: int | None = None):
+                   cross_item: bool = False, oversample: int | None = None,
+                   omit_intermediate: bool = False):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
@@ -856,6 +910,12 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     be mutually donatable. That is a constraint on which sampled items are kept,
     so it changes the batch: a cross-item run is its own arm and its numbers are
     not the ladder's. ``oversample`` is how many candidates to sample from.
+
+    ``omit_intermediate`` renders the chain lines without stating their results.
+    It is a rendering choice and consumes nothing from the stream, so the omitted
+    batch is the *same* batch as the written one, item for item -- which is what
+    makes the two directly comparable and what distinguishes depth from the
+    amount of correct arithmetic already written into the trace.
     """
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}, "
@@ -875,11 +935,15 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
     distinct = generator == "v3_distinct"
     if generator == "v1_unpaired":
+        if omit_intermediate:
+            raise ValueError("v1_unpaired predates omit_intermediate and is "
+                             "frozen; use v2_paired or v3_distinct")
         build = _build_unpaired
     else:
         def build(rng, encode, n_decoys, condition, depth, gap):
             return _build_paired(rng, encode, n_decoys, condition, depth,
-                                 gap, distinct=distinct)
+                                 gap, distinct=distinct,
+                                 omit_intermediate=omit_intermediate)
     # Sampling a wider pool and then selecting is what lets the cross-item batch
     # be mutually donatable. Without the control the pool is the batch, so the
     # ladder's items are untouched by any of this.

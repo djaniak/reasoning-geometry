@@ -89,3 +89,10 @@ docs/superpowers
 
 # Local safety copy of results/ before a rerun (not a deliverable)
 /.results_backup_*/
+
+# The written-versus-omitted contrast: does stating the intermediate result
+# suppress the patch? Same batch under two renderings.
+!/results/dag_patching/written_vs_omitted/
+/results/dag_patching/written_vs_omitted/*
+!/results/dag_patching/written_vs_omitted/*.json
+!/results/dag_patching/written_vs_omitted/README.md
