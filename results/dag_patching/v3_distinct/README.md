@@ -61,3 +61,16 @@ not `delta_toward` minus `delta_toward_raw`. That margin is a ratio against a
 clean baseline which itself varies by digit, and it tracks how far apart the two
 candidate digits happen to sit rather than which one won. `probs_patched` in
 the rows makes the direct comparison available to any rescore.
+
+Count it at a **fixed layer**, and say which. The split is layer-dependent --
+across the four cross-item seeds it is 16 implied / 4 raw at layer 13 and
+10 / 5 / 2 clean / 3 other at layer 20 -- so a count taken at each arm's own
+joint layer mixes the effect with the layer selection. Layer 13 was chosen by
+looking at this table, which makes it a discovery layer: fixing it in advance is
+a condition on the next run, not a result of this one.
+
+Two things these reports do *not* establish, both recorded in
+`EXPERIMENT_LOG.md`, 2026-08-15: the clean top digit is the target on only 3-4
+of 5 items in most arms, so not every flip is a counterfactual flip; and
+`depth1_gap{0,1,2}` share one spine set, so their 15 rows are five spines at
+three gap positions.

@@ -5,6 +5,126 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-15: Corrections — a wrong justification, two layer-selected counts, and a diagnostic that reframes the depth-1 positives
+
+An external review of `5877120` (codex) found four defects in the two entries
+below. Three are mine and I state them plainly; the fourth is a
+design gap the review found that I had not considered. Nothing here changes a
+verdict. Earlier entries are left as written, with pointers back to this one.
+
+### The floor's threshold was justified by a false claim
+
+I wrote, in the code and in the entry below, that a half is "the largest
+threshold that is not a free parameter -- below it the clean answer cannot still
+be the argmax". **That is false.** A half is the majority boundary. A digit at
+0.40 is the argmax of a ten-way distribution whenever the other nine average
+0.067, and the tightest scalar-only sufficient condition for ten classes is a
+share below 0.1.
+
+It is not only a wording error. Of the 360 stored ancestor rows, 37 sit in the
+band [0.1, 0.5) where the share does not settle the question, and **5 of those
+are called moved while the clean digit is still on top.**
+
+The fix is not a better threshold. Where `probs_patched` exists there is no
+threshold to choose: test whether the clean digit is still alone at the top. A
+tie is not a move -- which co-maximum a bare argmax returns is an artefact of
+digit order, and the stored runs contain bit-exact top ties, two of them in
+`v3_distinct/depth1_gap0` alone (0.4835 against 0.4835, 0.4941 against 0.4941,
+equal to the last bit of float32). The share survives only as the fallback for
+the archived eight, which predate the field. It is exact at or above 0.5 and
+below 0.1 and can only over-call movement in between, so it never misses a real
+move; the gate now records which of the two tests decided it.
+
+**No verdict changes**, across all 17 reports that carry rows. The one layer
+whose quorum differs is `paired_ladder/depth1_gap0` layer 27, which is not a
+scoring layer. So the defect was real, was stated confidently, and cost nothing
+-- but only because the measured shares happened to fall 0.000-0.040 and
+0.946-0.992, either side of the ambiguous band.
+
+The one place it does cost something: `operand_only` sits at 0.401, inside the
+band, and is archived, so it has no `probs_patched` and **its argmax cannot be
+tested at all.** My claim below that "that arm's answer *does* move" is not
+supported by anything in the artifact. It is unknown.
+
+### Two reported counts were selected on a per-arm layer
+
+The cross-item mass table below reports "n=20 -> implied 12 / raw 6 / clean 1 /
+other 1". That count was taken at each seed's own joint layer, which differs by
+seed, and the mechanism is layer-dependent. At a fixed layer it reads:
+
+| layer | ancestor, depth-1 arms | cross-item, seeds 0-3 |
+|:---|:---|:---|
+| 6  | 13 implied / 2 raw | 14 implied / 5 raw / 1 other |
+| 13 | **14 implied / 1 raw** | **16 implied / 4 raw** |
+| 20 | 12 implied / 3 raw | 10 implied / 5 raw / 2 clean / 3 other |
+
+So the reported figure understated the effect and hid its layer dependence at
+once. Report the table, not a chosen-layer count. Layer 13 is the strongest, and
+having been chosen by looking at this table it is a discovery layer: fixing it
+in advance is a condition on the next run, not a result of this one.
+
+The ancestor row's `n=15` is also not 15 independent items. `depth1_gap{0,1,2}`
+share one arithmetic spine set -- target values `[3, 7, 5, 5, 7]` in all three
+-- so it is five spines at three gap positions. Five paired items, three
+position conditions.
+
+### `joint_layer` was reported, not applied
+
+The paired-ladder entry says the run was "scored under `v2_one_sided` and
+`joint_layer` from the start". `joint_layer` carries `applied_to_verdict: False`
+in the scorer and in every report; it was frozen in advance and reported beside
+the verdict, which is what made that run a prospective test, but it did not
+decide anything. Read "frozen and reported from the start".
+
+### The gap the review found: the clean answer is often not the model's answer
+
+`v3_distinct` made the implied, raw and clean digits distinct. It does not make
+the model's clean behaviour correct, and nothing gated on that. New
+`clean_answer` diagnostic, reported and never binding:
+
+| Arm | clean top digit is the target |
+|:---|:---|
+| every depth-2 and depth-3 arm | **5/5** |
+| `v3_distinct/depth1_gap{0,1,2}` | 4/5, 4/5, 3/5 |
+| `paired_ladder/depth1_gap{0,1,2}` | 2/5, 3/5, 2/5 |
+| archived `depth1_gap{0,1,2}` | 3/5, 2/5, **1/5** |
+| `cross_item` seeds 0-3 | 2/5, 4/5, 5/5, 4/5 |
+| `v3_distinct/cross_seed{0..3}` | 3/5, 5/5, 3/5, 5/5 |
+
+The pattern is the concerning part and it is not in the review: **the arms that
+pass the floor are the arms where the clean answer is least often the model's
+own answer, and the arms that fail it are 5/5 correct.** Both follow from clean
+confidence -- 0.59-0.67 at depth 1 against 0.99 at depth 2 and 3 -- so
+`answer_moved` and clean correctness are entangled through it. An arm can clear
+the floor partly because the model was undecided to begin with.
+
+This does not overturn depth 1: the patched readout lands on the *implied*
+digit, which an undecided model has no particular reason to do. But "the patch
+flipped the answer" is only a counterfactual flip where the clean target was the
+answer, and on the archived `depth1_gap2` that is one item in five.
+
+It is a diagnostic, not a gate. Binding the verdict to it would be a third
+retroactive policy move on runs already scored under two. The place to require
+clean correctness is the generator of the next family.
+
+### Also from the review, and agreed
+
+`gate_policy_version` names the surface policy alone, so adding the floor
+changed the verdict function while leaving the label untouched:
+`paired_ladder/depth2_gap0.json` reads `v2_one_sided` / `positive` on disk while
+a rescore under that same label calls it a scientific negative. One name, two
+functions. Reports now carry `verdict_version` (`v1_gap_only` ->
+`v2_gap_and_floor`), and a rescore keeps the original beside the original
+verdict.
+
+The review's substantive point, which no gate repair reaches: pairing fixed the
+item family and the token distance, but depth 2 and depth 3 also add **written
+correct intermediate values** that depth 1 does not have. Depth and the amount
+of correct scaffolding already in the text move together, and clean confidence
+rising to 0.99 is what teacher-forced text dominating the latent state would
+look like. The depth collapse is real; its cause is not identified. The next run
+is the written-versus-omitted contrast, not more depth, models or checkpoints.
+
 ## 2026-08-14: The floor changes four verdicts and v3 confirms depth 1 on a well-posed family
 
 Two changes, both following from the entry below.
@@ -17,6 +137,11 @@ clean answer still holds a majority of the digit readout after patching.
 
 A half is the largest threshold that is not a free parameter -- below it the
 clean answer cannot still be the argmax -- and it does no work here anyway:
+
+> **Corrected 2026-08-15.** The clause after the dash is false: a half is the
+> majority boundary, not the argmax boundary. See the corrections entry above.
+> The floor now tests the argmax directly where the distribution is stored. No
+> verdict in this entry changes.
 
 | | clean share at the best layer |
 |:---|:---|
@@ -46,6 +171,11 @@ Four verdicts change, all of them depth 2 or depth 3, in both families:
 arm's answer *does* move, and it is a negative because the movement is not
 selective, not because nothing happened.
 
+> **Corrected 2026-08-15.** 0.401 does not establish that the answer moved --
+> it falls in the band where the share is uninformative, and `operand_only` is
+> archived with no stored distribution, so its argmax cannot be tested. Unknown,
+> not moved.
+
 ### `v3_distinct`: the generator keeps all three competing digits apart
 
 `v2_paired` kept the implied value off the clean answer but nothing kept the
@@ -68,6 +198,12 @@ ill-posed items**, so these counts are whole-batch rather than filtered:
 |:---|---:|---:|---:|---:|:---|
 | ancestor, depth-1 arms | 15 | **14** | 1 | 0 | 0.586 / 0.389 |
 | cross-item, seeds 0-3 | 20 | **12** | 6 | 1 | 0.487 / 0.365 |
+
+> **Corrected 2026-08-15.** The cross-item row was counted at each seed's own
+> joint layer, which differs by seed; at a fixed layer 13 it is 16 implied / 4
+> raw, and at layer 20 it weakens to 10 / 5 / 2 clean / 3 other. The ancestor
+> row is layer 13. `n=15` is five spines at three gap positions, not 15
+> independent items. Layer table in the corrections entry above.
 
 And the ladder, scored under the floor from the start, reproduces on a fresh
 family what the rescore showed on the old one: `depth1_gap{0,1,2}` positive at
@@ -285,9 +421,12 @@ Five arms, `dag_patching.py --generator v2_paired`, same settings as the
 archived ladder (model, seed 0, `n_items 5`, `condition both`, `n_decoys 6`):
 `depth{1,2,3}_gap0`, `depth1_gap{1,2}`. Output in
 `results/dag_patching/paired_ladder/`; the archived package was not touched.
-Scored under `v2_one_sided` and `joint_layer` from the start — not amended
-after the fact, so this is the prospective confirmation the gate amendment
-below needed.
+Scored under `v2_one_sided`, with `joint_layer` frozen and reported from the
+start — not amended after the fact, so this is the prospective confirmation the
+gate amendment below needed. `joint_layer` is reported beside the verdict and
+carries `applied_to_verdict: False`; it decides nothing. (Corrected 2026-08-15;
+it previously read "scored under `v2_one_sided` and `joint_layer`", which
+overstates its role.)
 
 ### Verdicts unchanged, joint layers shift by one arm each way
 

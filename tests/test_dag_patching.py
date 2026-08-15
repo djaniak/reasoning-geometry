@@ -675,11 +675,13 @@ def test_a_report_with_cross_item_rows_still_rescores():
 # is a clean 10x between two numbers that are both approximately zero, and
 # `median_delta_toward` of 1.84 nats is movement from about 1e-5 to about 1e-4.
 #
-# The floor is "the clean answer no longer holds a majority of the readout",
-# which is the largest threshold that is not a free parameter: below a half it
-# cannot still be the argmax. Failing it is a scientific negative, not an
-# invalid test -- the intervention was directional, quiet and selective, and
-# simply did not change the answer.
+# The floor asks whether the patched readout still puts the clean answer on top.
+# These tests exercise the fallback share, which is all a report without a stored
+# distribution can offer; the section further down covers the argmax test that
+# supersedes it, and why the justification originally given for the half was
+# wrong. Failing the floor is a scientific negative, not an invalid test -- the
+# intervention was directional, quiet and selective, and simply did not change
+# the answer.
 
 
 def floor_rows(layer, *, away, clean=-0.02, gap=True, **kwargs):
