@@ -111,6 +111,13 @@ def records(report: dict, name: str, *, layer: int = LAYER) -> list[dict]:
                 "distance": row["distance_to_read"],
                 "eligible": clean_tops == [target],
                 "measured": tops is not None,
+                "target": target,
+                # The item's own clean confidence, carried on every record
+                # because the gap manipulation moves it (see
+                # `by_distance_paired`): it is a covariate of the manipulation,
+                # not a nuisance that can be assumed inert.
+                "clean_p_target": (item["clean_probs"][target]
+                                   if item.get("clean_probs") else None),
                 "implied_top": tops == [row.get("implied_value")],
                 "raw_top": tops == [row.get("raw_value")],
                 "clean_top": tops == [target],
@@ -210,6 +217,155 @@ def by_distance_band(records: list[dict],
     return out
 
 
+def by_distance_paired(records: list[dict], *, depth: int = 1,
+                       kind: str = "ancestor") -> dict:
+    """The gap arms read as a within-item manipulation of token distance.
+
+    **Exploratory.** Nothing here was registered; `by_site` is the registered
+    reading and this is a post-hoc pass over the same rows.
+
+    The three gap arms at a seed are not three samples. They are the *same 48
+    items* re-rendered with the ancestor pushed about 13 tokens further from the
+    read each time, so pooling them and testing across gaps -- which an earlier
+    pass did -- treats one item as three. Paired on ``(seed, item)`` the arms
+    become the same design virtue the depth ladder has: one manipulation, one
+    item, everything else held.
+
+    Two things keep the result honest and both are returned rather than
+    described.
+
+    * **Eligibility itself degrades with the gap** (117/144, 104/144, 94/144),
+      so complete-case rates sit above the arm-pooled ones. ``per_gap`` reports
+      both denominators.
+    * **Clean confidence moves with the gap too.** The items whose readout
+      switches from the implied digit to the raw one lose about three times as
+      much clean ``p(target)`` across the manipulation as the items that keep
+      carrying (``confidence``). Placement and clean confidence are therefore
+      *not separated by this design*, which is the same bundling problem §3.3
+      records for depth. The claim this licenses is a joint association; it is
+      not "token distance causes the model to fall back to copying".
+    """
+    from scipy.stats import mannwhitneyu
+
+    wanted = [record for record in records
+              if record["depth"] == depth and record["kind"] == kind]
+    gaps = sorted({record["gap"] for record in wanted})
+    at: dict[int, dict] = defaultdict(dict)
+    for record in wanted:
+        at[record["gap"]][(record["seed"], record["item"])] = record
+
+    # A ladder without at least two placements of this site has nothing to
+    # pair. Say so in the payload rather than returning a contrast built from
+    # one arm against itself, which would read as a null result.
+    if len(gaps) < 2:
+        return {"exploratory": True, "depth": depth, "kind": kind, "gaps": gaps,
+                "n_complete_case": 0, "n_paired_items": 0, "per_gap": [],
+                "mcnemar": None, "all_gaps": None, "confidence": None}
+
+    # The pairing rests on the arms being item-for-item the same batch. Assert
+    # it rather than trust the file names: a regenerated arm with a different
+    # item order would otherwise pair silently and wrongly.
+    complete = sorted(set.intersection(*(set(at[gap]) for gap in gaps)))
+    for key in complete:
+        targets = {at[gap][key]["target"] for gap in gaps}
+        if len(targets) != 1:
+            raise ValueError(f"item {key} is not the same item across gaps: {targets}")
+
+    eligible = [key for key in complete
+                if all(at[gap][key]["eligible"] for gap in gaps)]
+
+    per_gap = []
+    for gap in gaps:
+        rows = [at[gap][key] for key in eligible]
+        arm_rows = [record for record in wanted
+                    if record["gap"] == gap and record["eligible"]]
+        per_gap.append({
+            "gap": gap,
+            "n_complete_case": len(rows),
+            "distance_min": min(row["distance"] for row in rows),
+            "distance_max": max(row["distance"] for row in rows),
+            "implied_top_unique": sum(row["implied_top"] for row in rows),
+            "raw_top_unique": sum(row["raw_top"] for row in rows),
+            "clean_top_unique": sum(row["clean_top"] for row in rows),
+            "median_clean_p_target": statistics.median(
+                row["clean_p_target"] for row in rows),
+            # The attrition the complete case hides: how many items were
+            # eligible in this arm at all, before the intersection.
+            "n_eligible_in_arm": len(arm_rows),
+            "n_items_in_arm": sum(record["gap"] == gap for record in wanted),
+        })
+
+    low, high = gaps[0], gaps[-1]
+    low_only = [key for key in eligible
+                if at[low][key]["implied_top"] and not at[high][key]["implied_top"]]
+    high_only = [key for key in eligible
+                 if at[high][key]["implied_top"] and not at[low][key]["implied_top"]]
+
+    def drop(key):
+        return at[low][key]["clean_p_target"] - at[high][key]["clean_p_target"]
+
+    switchers = [key for key in low_only if at[high][key]["raw_top"]]
+    stayers = [key for key in eligible
+               if at[low][key]["implied_top"] and at[high][key]["implied_top"]]
+
+    def summarise(keys, name):
+        return {
+            "group": name,
+            "n": len(keys),
+            "median_clean_p_target_low": statistics.median(
+                at[low][key]["clean_p_target"] for key in keys) if keys else None,
+            "median_clean_p_target_high": statistics.median(
+                at[high][key]["clean_p_target"] for key in keys) if keys else None,
+            "median_within_item_drop": statistics.median(
+                drop(key) for key in keys) if keys else None,
+        }
+
+    confidence = {
+        "low_gap": low,
+        "high_gap": high,
+        "groups": [summarise(switchers, "implied -> raw"),
+                   summarise(stayers, "implied -> implied")],
+        # Does the switching group lose *more* confidence than everyone else?
+        # A fall on its own would not implicate difficulty; a steeper fall does.
+        "drop_p": (float(mannwhitneyu([drop(k) for k in switchers],
+                                      [drop(k) for k in stayers]).pvalue)
+                   if switchers and stayers else None),
+        # And did it start out harder? If not, this is not the selection of a
+        # pre-existing hard subset -- the confidence moves under the edit.
+        "baseline_p": (float(mannwhitneyu(
+            [at[low][k]["clean_p_target"] for k in switchers],
+            [at[low][k]["clean_p_target"] for k in stayers]).pvalue)
+            if switchers and stayers else None),
+    }
+
+    return {
+        "exploratory": True,
+        "depth": depth,
+        "kind": kind,
+        "gaps": gaps,
+        "n_complete_case": len(eligible),
+        "n_paired_items": len(complete),
+        "per_gap": per_gap,
+        "mcnemar": {
+            "low_gap": low,
+            "high_gap": high,
+            "carries_at_low_only": len(low_only),
+            "carries_at_high_only": len(high_only),
+            "p": sign_test(len(low_only), len(high_only)),
+        },
+        "all_gaps": {
+            "always": sum(all(at[gap][key]["implied_top"] for gap in gaps)
+                          for key in eligible),
+            "never": sum(not any(at[gap][key]["implied_top"] for gap in gaps)
+                         for key in eligible),
+            "mixed": sum(any(at[gap][key]["implied_top"] for gap in gaps)
+                         and not all(at[gap][key]["implied_top"] for gap in gaps)
+                         for key in eligible),
+        },
+        "confidence": confidence,
+    }
+
+
 def within_item(records: list[dict]) -> list[dict]:
     """The ancestor against each chain line of the same item.
 
@@ -305,6 +461,7 @@ def build(directory=LADDER_DIR, *, layer: int = LAYER) -> dict:
                         for record in everything}),
         "by_site": by_site(everything),
         "by_distance_band": by_distance_band(everything),
+        "by_distance_paired": by_distance_paired(everything),
         "within_item": within_item(everything),
         "arm_verdicts": arm_verdicts(directory),
         "records": everything,
@@ -356,6 +513,53 @@ def print_summary(built: dict) -> None:
               f"{_rate(row['implied_top_unique'], row['n']):>18s}   "
               f"{', '.join(row['sites'])}")
 
+    paired = built["by_distance_paired"]
+    if len(paired["gaps"]) < 2:
+        print("\nNo paired distance contrast: this ladder holds the depth-1 "
+              "ancestor at fewer than two placements.")
+        print_within_item(built)
+        return
+    print(f"\nExploratory. The gap arms are one batch at three placements, so "
+          f"pair them:\n{paired['n_complete_case']} items eligible at all "
+          f"{len(paired['gaps'])} gaps, of {paired['n_paired_items']} paired.\n")
+    print(f"{'gap':>4s} {'tokens':>9s} {'implied':>18s} {'raw':>18s} "
+          f"{'med clean p':>12s}   eligible in arm")
+    print("-" * 96)
+    for row in paired["per_gap"]:
+        print(f"{row['gap']:>4d} {row['distance_min']:>4d}-{row['distance_max']:<4d} "
+              f"{_rate(row['implied_top_unique'], row['n_complete_case']):>18s} "
+              f"{_rate(row['raw_top_unique'], row['n_complete_case']):>18s} "
+              f"{row['median_clean_p_target']:>12.3f}   "
+              f"{_rate(row['n_eligible_in_arm'], row['n_items_in_arm'])}")
+    mcnemar = paired["mcnemar"]
+    print(f"  carries at gap{mcnemar['low_gap']} only "
+          f"{mcnemar['carries_at_low_only']}, at gap{mcnemar['high_gap']} only "
+          f"{mcnemar['carries_at_high_only']}, exact p={mcnemar['p']:.4f}; "
+          f"{paired['all_gaps']['always']} always, {paired['all_gaps']['never']} "
+          f"never, {paired['all_gaps']['mixed']} mixed")
+    print("  eligibility itself degrades with the gap, so the complete case sits "
+          "above the arm rates.")
+
+    confidence = paired["confidence"]
+    print("\n  ...but clean confidence moves with the gap too, and it moves most "
+          "in the items that switch:")
+    for group in confidence["groups"]:
+        if not group["n"]:
+            print(f"    {group['group']:22s} n=0    -")
+            continue
+        print(f"    {group['group']:22s} n={group['n']:<4d} p(target) "
+              f"{group['median_clean_p_target_low']:.3f} -> "
+              f"{group['median_clean_p_target_high']:.3f}   median within-item "
+              f"drop {group['median_within_item_drop']:+.3f}")
+    if confidence["drop_p"] is not None:
+        print(f"    steeper drop for the switchers: p={confidence['drop_p']:.4f}; "
+              f"but they did not start harder: p={confidence['baseline_p']:.4f}")
+        print("  So placement and clean confidence are not separated here. The "
+              "claim is a joint\n  association, not 'distance causes copying'.")
+    print_within_item(built)
+
+
+def print_within_item(built: dict) -> None:
     print("\nWithin-item: the ancestor and a chain line, same trace, same clean "
           "readout.\nSign test over the discordant pairs.\n")
     for row in built["within_item"]:

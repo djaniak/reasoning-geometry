@@ -224,6 +224,78 @@ def test_an_arm_with_no_chain_line_yields_no_within_item_contrast():
 
 
 # --------------------------------------------------------------------------
+# the gap arms, paired -- one batch at three placements, not three samples
+# --------------------------------------------------------------------------
+
+
+def gap_arms(*, raw_at_gap2=(), ineligible_at_gap2=(), n_items=4):
+    """The same depth-1 batch at two placements, as the campaign renders it.
+
+    ``raw_at_gap2`` names items whose readout falls back to the raw digit at the
+    far placement, and ``ineligible_at_gap2`` items whose clean answer stops
+    being alone on top there -- the two ways an item leaves the complete case.
+    """
+    out = []
+    for gap in (0, 2):
+        report = arm(1, n_items=n_items, gap=gap)
+        report["gap"] = [gap] * n_items
+        for index in range(n_items):
+            block = [row for row in report["rows"]
+                     if row["kind"] == "ancestor"][index * len(BINS):
+                                                   (index + 1) * len(BINS)]
+            if gap == 2 and index in raw_at_gap2:
+                for row in block:
+                    row["probs_patched"] = probs(row["raw_value"])
+            if gap == 2 and index in ineligible_at_gap2:
+                # A tie at the top: the clean answer is no longer alone.
+                report["items"][index]["clean_probs"] = probs(3, share=0.5)
+                report["items"][index]["clean_probs"][7] = 0.5
+        out.append(records(report, f"depth1_gap{gap}_seed0"))
+    return [record for block in out for record in block]
+
+
+def test_one_placement_is_not_a_paired_contrast():
+    # A ladder holding the site at a single gap has nothing to pair. It must
+    # say so, not report a contrast of one arm against itself.
+    got = dag_e3_ladder.by_distance_paired(records(arm(1), "depth1_gap0_seed0"))
+    assert got["n_complete_case"] == 0
+    assert got["mcnemar"] is None and got["confidence"] is None
+
+
+def test_the_complete_case_keeps_only_items_eligible_at_every_placement():
+    got = dag_e3_ladder.by_distance_paired(gap_arms(ineligible_at_gap2={0, 1}))
+    assert got["n_paired_items"] == 4
+    assert got["n_complete_case"] == 2
+    # The attrition the complete case hides is reported beside it, so the two
+    # denominators cannot be confused for each other.
+    far = next(row for row in got["per_gap"] if row["gap"] == 2)
+    assert far["n_complete_case"] == 2 and far["n_eligible_in_arm"] == 2
+    near = next(row for row in got["per_gap"] if row["gap"] == 0)
+    assert near["n_complete_case"] == 2 and near["n_eligible_in_arm"] == 4
+
+
+def test_a_switch_to_the_raw_digit_is_paired_within_the_item():
+    got = dag_e3_ladder.by_distance_paired(gap_arms(raw_at_gap2={0}))
+    assert got["mcnemar"]["carries_at_low_only"] == 1
+    assert got["mcnemar"]["carries_at_high_only"] == 0
+    assert got["all_gaps"] == {"always": 3, "never": 0, "mixed": 1}
+    switchers, stayers = got["confidence"]["groups"]
+    assert switchers["n"] == 1 and stayers["n"] == 3
+
+
+def test_items_that_are_not_the_same_across_gaps_are_refused():
+    # The pairing is only meaningful because the gap arms are one batch
+    # re-rendered. A regenerated arm with a different item order would pair
+    # silently and wrongly, so the mismatch has to raise.
+    blocks = gap_arms()
+    for record in blocks:
+        if record["gap"] == 2 and record["item"] == 0:
+            record["target"] = 9
+    with pytest.raises(ValueError, match="not the same item across gaps"):
+        dag_e3_ladder.by_distance_paired(blocks)
+
+
+# --------------------------------------------------------------------------
 # the verdicts, and why they are reported rather than applied
 # --------------------------------------------------------------------------
 
