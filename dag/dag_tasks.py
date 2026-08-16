@@ -39,6 +39,16 @@ whether a patched state still moves the answer when a written intermediate value
 contradicts it. That is the honest question for a written chain of thought, but it
 is not "distance in the graph", and the numbers must not be read that way.
 
+The depth ladder patches the ancestor and leaves every written intermediate
+alone, so a null result at depth 2 has two readings: the model did not carry the
+value across a step, or it did not carry it across those tokens. ``chain_edits``
+adds the missing arm. It patches the intermediate itself -- same two positions,
+same donor arithmetic, same clean readout, one step from the target instead of
+``depth`` -- so the ancestor and the intermediate are compared *within one item*
+rather than across arms. Step distance and token distance still fall together
+between the two sites, which is what the gap arms are for; each edit records both
+``steps_to_target`` and ``distance_to_read`` so neither has to be assumed.
+
 ``gap`` is the control that separates depth from length. It puts that many decoy
 lines between the chain and the target, which raises the token distance to the
 read position without adding a step on the path. A drop at depth 2 that a
@@ -106,11 +116,11 @@ class Edit:
     """One donor trace, differing from the clean trace at ``positions`` only.
 
     ``implied_target_value`` is the value the target takes under this edit. For
-    every kind except ``ancestor`` that is the clean target value, because a
-    faithful model should not move at all.
+    every kind except ``ancestor`` and ``chain`` that is the clean target value,
+    because a faithful model should not move at all.
     """
 
-    kind: str  # ancestor | non_ancestor | surface_null | null | cross_item
+    kind: str  # ancestor | chain | non_ancestor | surface_null | null | cross_item
     node: str | None
     positions: tuple[int, ...]
     token_ids: tuple[int, ...]
@@ -122,6 +132,13 @@ class Edit:
     # same prediction as ``implied_target_value``.
     donor_item: int | None = None
     donor_raw_value: int | None = None
+    # Steps along the dependency path from the edited node to the target, for the
+    # two kinds that sit on that path: ``depth`` for ``ancestor``, and one fewer
+    # per chain line already crossed for ``chain``. ``distance_to_read`` is the
+    # token distance and answers a different question; the chain contrast needs
+    # both, since the two move together as depth grows and the gap arms are what
+    # tell them apart.
+    steps_to_target: int | None = None
 
 
 @dataclass(frozen=True)
@@ -385,8 +402,56 @@ def _reroll_root(rng: random.Random, node: Node, condition: str) -> tuple[Node, 
     return dataclasses.replace(node, rhs=str(right), value=value), value
 
 
+def _chain_donor_options(start: int, steps: tuple[int, ...], index: int,
+                         distinct: bool, target_value: int
+                         ) -> list[tuple[int, int, int]]:
+    """``(rhs, value, implied)`` a chain line can be rerolled to, at ``index``.
+
+    ``steps`` is the whole ancestor-to-target path, one signed increment per
+    line; the chain line at ``index`` is written by ``steps[index]`` and reaches
+    the target through ``steps[index + 1:]``, which is never empty because the
+    target's own step is in it.
+
+    The operator is not a candidate for rerolling. It sits at no declared patch
+    position, so a donor that flipped it would differ outside the two sites every
+    value edit declares, and ``_finish_edit`` would refuse it. That is what makes
+    the option set finite enough to be empty, which is why the sampler consults
+    this function before committing to a chain rather than discovering it here.
+
+    Under ``distinct`` the same three-way separation the ancestor edit gets is
+    required of this one: the digit the donor line states must be neither the
+    clean answer nor the value it implies, or "carried the value through the
+    remaining steps" and "copied the digit sitting at the patched position"
+    stop being different predictions. The second can only fail for a whole line
+    at once -- the steps below it sum to zero or they do not -- so at depth 3 it
+    is a constraint on which chains are sampled, not on which digit is drawn.
+    """
+    parent = start + sum(steps[:index])
+    sign = 1 if steps[index] > 0 else -1
+    options = []
+    for rhs in range(1, 10):
+        if rhs == abs(steps[index]):
+            continue
+        value = parent + sign * rhs
+        if not 0 <= value <= 9:
+            continue
+        implied, in_range = value, True
+        for step in steps[index + 1:]:
+            implied += step
+            if not 0 <= implied <= 9:
+                in_range = False
+                break
+        if not in_range:
+            continue
+        if distinct and (value == target_value or implied == value):
+            continue
+        options.append((rhs, value, implied))
+    return options
+
+
 def _sample_chain(rng: random.Random, n_steps: int, start: int,
-                  donor_start: int, delta: int, tries: int = 200):
+                  donor_start: int, delta: int, tries: int = 200,
+                  donors: bool = False, distinct: bool = False):
     """Signed increments along the ancestor-to-target path, one per step.
 
     Every step is ``value ± rhs``, so the path as a whole is the affine map
@@ -399,6 +464,17 @@ def _sample_chain(rng: random.Random, n_steps: int, start: int,
     Only the intermediate values are free, and they must stay single digits on
     both the clean and the donor path. That is the one constraint resolved here,
     drawn from the chain stream, so failing it can never shift the spine.
+
+    ``donors`` adds one more constraint, and only when a run asks for chain
+    edits: every chain line must admit a donor of its own. It is resolved here
+    rather than at the edit, because a chain edit that could be missing from some
+    items and not others would break the fixed rows-per-item layout the scorer
+    reads a report back through, and rejecting the item instead would re-roll it
+    off the *main* stream and desynchronise the depth arms. Restricting the chain
+    keeps both failures out of reach: the chain is the one part of the item the
+    spine does not fix, so narrowing it moves no other line. Chains differ from
+    those a run without chain edits samples, and the ancestor edit does not --
+    the net delta is fixed by the spine either way.
     """
     if n_steps == 1:
         return (delta,)
@@ -417,13 +493,18 @@ def _sample_chain(rng: random.Random, n_steps: int, start: int,
         else:
             last = delta - sum(steps)
             if last and -9 <= last <= 9:
-                return (*steps, last)
+                full = (*steps, last)
+                if not donors or all(
+                    _chain_donor_options(start, full, index, distinct, start + delta)
+                    for index in range(n_steps - 1)
+                ):
+                    return full
     raise Reject("no chain realises the required net delta")
 
 
 def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
                   depth: int, gap: int | None, distinct: bool = False,
-                  omit: str = "none") -> DagItem:
+                  omit: str = "none", chain_edits: bool = False) -> DagItem:
     """Build an item whose spine does not move with ``depth``.
 
     Depth-1 item *i* and depth-3 item *i* must be the same trace apart from the
@@ -505,7 +586,8 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
     edited_tags = rng.sample(upstream, 2)
 
     chain = tuple(DECOY_NAMES[-(depth - 1):]) if depth > 1 else ()
-    steps = _sample_chain(chain_rng, depth, start, rerolled, value_c - start)
+    steps = _sample_chain(chain_rng, depth, start, rerolled, value_c - start,
+                          donors=chain_edits, distinct=distinct)
     parent, running = ANCESTOR, start
     for name, step in zip(chain, steps):
         running += step
@@ -581,6 +663,15 @@ def _build_paired(rng: random.Random, encode, n_decoys: int, condition: str,
             continue
         edits.append(_value_edit(rng, item, nodes, order, tags, encode, name,
                                  "null", condition, chain))
+    # Appended last, and drawn from the chain stream rather than the main one, so
+    # that turning them on leaves every line above and every edit above it
+    # untouched: a chain-edit run is the same batch as a plain one at the same
+    # seed apart from its chain values, which `_sample_chain` narrows. One per
+    # chain line, always, so the rows-per-item block layout stays fixed.
+    for name in chain if chain_edits else ():
+        edits.append(_chain_edit(chain_rng, item, nodes, order, tags, encode,
+                                 name, "chain", condition, chain, steps, start,
+                                 distinct))
     return dataclasses.replace(item, edits=tuple(edits))
 
 
@@ -675,7 +766,8 @@ def _build_unpaired(rng: random.Random, encode, n_decoys: int, condition: str,
 
 
 def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
-                 force_positions=None, donor_raw_value=None) -> Edit:
+                 force_positions=None, donor_raw_value=None,
+                 steps_to_target=None) -> Edit:
     ids, _ = encode_chunks(_render(nodes, order, tags, item.omit_pad), encode)
     if len(ids) != len(item.token_ids):
         raise Reject("donor length differs from clean")
@@ -698,6 +790,7 @@ def _finish_edit(item, nodes, order, tags, encode, kind, name, implied,
         implied_target_value=implied,
         distance_to_read=item.read_position - max(positions),
         donor_raw_value=donor_raw_value,
+        steps_to_target=steps_to_target,
     )
 
 
@@ -722,7 +815,58 @@ def _value_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
     # gate cannot otherwise tell "propagated the value" from "copied the digit".
     return _finish_edit(item, edited, order, tags, encode, kind, name, implied,
                         force_positions=tuple(sorted(sites)),
-                        donor_raw_value=edited[name].value)
+                        donor_raw_value=edited[name].value,
+                        # Only the ancestor is on the path to the target; a
+                        # non-ancestor or a decoy has no step count to report.
+                        steps_to_target=len(chain) + 1 if name == ANCESTOR else None)
+
+
+def _chain_edit(rng, item, nodes, order, tags, encode, name, kind, condition,
+                chain, steps, start, distinct) -> Edit:
+    """Patch a written intermediate instead of the ancestor.
+
+    This edit and the ancestor edit are the same intervention: two token
+    positions on one line, one donor value, the same affine counterfactual
+    through whatever the trace states after it. They differ in one thing, which
+    is how many written lines stand between the patched value and the target --
+    ``depth`` for the ancestor, one for the last chain line whatever the depth.
+
+    That makes the pair a *within-item* contrast. The depth ladder compares an
+    ancestor edit against another item's ancestor edit at another depth, and
+    carries the objection that the two arms differ in token distance as well as
+    in steps. Here both edits land in the same trace, on the same clean readout,
+    against the same null spread, and one of them is one step from the target by
+    construction. If the ancestor edit is inert at depth 2 and this one is not,
+    the trace's written values are doing the carrying.
+
+    The step distance and the token distance still move together -- the chain
+    line sits nearer the target than the ancestor does -- so this is a
+    dissociation between two patch sites, not yet an unconfounded one. The
+    matched gap arms are what separate the two, and ``steps_to_target`` is
+    recorded beside ``distance_to_read`` so the analysis can hold one fixed.
+    """
+    index = chain.index(name)
+    options = _chain_donor_options(start, steps, index, distinct,
+                                   item.target_value)
+    if not options:  # pragma: no cover -- the sampler is asked to rule this out
+        raise Reject("chain line admits no donor")
+    rhs, value, implied = rng.choice(options)
+    node = nodes[name]
+    if condition == "result_only":
+        donor = dataclasses.replace(node, value=value)
+    elif condition == "operand_only":
+        donor = dataclasses.replace(node, rhs=str(rhs))
+    else:
+        donor = dataclasses.replace(node, rhs=str(rhs), value=value)
+    sites = (item.operand_positions[name], item.value_positions[name])
+    return _finish_edit(item, dict(nodes) | {name: donor}, order, tags, encode,
+                        kind, name, implied,
+                        force_positions=tuple(sorted(sites)),
+                        # The digit the donor line states, which under
+                        # ``operand_only`` is still the clean one. Same rule as
+                        # ``_value_edit``; see the note there.
+                        donor_raw_value=donor.value,
+                        steps_to_target=len(chain) - index)
 
 
 def _tag_edit(rng, item, nodes, order, tags, encode, names=None,
@@ -910,7 +1054,7 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
                    condition: str = "both", depth: int = 1, gap: int | None = None,
                    generator: str = DEFAULT_GENERATOR,
                    cross_item: bool = False, oversample: int | None = None,
-                   omit: str = "none"):
+                   omit: str = "none", chain_edits: bool = False):
     """Sample ``n_items`` DAG items. ``encode`` maps text to a list of token ids.
 
     ``condition`` selects the donor condition for every value edit in the batch,
@@ -935,6 +1079,14 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
     number from lines the target does not depend on. It is a rendering choice
     and consumes nothing from the stream, so an omitted batch is the *same*
     batch as the written one, item for item.
+
+    ``chain_edits`` adds one edit per written intermediate, patching the values
+    the depth ladder leaves clean. It is off by default because the archived
+    artifacts were measured without it and are re-derived by regenerating their
+    items: an extra edit in the list would fail the replay in ``dag_evidence``.
+    On, it narrows which chains are sampled -- see ``_sample_chain`` -- so a
+    depth arm's chain values are not the ones a plain run at the same seed draws.
+    Everything the spine fixes, the ancestor edit included, is unchanged.
     """
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}, "
@@ -946,6 +1098,16 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
         raise ValueError(f"depth must be at least 1, got {depth}")
     if omit not in OMIT_MODES:
         raise ValueError(f"unknown omit mode {omit!r}, expected one of {OMIT_MODES}")
+    if chain_edits and omit == "chain":
+        # The chain edit rewrites a written intermediate's result digit, and
+        # `omit="chain"` is the arm that does not write one. Asking for both is
+        # asking to patch a position that does not exist.
+        raise ValueError("chain edits patch the written intermediates, which "
+                         "omit='chain' does not write; pick one")
+    # No guard for depth 1: there is no intermediate to patch, so the flag is a
+    # no-op there and the arm is the contrast's own control -- the same rule
+    # `omit` already follows. The realised chain nodes are recorded per item, so
+    # "asked for and got none" stays distinguishable from "did not ask".
     # Chain steps consume decoy names, every line consumes a line tag, and the
     # surface-null edit needs two tags left over.
     budget = min(len(DECOY_NAMES) + 1, len(TAG_POOL) - 5)
@@ -956,14 +1118,15 @@ def generate_items(encode, *, n_items: int = 5, n_decoys: int = 6, seed: int = 0
         raise ValueError(f"gap must be between 0 and n_decoys ({n_decoys}), got {gap}")
     distinct = generator == "v3_distinct"
     if generator == "v1_unpaired":
-        if omit != "none":
-            raise ValueError("v1_unpaired predates omission and is frozen; "
-                             "use v2_paired or v3_distinct")
+        if omit != "none" or chain_edits:
+            raise ValueError("v1_unpaired predates omission and chain edits and "
+                             "is frozen; use v2_paired or v3_distinct")
         build = _build_unpaired
     else:
         def build(rng, encode, n_decoys, condition, depth, gap):
             return _build_paired(rng, encode, n_decoys, condition, depth,
-                                 gap, distinct=distinct, omit=omit)
+                                 gap, distinct=distinct, omit=omit,
+                                 chain_edits=chain_edits)
     # Sampling a wider pool and then selecting is what lets the cross-item batch
     # be mutually donatable. Without the control the pool is the batch, so the
     # ladder's items are untouched by any of this.

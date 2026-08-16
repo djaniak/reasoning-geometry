@@ -239,6 +239,10 @@ def measure_item(model, item, bins, digit_ids) -> list[dict]:
                 # survived alongside the rows.
                 "clean_value": item.target_value,
                 "distance_to_read": edit.distance_to_read,
+                # Steps along the dependency path, which only the two kinds that
+                # sit on it have. None elsewhere rather than absent, so a row's
+                # schema does not depend on its kind.
+                "steps_to_target": edit.steps_to_target,
                 "tv": float(0.5 * abs(p_probs - probs).sum()),
                 "delta_toward": float(
                     p_logodds[edit.implied_target_value]
@@ -414,6 +418,13 @@ def _control_specificity_gate(per_item: list[list[dict]], bins: list[int]) -> di
             for row in rows:
                 probs, clean = row.get("probs_patched"), row.get("clean_value")
                 if row["layer"] != layer or probs is None or clean is None:
+                    continue
+                if row["kind"] not in ("ancestor", *controls):
+                    # A kind this gate does not count cannot make it measured.
+                    # Every archived report carries distributions on all its rows
+                    # or on none, so this scopes the flag without moving one;
+                    # what it keeps out is the chain row, which is neither the
+                    # ancestor nor part of the background it is compared against.
                     continue
                 measured = True
                 moved = probs[clean] < max(probs)
@@ -919,7 +930,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         output_path: str | None, self_test_only: bool,
         condition: str = "both", depth: int = 1, gap: int | None = None,
         generator: str = DEFAULT_GENERATOR, cross_item: bool = False,
-        omit: str = "none") -> dict:
+        omit: str = "none", chain_edits: bool = False) -> dict:
     import torch
     from transformers import AutoTokenizer
 
@@ -937,6 +948,7 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         generator=generator,
         cross_item=cross_item,
         omit=omit,
+        chain_edits=chain_edits,
     )
     digit_ids = digit_token_ids(tokenizer)
 
@@ -975,6 +987,15 @@ def run(*, model_name: str, n_items: int, n_decoys: int, seed: int,
         # and telling those apart is the contrast's own control.
         "omit": omit,
         "omitted_nodes": [list(item.omit) for item in items],
+        # Whether the written intermediates were patched too, and which lines
+        # they turned out to be. Both, for the same reason `omit` records both:
+        # at depth 1 the flag is set and there is nothing to patch, and an
+        # analysis has to be able to tell that from a run that never asked.
+        "chain_edits": chain_edits,
+        "chain_nodes": [
+            [edit.node for edit in item.edits if edit.kind == "chain"]
+            for item in items
+        ],
         "gap": [item.gap for item in items],
         "n_items": len(items),
         "seed": seed,
@@ -1088,6 +1109,58 @@ def print_gate_table(report: dict) -> None:
                   f"{entry['median_delta_toward']:<16.3f}"
                   f"{entry['median_tv']:.3f}")
         print(f"  layers clearing both: {cross['layers'] or 'none'}")
+    print_chain_rows(report)
+
+
+def print_chain_rows(report: dict) -> None:
+    """The chain arm, beside the verdict and outside it.
+
+    No gate reads these rows, so this is the only place the run reports them.
+    What it is for: the ancestor edit and the chain edit are the same
+    intervention in the same trace, so a chain line that moves the readout onto
+    the digit it implies is a positive control *inside* the arm. Without one, an
+    ancestor that does nothing at depth 2 is ambiguous between a model that
+    carries no value across the step and a patch that failed here -- which is
+    why `e2_stage_b/depth2.json` could only be scored an invalid test.
+    """
+    rows = [row for row in report.get("rows", []) if row["kind"] == "chain"]
+    if not rows:
+        return
+    scored = report.get("gates", {}).get("scoring_layers") or report["layer_bins"]
+
+    def on_implied(block):
+        return sum(row.get("probs_patched") is not None
+                   and max(range(len(row["probs_patched"])),
+                           key=lambda d: row["probs_patched"][d])
+                   == row.get("implied_value") for row in block)
+
+    print()
+    print("chain rows (reported beside the verdict, never binding): the same "
+          "edit on a written\nintermediate, `steps` lines from the target "
+          "instead of the ancestor's `depth`")
+    print(f"  {'layer':<8}{'steps':<8}{'dist':<7}{'on implied':<13}"
+          f"{'median TV':<12}median toward")
+    ancestor = [row for row in report["rows"] if row["kind"] == "ancestor"]
+    for layer in scored:
+        for steps in sorted({row.get("steps_to_target") for row in rows},
+                            key=lambda value: (value is None, value)):
+            at = [row for row in rows
+                  if row["layer"] == layer and row.get("steps_to_target") == steps]
+            hit = on_implied(at)
+            print(f"  {layer:<8}{str(steps or '?'):<8}"
+                  f"{at[0]['distance_to_read']:<7}"
+                  f"{f'{hit}/{len(at)}':<13}"
+                  f"{statistics.median(row['tv'] for row in at):<12.3f}"
+                  f"{statistics.median(row['delta_toward'] for row in at):.3f}")
+        same = [row for row in ancestor if row["layer"] == layer]
+        if not same:
+            continue
+        hit = on_implied(same)
+        print(f"  {layer:<8}{str(same[0].get('steps_to_target') or '?'):<8}"
+              f"{same[0]['distance_to_read']:<7}{f'{hit}/{len(same)}':<13}"
+              f"{statistics.median(row['tv'] for row in same):<12.3f}"
+              f"{statistics.median(row['delta_toward'] for row in same):.3f}"
+              f"   <- ancestor, same items")
 
 
 def parse_args() -> argparse.Namespace:
@@ -1118,6 +1191,13 @@ def parse_args() -> argparse.Namespace:
                              "'decoy' omits as many values from lines the "
                              "target does not depend on, which is the control "
                              "for the notation itself. A no-op at depth 1")
+    parser.add_argument("--chain_edits", action="store_true",
+                        help="also patch each written intermediate, one step "
+                             "from the target instead of --depth. The "
+                             "within-item contrast for the depth collapse; "
+                             "narrows which chains are sampled, so the arm is "
+                             "not item-identical to a plain run at the same "
+                             "seed. A no-op at depth 1")
     parser.add_argument("--output", default=None)
     parser.add_argument("--self_test", action="store_true",
                         help="run the identity patch and stop, no science")
@@ -1148,6 +1228,7 @@ def main() -> None:
         gap=args.gap,
         cross_item=args.cross_item,
         omit=args.omit,
+        chain_edits=args.chain_edits,
         output_path=args.output,
         self_test_only=args.self_test,
     )

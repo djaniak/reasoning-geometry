@@ -14,6 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dag import dag_patching
 from dag.dag_patching import (
     ACTIVE_GATE_POLICY,
     GATE_POLICIES,
@@ -1021,3 +1022,87 @@ def test_the_specificity_diagnostic_needs_the_distributions():
     # The archived eight store none, so this cannot be checked on them at all.
     gates = evaluate_gates([floor_rows(0, away=-5.0)] * 5, [0])
     assert gates["control_specificity"]["measured"] is False
+
+
+# --------------------------------------------------------------------------
+# chain rows
+#
+# `--chain_edits` adds a sixth row kind. It is a *measurement*, not a gate: the
+# verdict function is frozen at `v2_gap_and_floor`, and binding a verdict to a
+# reading introduced in the same change would make the arm's own result decide
+# how the arm is scored. So the rows are recorded, reported, and inert -- which
+# is a claim about the scorer, and is therefore tested rather than intended.
+# --------------------------------------------------------------------------
+
+
+def chain_report(n_items=5, bins=(6, 13, 20, 27), *, n_chain=1):
+    """`stored_report`'s layout with `n_chain` chain groups appended per item."""
+    report = stored_report(n_items=n_items, bins=bins)
+    rows, per_item = [], len(report["rows"]) // n_items
+    for index in range(n_items):
+        block = report["rows"][index * per_item:(index + 1) * per_item]
+        rows.extend(block)
+        for _ in range(n_chain):
+            for layer in bins:
+                rows.append({
+                    "kind": "chain", "node": "n", "layer": layer,
+                    "distance_to_read": 11, "steps_to_target": 1,
+                    # Loud enough to move every relative gate if it were read:
+                    # above the null spread, above the surface edit, and pushed
+                    # hard toward its own implied digit.
+                    "tv": 0.9, "delta_toward": 3.0, "delta_away": -5.0,
+                    "clean_target_logodds": -0.02, "clean_value": 3,
+                    "implied_value": 7, "probs_patched": spread(0.02, 3),
+                    "digit_mass_clean": 1.0, "digit_mass_patched": 1.0,
+                })
+    return report | {"rows": rows}
+
+
+def test_a_chain_row_block_survives_the_layout_check():
+    per_item = unflatten_rows(chain_report())
+    assert len(per_item) == 5
+    assert all(sum(row["kind"] == "chain" for row in block) == 4
+               for block in per_item)
+
+
+@pytest.mark.parametrize("n_chain", [1, 2])
+def test_chain_rows_change_no_gate_and_no_verdict(n_chain):
+    without = rescore_report(stored_report())
+    with_chain = rescore_report(chain_report(n_chain=n_chain))
+    assert with_chain["verdict"] == without["verdict"] == "positive"
+    for policy in with_chain["scoring"]:
+        assert (with_chain["scoring"][policy]["gates"]
+                == without["scoring"][policy]["gates"])
+
+
+def test_a_loud_chain_row_does_not_widen_the_null_spread():
+    # The gap gate is ancestor-minus-non-ancestor against the *null* spread. A
+    # chain row swept into that spread by a `kind != "ancestor"` filter would
+    # make a real ancestor gap look small and flip a positive to a negative.
+    gates = rescore_report(chain_report())["gates"]
+    for entry in gates["detail"]:
+        assert entry["tv_null_max"] == 0.03
+
+
+def test_the_control_specificity_reading_ignores_chain_rows():
+    # It counts a moving background against a moving ancestor. The chain edit is
+    # supposed to move, so counting it as background would make the arm look
+    # unselective exactly when it succeeded.
+    gates = rescore_report(chain_report())["gates"]
+    for counts in gates["control_specificity"]["per_layer"].values():
+        assert counts["n_control"] == 7 * counts["n_items"] // 5
+
+
+def test_printing_chain_rows_is_a_no_op_on_a_report_without_them(capsys):
+    # Every archived report is one of these, and the printer runs on all of them.
+    dag_patching.print_chain_rows(stored_report())
+    assert capsys.readouterr().out == ""
+
+
+def test_printing_chain_rows_reports_them_against_the_ancestor(capsys):
+    report = rescore_report(chain_report())
+    dag_patching.print_chain_rows(report)
+    out = capsys.readouterr().out
+    assert "never binding" in out
+    assert out.count("<- ancestor, same items") == len(
+        report["gates"]["scoring_layers"])

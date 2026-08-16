@@ -1077,3 +1077,210 @@ def test_an_omitted_line_contributes_no_null_edit():
 def test_an_unknown_omit_mode_is_refused():
     with pytest.raises(ValueError, match="unknown omit mode"):
         generate_items(char_encode, n_items=1, omit="everything")
+
+
+# --------------------------------------------------------------------------
+# chain edits
+#
+# The depth ladder patches the ancestor and leaves the written intermediates
+# clean, so a dead depth-2 ancestor has two readings: no value crossed the step,
+# or no value crossed those tokens. `--chain_edits` patches the intermediate
+# itself. It is the same intervention on the same trace one step from the target
+# instead of `depth`, so the two sites are compared inside one item against one
+# clean readout, and the gap arms already say what token distance alone does.
+#
+# Two properties carry the design and are tested rather than assumed: every item
+# gets one chain edit per chain line -- the scorer reads a report back through a
+# fixed rows-per-item layout, so a sometimes-missing edit would regroup two items
+# into one block -- and turning the flag on moves nothing the spine fixes.
+# --------------------------------------------------------------------------
+
+
+def chain_items(depth, *, n_items=5, seed=0, gap=0, generator=V3, **kwargs):
+    return generate_items(char_encode, n_items=n_items, seed=seed, depth=depth,
+                          gap=gap, generator=generator, chain_edits=True,
+                          **kwargs)
+
+
+def chain_edits(item):
+    return [edit for edit in item.edits if edit.kind == "chain"]
+
+
+def test_chain_edits_are_off_unless_asked_for():
+    for item in generate_items(char_encode, n_items=5, seed=0, depth=3, gap=0,
+                               generator=V3):
+        assert not chain_edits(item)
+
+
+@pytest.mark.parametrize("depth", [2, 3, 4])
+def test_every_item_gets_one_chain_edit_per_intermediate(depth):
+    # Uniform across items, not merely present: `unflatten_rows` recovers per
+    # item blocks by dividing the row count, so one item with a different number
+    # of edits mixes two items into one block and scores a plausible-looking
+    # verdict off it.
+    for seed in range(6):
+        counts = {len(chain_edits(item))
+                  for item in chain_items(depth, seed=seed, n_decoys=5)}
+        assert counts == {depth - 1}
+
+
+def test_a_chain_edit_patches_a_node_on_the_path_to_the_target():
+    for item in chain_items(3):
+        path = ancestors(set(item.edges), TARGET) - {ANCESTOR}
+        assert {edit.node for edit in chain_edits(item)} == path
+
+
+def test_the_last_chain_edit_is_one_step_from_the_target():
+    for depth in (2, 3):
+        for item in chain_items(depth):
+            steps = sorted(edit.steps_to_target for edit in chain_edits(item))
+            assert steps == list(range(1, depth))
+
+
+def test_the_ancestor_edit_is_depth_steps_from_the_target():
+    for depth in (1, 2, 3):
+        for item in generate_items(char_encode, n_items=5, seed=0, depth=depth,
+                                   gap=0, generator=V3):
+            ancestor = next(e for e in item.edits if e.kind == "ancestor")
+            assert ancestor.steps_to_target == depth
+
+
+def test_edits_off_the_path_report_no_step_count():
+    for item in chain_items(3):
+        for edit in item.edits:
+            if edit.kind in ("non_ancestor", "null", "surface_null"):
+                assert edit.steps_to_target is None
+
+
+def test_a_chain_edit_lands_on_its_own_lines_two_digit_sites():
+    for item in chain_items(3):
+        for edit in chain_edits(item):
+            assert edit.positions == tuple(sorted(
+                (item.operand_positions[edit.node],
+                 item.value_positions[edit.node])))
+
+
+def test_a_chain_edit_implies_what_the_rest_of_the_written_trace_computes():
+    for item in chain_items(3):
+        for edit in chain_edits(item):
+            # Re-derive from the clean trace: the donor's digit, then every
+            # step the trace still states after it.
+            value = edit.donor_raw_value
+            name = item.nodes[edit.node].name
+            while name != TARGET:
+                child = next(c for p, c in item.edges if p == name)
+                node = item.nodes[child]
+                value = value + int(node.rhs) if node.op == "+" \
+                    else value - int(node.rhs)
+                name = child
+            assert value == edit.implied_target_value
+
+
+def test_a_chain_edit_keeps_all_three_competing_digits_distinct():
+    for seed in range(8):
+        for depth in (2, 3):
+            for item in chain_items(depth, seed=seed):
+                for edit in chain_edits(item):
+                    assert len({edit.donor_raw_value,
+                                edit.implied_target_value,
+                                item.target_value}) == 3
+
+
+@pytest.mark.parametrize("condition", DONOR_CONDITIONS)
+def test_every_condition_builds_the_same_chain_edits(condition):
+    # The clean trace, the patched positions and the implied value must not
+    # depend on which part of the donor line states the reroll -- the same rule
+    # the ancestor edit follows.
+    base = chain_items(3)
+    other = chain_items(3, condition=condition)
+    for one, two in zip(base, other):
+        assert one.token_ids == two.token_ids
+        for first, second in zip(chain_edits(one), chain_edits(two)):
+            assert first.positions == second.positions
+            assert first.implied_target_value == second.implied_target_value
+
+
+def test_the_chain_edit_sits_nearer_the_read_position_than_the_ancestor():
+    # Which is the confound the arm cannot remove on its own, and the reason the
+    # gap ladder is what the comparison is read against: a depth-1 ancestor at a
+    # matched distance is a separate arm, not a row in this one.
+    for item in chain_items(2):
+        ancestor = next(e for e in item.edits if e.kind == "ancestor")
+        last = next(e for e in chain_edits(item) if e.steps_to_target == 1)
+        assert last.distance_to_read < ancestor.distance_to_read
+
+
+def test_turning_chain_edits_on_leaves_the_spine_paired_across_depth():
+    # The whole point of `v2_paired`. If asking for chain edits re-rolled an
+    # item off the main stream, the depth arms would stop being the same trace.
+    families = {depth: chain_items(depth, n_decoys=5) for depth in (2, 3, 4)}
+    for index in range(5):
+        spines = []
+        for depth, batch in families.items():
+            item = batch[index]
+            path = ancestors(set(item.edges), TARGET) - {ANCESTOR}
+            spines.append([
+                (name, item.nodes[name].lhs, item.nodes[name].op,
+                 item.nodes[name].rhs, item.nodes[name].value)
+                for name in item.order if name not in path | {TARGET}
+            ])
+        assert all(other == spines[0] for other in spines[1:])
+
+
+def test_the_ancestor_edit_is_untouched_by_asking_for_chain_edits():
+    # The chain narrows, the spine does not: the ancestor's donor line and the
+    # value it implies are drawn before the chain exists, and the chain is
+    # constrained to realise the same net delta either way.
+    for depth in (2, 3):
+        plain = generate_items(char_encode, n_items=5, seed=0, depth=depth,
+                               gap=0, generator=V3)
+        with_chain = chain_items(depth)
+        for one, two in zip(plain, with_chain):
+            first = next(e for e in one.edits if e.kind == "ancestor")
+            second = next(e for e in two.edits if e.kind == "ancestor")
+            assert one.target_value == two.target_value
+            assert first.implied_target_value == second.implied_target_value
+            assert first.donor_raw_value == second.donor_raw_value
+
+
+def test_chain_edits_are_refused_where_the_intermediates_are_unwritten():
+    with pytest.raises(ValueError, match="omit='chain' does not write"):
+        generate_items(char_encode, n_items=1, depth=2, generator=V3,
+                       omit="chain", chain_edits=True)
+
+
+def test_chain_edits_are_refused_on_the_frozen_family():
+    with pytest.raises(ValueError, match="v1_unpaired predates"):
+        generate_items(char_encode, n_items=1, depth=2,
+                       generator="v1_unpaired", chain_edits=True)
+
+
+def test_depth_one_asks_for_chain_edits_and_correctly_gets_none():
+    # A no-op rather than an error, so one sweep can pass the same flag to every
+    # arm; depth 1 is the contrast's own control.
+    for item in chain_items(1):
+        assert not chain_edits(item)
+
+
+def test_a_chain_edit_arm_is_still_paired_against_a_plain_depth_one_arm():
+    # The comparison the ladder is for: depth-1 item i is the depth-2 arm's
+    # control, and the depth-2 arm is the one that asks for chain edits. If the
+    # flag moved the main stream, the two arms would stop being the same trace
+    # and the depth contrast would go back to being between-family.
+    shallow = generate_items(char_encode, n_items=5, seed=0, depth=1, gap=0,
+                             generator=V3)
+    for depth in (2, 3):
+        deep = chain_items(depth)
+        for one, two in zip(shallow, deep):
+            path = ancestors(set(two.edges), TARGET) - {ANCESTOR}
+            spine = lambda item, drop: [
+                (name, item.nodes[name].lhs, item.nodes[name].op,
+                 item.nodes[name].rhs, item.nodes[name].value)
+                for name in item.order if name not in drop
+            ]
+            assert spine(one, {TARGET}) == spine(two, path | {TARGET})
+            assert one.target_value == two.target_value
+            first = next(e for e in one.edits if e.kind == "ancestor")
+            second = next(e for e in two.edits if e.kind == "ancestor")
+            assert first.implied_target_value == second.implied_target_value
+            assert first.donor_raw_value == second.donor_raw_value
