@@ -17,7 +17,7 @@ by walking up to the repo root, so `archive/` needs no path changes.
 | Notebook | Regime | Bottom line |
 |:---|:---|:---|
 | [14_rmd_paper_story](14_rmd_paper_story.ipynb) | Between-prompt | **Start here.** The narrative spine of the selective-prediction half: the object of study, what collapsed under control, the increment on three models, the four controls it survives, and the four things geometry does not do. Reads every number out of a committed artifact. |
-| [15_dag_paper_story](15_dag_paper_story.ipynb) | Causal (synthetic) | **The other half, on its own.** Activation patching on a synthetic arithmetic DAG, written as the paper argument: three claims, then the whole intervention — its vocabulary, one real item end to end, and the headline result — in one opening figure, the depth ladder and its specificity profile, the distance / cross-item / written-vs-omitted objections, then E2 stage A's measured confound and stage B's pre-registered 24/24 vs 0/24. The only write-up of that thread outside `results/dag_patching/` and `EXPERIMENT_LOG.md`. |
+| [15_dag_paper_story](15_dag_paper_story.ipynb) | Causal (synthetic) | **The other half, on its own.** Activation patching on a synthetic arithmetic DAG, written as the paper argument: three claims, then the whole intervention — its vocabulary, one real item end to end, and the headline result — in one opening figure, the depth ladder and its specificity profile, the distance / cross-item / written-vs-omitted objections, E2 stage A's measured confound and stage B's pre-registered 24/24 vs 0/24, then the E3 campaign at 48 items a seed: the step cliff (555/603 at one written step, 0/432 beyond it), the written intermediate patched inside the same item (144/144 twice over), and the two things E3 complicates — the gap arms' entanglement of distance with clean confidence, and a verdict quorum that does not survive a 10× change in N. The only write-up of that thread outside `results/dag_patching/` and `EXPERIMENT_LOG.md`. |
 | [13_deepconf_null_and_label_efficiency](13_deepconf_null_and_label_efficiency.ipynb) | Between-prompt | **Most recent.** DeepConf is at chance on both models in all three framings, so no external baseline is left to beat. Against a supervised probe on the same states, one-class geometry leads below a crossing at 60–226 labels — but because the LDA collapses there, not because the Gaussian excels. ~2× label saving, confined to 25–100 labels. |
 | [11_prompt_geometry_core_experiments](11_prompt_geometry_core_experiments.ipynb) | Within-prompt | **Primary analysis.** Entropy-localized RMD beats full-trace RMD at every layer (+0.052/+0.055/+0.058, p ≤ 0.006) and is entropy-specific, but only *ties* free output baselines. Sample selection is negative with a structural ceiling. |
 | [12_wave1_abstention](12_wave1_abstention.ipynb) | Between-prompt | **Headline positive.** `rmd_tail_q20` hits 0.852 acc@50% coverage vs length 0.748 / entropy 0.692; beats the length confound baseline by +0.069 AURC (p < 0.001). Mechanism follow-ups E4–E7 all negative. |
@@ -56,6 +56,24 @@ first figure with `dag/dag_tasks.py`, from the identity each arm stored for the
 item, and checks them against the digits that arm recorded before drawing them.
 Skim `archive/` before proposing any follow-up in those directions — the
 questions are answered.
+
+## 15 is generated, not hand-edited
+
+`15_dag_paper_story.ipynb` is written by
+[`build_15_dag_paper_story.py`](build_15_dag_paper_story.py) and then executed in
+place by [`execute_notebook.py`](execute_notebook.py), which drives a kernel
+through `jupyter_client` because `nbconvert` and `nbclient` are not in this
+environment. Edit the generator and rebuild; a hand-patch of the `.ipynb` is
+overwritten by the next build.
+
+```
+uv run python notebooks/build_15_dag_paper_story.py
+uv run python notebooks/execute_notebook.py notebooks/15_dag_paper_story.ipynb notebooks
+```
+
+Then **look at the figures**. A layout collision renders silently and does not
+raise, so a build that reports zero failed cells can still have produced an
+unreadable panel.
 
 Retirement rationale for every removed DVC stage, with the evidence behind each
 verdict, is in [`EXPERIMENT_LOG.md`](../EXPERIMENT_LOG.md) under
