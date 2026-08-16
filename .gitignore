@@ -72,6 +72,22 @@ env/
 !/results/dag_patching/e2_stage_b/*.json
 !/results/dag_patching/e2_stage_b/README.md
 
+# And E3 at the registered N, with the chain-node arm: 15 cells of 48 items.
+#
+# Size is worth stating, since this directory alone is bigger than every one
+# above put together: ~27 MB on disk against their ~8.4 MB, because
+# `probs_patched` is ten floats on every one of ~1,800 rows per arm and there are
+# fifteen arms. What git stores is the compressed size, and JSON of this shape
+# compresses about 6.5x -- ~4.1 MB against the existing arms' ~1.3 MB. That field
+# is what the absolute-effect floor and every argmax reading are computed from,
+# and re-running to recover it costs a GPU, so it is worth the four megabytes.
+# The `.log` files are left out, as everywhere above -- the gate tables they hold
+# are derivable from the JSON.
+!/results/dag_patching/e3_ladder/
+/results/dag_patching/e3_ladder/*
+!/results/dag_patching/e3_ladder/*.json
+!/results/dag_patching/e3_ladder/README.md
+
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
 .dvc/tmp/

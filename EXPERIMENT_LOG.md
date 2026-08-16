@@ -5,6 +5,122 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-16: E3 at N, and the chain-node arm — the collapse is a step cliff, and the scoring policy does not scale
+
+Two things in one campaign of 15 arms: E3's registered N for the paired ladder,
+and a new patch site that the ladder never had.
+
+### Parameterization
+
+No DVC stage; 15 direct CLI runs, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`,
+float32, layers 6/13/20/27 with 27 dropped from scoring.
+
+```
+uv run python -m dag.dag_patching \
+  --n_items 48 --n_decoys 6 --generator v3_distinct \
+  --depth D --gap G --seed S [--chain_edits] \
+  --output results/dag_patching/e3_ladder/depthD_gapG_seedS.json
+```
+
+`D=1` at `G∈{0,1,2}` and `D∈{2,3}` at `G=0`, each at `S∈{0,1,2}`. `--chain_edits`
+on `D∈{2,3}` only; at depth 1 there is no intermediate and the flag is a no-op.
+48 items per cell against E3's spec of 40–60, and three seeds against its "at
+least three". Artifacts in `results/dag_patching/e3_ladder/`, current row schema
+plus one new field, `steps_to_target`. Replay was checked on `depth3_gap0_seed0`
+by regenerating its 48 items and matching tokens, gap, target value, chain nodes
+and ancestor distance.
+
+The reading is a module, not a one-off script: `dag/dag_e3_ladder.py` loads no
+model, reads the arm files, and writes `ANALYSIS.json`, the way `dag_pooling`
+does. `LAYER` and the primary outcome are imported from stage B rather than
+restated, and `tests/test_dag_e3_ladder.py` asserts the three copies of the layer
+agree — so a change to one cannot leave this table reading a different depth of
+the residual stream than the run it is meant to be comparable to.
+
+```
+uv run python -m dag.dag_e3_ladder
+```
+
+### What `--chain_edits` is
+
+The ladder patches the ancestor and leaves every written intermediate clean, so
+an ancestor that does nothing at depth 2 has two readings — no value crossed the
+step, or none crossed those tokens. The new edit patches the intermediate itself:
+same two positions, same donor arithmetic, same clean readout, one step from the
+target instead of `depth`. The ancestor and the intermediate are then compared
+**inside one item**, which the depth ladder cannot do.
+
+It is off by default. The archived artifacts are re-derived by regenerating their
+items, and an extra edit in the list would fail `dag_evidence`'s replay. All 36
+stored reports rescore bit-identically under this commit and under `23098cd`.
+
+### Result — the implied digit alone on top at layer 13, eligible items only
+
+| site | steps | tokens | implied alone on top |
+|:---|---:|:---|:---|
+| depth 1, gap 0/1/2 ancestor | 1 | 11–50 | 267/315 (84.8%) |
+| depth 2 / depth 3 chain `n` | 1 | 11 | **288/288 (100%)** |
+| depth 2 ancestor | 2 | 23–36 | **0/144** |
+| depth 3 chain `m` | 2 | 23 | **0/144** |
+| depth 3 ancestor | 3 | 35–48 | **0/144** |
+
+Banded by token distance, every band holding both a one-step and a multi-step
+site splits on the step count: 1 step is 80–98% from 11 tokens out to 60
+(555/603 overall), and ≥2 steps is **0/432** everywhere. The chain arm supplies the cell that had never been
+measured — a two-step site at 23 tokens, *nearer* the read position than the
+one-step sites that work.
+
+Within-item, paired, sign test over discordant pairs: depth 2 ancestor vs chain
+144/0 (p=9.0e-44); depth 3 ancestor vs chain `n` 144/0 (p=9.0e-44); depth 3
+ancestor vs chain `m` 0/0, both dead (p=1.0). The last is what makes it a cliff
+rather than a decay.
+
+Unpredicted: the chain edit separates carrying from copying far more sharply than
+the ancestor edit — log-odds moved further toward the implied digit than toward
+the written one in 141/144 and 144/144, against roughly half for the depth-1
+ancestor arms. The readout applies the target's own remaining step to the patched
+value rather than reproducing the digit at the patched position.
+
+### Claims ruled in and out
+
+**In.** The depth collapse is about steps on the dependency path, not tokens to
+the read position, at 48 items × 3 seeds with distance fully crossed. And the
+depth-2 arm is now interpretable: `e2_stage_b/depth2.json` could only be scored an
+*invalid test*, and an invalid test is not evidence about the model. The chain row
+is the positive control that arm never had — same trace, same clean readout, same
+null spread, 144/144 — so the intervention demonstrably works there and the
+ancestor's silence is about the model.
+
+**Out.** Nothing here touches the unwritten-intermediate case. Every site measured
+reaches the target through *written* values; `../written_vs_omitted/` is still the
+only evidence on omission and is still n=5.
+
+### The scoring policy does not survive its own N
+
+`_quorum(n) = max(1, n - 1)` was calibrated at five items, where it asks for 80%.
+At 48 it asks for 47/48, or 97.9%. The surface control's real pass rate is
+85–100% in every arm here, so the verdict turns on one or two items:
+`depth1_gap0` is an *invalid test* at all three seeds (best layer 46, 45, 45 of
+48) while `depth1_gap1` is *positive* at all three (47, 47, 48) — and the failing
+arm's ancestor gap is 48/48 with directional control 47/48.
+
+The gate is **not** changed. Rewriting a quorum after seeing which arms it fails
+is a retroactive policy move, and it would be made on evidence produced by the run
+being scored. The per-layer counts are in each arm's `gates` block; the rates
+above are what the result is read off. **Next dependent stage:** a pre-registered
+decision on what the quorum should be as a function of N, written before it is
+applied to anything.
+
+### Limitations
+
+Single model, single format, single condition (`both`). The chain arm narrows
+which chains are sampled — every chain line must admit a donor of its own — so a
+`--chain_edits` arm is not item-identical to a plain run at the same seed; the
+spine, the target value and the ancestor edit are unchanged, and
+`tests/test_dag_tasks.py` pins all three. The depth-1 arms are unscreened, unlike
+`e2_stage_b`, so 80–89% here against 24/24 there is the cost of dropping the
+screen and not a disagreement.
+
 ## 2026-08-15: Corrections — E2 says less about depth than I wrote, its interval is not an interval, and the float32 run was the whole model
 
 A third external review (codex) of `39224f9` found five things wrong with how the
