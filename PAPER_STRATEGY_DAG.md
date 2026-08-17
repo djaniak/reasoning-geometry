@@ -11,13 +11,18 @@
 
 Sources of record: `EXPERIMENT_LOG.md` entries 2026-08-13 through 2026-08-16,
 `results/dag_patching/` (eight archived pilot artifacts plus seven later
-sub-packages), and `notebooks/15_dag_paper_story.ipynb`, which is the only
-narrative write-up outside those two.
+sub-packages), `notebooks/15_dag_paper_story.ipynb`, and the literature and
+claim audit in
+[`docs/research/2026-08-16-dag-literature-and-claim-boundary.md`](docs/research/2026-08-16-dag-literature-and-claim-boundary.md).
 
 *Updated 2026-08-16 for E3 at its registered N and the chain-node arm
 (`results/dag_patching/e3_ladder/`). That run changed §1, §2 (D2, and new D7–D9),
 §3.1, §3.7, a new §3.10, §4, §5 and §6b. It did not change §6a: the workshop
 paper was complete before it and is stronger after it.*
+
+*Corrected 2026-08-16 against the literature pass and paired gap analysis. The
+strategy now separates the semantic cliff from distributional decay, adds
+§3.12, and narrows the E4 claim in §6b.*
 
 ---
 
@@ -45,19 +50,28 @@ differ; earlier families did not, which is a defect it was built to fix.
 
 ## 1. Current thesis (2026-08-16)
 
-> **In a written chain of thought, a patched residual state changes the answer
-> only at the node the answer reads directly. One step further up the chain the
-> same intervention does nothing, and the reason is that the model is reading the
-> written intermediate value rather than recomputing it — unwriting that value
-> does not restore the patch, it destroys the model's ability to answer at all.**
+> **In a pretrained reasoning-tuned 1.5B model, a native-position residual-state
+> transplant usually controls the recipient's next arithmetic update, but exact
+> semantic control is absent when two or more written operations remain. The
+> readout still changes distributionally at those multi-step sites. Same-trace
+> and token-distance controls locate an immediate-read boundary in the semantic
+> outcome, while the clean/implied/raw assay separates recipient-side
+> transformation, literal donor copying and preservation of the clean
+> computation.**
 
-Since 2026-08-16 the middle sentence has a sharper form, and it is a **step
-cliff, not a decay**. Over 1,035 patch sites (E3, 15 cells of 48 items, three
-seeds), a site **one** step from the target lands the implied digit 555/603
-(92%), at every token distance from 11 to 60; a site **two or more** steps away
-lands it **0/432**, at every distance. Nothing in between was observed. Two steps
-and three steps are not merely both small — patched in the same item, they are
-indistinguishable (0 discordant pairs of 144).
+This thesis is scoped to one checkpoint and one fully written synthetic format.
+The omission pilot supports reliance on the written intermediate but does not
+identify an overwrite mechanism. The literature-qualified claim boundary is
+recorded in the research note linked above.
+
+Since 2026-08-16 the result has a sharper form: a **semantic cliff with
+distributional decay**. Across 1,035 eligible site observations, clustered
+within items, arms and seeds, a site **one** step from the target lands the
+implied digit 555/603 (92%), at token distances from 11 to 60. A site **two or
+more** steps away lands it **0/432**. Probability and total-variation effects
+remain at the multi-step sites, so this is not a claim that the patch has no
+influence. On the registered semantic outcome, the two-step and three-step sites
+are indistinguishable within the same items (0 discordant pairs of 144).
 
 The pre-registered form of the first half, from `results/dag_patching/e2_stage_b/`:
 
@@ -83,59 +97,51 @@ it has.
 | # | Claim | Evidence | Strength |
 |:--|:---|:---|:---|
 | **D1** | The depth-1/depth-2 dissociation survives matching on clean confidence and ancestor token distance | `e2_stage_b`, 24 pairs, 24/24 vs 0/24, p = 5.96e-8 | **Pre-registered, confirmatory** |
-| **D2** | The collapse is not a token-distance artifact | `e3_ladder`, 1,035 eligible sites: banded by token distance, every band holding both a one-step and a multi-step site splits on the step count and not the band — at 16–30 tokens, 97/113 (85.8%) for one step against **0/217** for two; at 31–45, 77/96 against 0/71 and 0/73 | **At registered N**: 48 items × 3 seeds × 5 arms |
-| **D3** | The model *reads* the written intermediate rather than computing it latently | `written_vs_omitted`: omitting the chain value drops clean p(target) to 0.240 (depth 2) and 0.050 (depth 3) from 0.996/0.999 — the patch is not restored, the task is destroyed | Strong, with its own control |
+| **D2** | Token distance alone does not explain the semantic cliff | `e3_ladder`, 1,035 eligible site observations, clustered within items, arms and seeds: at 16–30 tokens, implied is top at 97/113 one-step sites and **0/217** two-step sites; at 31–45, 77/96 against 0/71 and 0/73 | Registered-N descriptive rates; interpret with matched D1 |
+| **D3** | The written intermediate is behaviorally required in this format | `written_vs_omitted`: omitting the chain value drops clean p(target) to 0.240 (depth 2) and 0.050 (depth 3) from 0.996/0.999; the patch is not restored | Supporting pilot, n = 5 |
 | **D4** | D3's collapse is attributable to the missing path value alone | `--omit decoy` arms are indistinguishable from written arms: 5/5 clean at p(target) 0.997/0.999, nothing moved | Clean separation of the two changes |
-| **D5** | The depth-2 patch is not inert — it reaches the read position and does nothing useful there | median TV at L13: depth-1 ancestor 0.9868, depth-2 ancestor 0.0877, nulls ~0.004; at depth 2 p(target) 0.913→0.804 and remaining-digit mass 0.078→0.162 while p(implied) stays 0.001 | Descriptive, matched batch |
+| **D5** | Distributional influence remains after exact semantic control disappears | median TV at L13: depth-1 ancestor 0.9868, depth-2 ancestor 0.0877, nulls ~0.004; at depth 2 p(target) 0.913→0.804 and remaining-digit mass 0.078→0.162 while p(implied) stays 0.001 | Descriptive, matched batch |
 | **D6** | The intervention is quiet where it should be | 0/144 null rows flipped at either depth; 0/192 control rows moved at layer 13 | Registered validity gate |
-| **D7** | The two sites dissociate **inside one item**, holding the clean readout, the token count, the null spread and the surface control fixed | `e3_ladder` chain arm: at depth 2, ancestor (2 steps) vs the written intermediate (1 step) is 144 chain-only / 0 ancestor-only, sign test p = 9.0e-44; identically at depth 3 | **Within-item, at N**; the design D1 could not run |
-| **D8** | The depth-2 silence is about the model, not the intervention | The chain edit in the *same trace*, at 11 tokens, moves the answer onto the implied digit 144/144 while the ancestor at 23–36 tokens moves it 0/144 | The in-arm positive control `e2_stage_b/depth2` never had |
-| **D9** | At the site where it works, the readout **carries** the donor value rather than copying it | Chain edit: log-odds moves further toward implied than raw in 141/144 (depth 2) and 144/144 (depth 3); implied uniquely on top 100%, raw 0% | Strong — **and specific to this site**, see §3.1 |
+| **D7** | The two sites dissociate semantically **inside one item**, holding the clean readout, token count, null spread and surface control fixed | `e3_ladder` chain arm: at depth 2, ancestor (2 steps) vs written intermediate (1 step) is 144 chain-only / 0 ancestor-only, sign test p = 9.0e-44; identically at depth 3 | **Within-item, at N**; the design D1 could not run |
+| **D8** | The multi-step semantic null is specific to the patch site, not a generic intervention failure | The chain edit in the *same trace*, at 11 tokens, puts the implied digit on top 144/144 times while the ancestor at 23–36 tokens does so 0/144 times | The in-arm positive control `e2_stage_b/depth2` never had |
+| **D9** | Successful one-step edits usually transform the donor value; copying is site-dependent | Chain: implied uniquely top 288/288, raw 0/288. Depth-1 ancestor: implied 267/315, raw 46/315, clean 0/315 | Strong semantic outcome; the change-score margin is diagnostic only |
 
-**D3+D4 are the most under-appreciated pair in the thread.** They convert the
-depth result from "patches decay with distance" — which is a boring claim and
-also not what was measured — into a statement about *what the written trace is
-for*: at depth ≥ 2 the answer is determined by the written intermediate token,
-the patch does not touch that token, and nothing downstream reads the state the
-patch does write.
+**D3+D4 rule out a simple latent-recovery story.** Removing the written path
+value does not restore the ancestor patch; it makes the clean task fail, while
+removing a matched decoy does not. This supports reliance on the written path
+value. It does not prove that text overwrites latent state or that no downstream
+component reads the patched state.
 
 ---
 
 ## 3. What is NOT established (the honest limits, in rank order of danger)
 
-*1–9 are in rank order. 10 and 11 were added on 2026-08-16 and are appended in
+*1–9 are in rank order. 10–12 were added on 2026-08-16 and are appended in
 discovery order rather than inserted, so that the §3.n references already written
 elsewhere keep resolving; by danger, **10 belongs around third** — it is the one
 that will silently produce a wrong sentence in a draft.*
 
-1. **The mechanism is shown to be computation at one site, and is still a coin
-   flip at the site the paper is built on.** The contrast that separates "the
-   recipient transformed the donor value" from "the readout copied the written
-   digit" is the log-odds margin `delta_toward − delta_toward_raw`. E3 measured it
-   at N on both sites, and they came apart:
+1. **The ancestor edit is a mixture, not pure symbolic propagation.** The
+   registered semantic outcome is clear: across the depth-1 ancestor arms, the
+   implied digit is top in 267/315 cases, the raw digit in 46/315, and the clean
+   digit in 0/315. Recipient-side transformation dominates, but literal copying
+   remains a real minority outcome.
+
+   The change-score margin `delta_toward − delta_toward_raw` is less decisive:
 
    | edit | margin favours implied | n |
    |:---|:---|---:|
    | ancestor, depth 1 gap 0 / 1 / 2 | 53.8% / 57.7% / 54.3% | 117 / 104 / 94 |
    | chain (the written intermediate) | **97.9% / 100%** | 144 / 144 |
 
-   So the coin flip is real, it survives a twentyfold increase in N, and it is
-   **a property of the ancestor edit specifically** — not of the readout, and not
-   of the method. Where the patch lands on the line the answer reads directly,
-   the readout demonstrably applies the target's own remaining step to the donor
-   value (D9). Where it lands one line above, whatever gets through does not
-   separate carrying from copying at all.
-
-   This matters for how the paper is framed: it is the *ancestor* edit — the one
-   D1 and the whole depth contrast are built on — whose mechanism remains
-   ambiguous. Do not let D9 launder that. *(The earlier readings stand as
-   recorded: `v2_paired` 20 items gives 10/8, the cross-item donor leans to
-   copying at 6/13, and a post-hoc recount on the 24 matched E2 pairs gives 19/5
-   with raw never uniquely on top, 0/24. The E2 recount is post-hoc on a
-   registered run and its batch differs from `v2_paired` in three ways at once, so
-   it attributes nothing; it is still not written into an artifact, see §7. E3's
-   numbers are pre-N and unscreened, which is the cleanest of the four and the one
-   to quote.)*
+   Raw log-odds often rise almost as far as implied log-odds because raw starts
+   from a lower base. The margin therefore does not estimate the semantic
+   mixture well. Use the registered argmax outcome for the main claim and the
+   margin as a diagnostic. The chain site remains the cleaner transformation
+   control (D9). Do not claim that the ancestor edit implements pure symbolic
+   propagation. *(Earlier smaller runs remain exploratory: `v2_paired` gives
+   10/8, the cross-item donor 6/13, and a post-hoc E2 recount 19/5. E3 is the
+   unscreened at-N result to quote.)*
 2. **The cross-item donor control failed its specificity leg on every seed**
    (1/5, 2/5, 2/5, 2/5 against a 4/5 quorum), while its direction leg passed 5/5
    everywhere. A foreign item's state perturbs the readout about as much as the
@@ -193,12 +199,22 @@ that will silently produce a wrong sentence in a draft.*
     against 24/24 in `e2_stage_b`, whose items came through a clean-forward-pass
     selection. That is the cost of dropping the screen, not a disagreement
     between the runs, and it is the honest number for an unselected item.
+12. **Gap placement bundles token distance with clean difficulty.** This is an
+    exploratory, complete-case analysis of 81 items eligible at all three
+    placements. From gap 0 to gap 2, implied outcomes fall from 76/81 to 67/81
+    and raw outcomes rise from 3/81 to 14/81. The 11 items that switch from
+    implied to raw lose a median 0.129 in clean p(target), against 0.045 for the
+    65 that remain implied (Mann–Whitney p = 0.0022); the groups do not clearly
+    differ at gap 0 (p = 0.165). Longer placement, lower clean confidence and
+    more copying move together within items. This design does not identify which
+    drives which. D1 is unaffected because it matched on both clean confidence
+    and ancestor distance.
 
 ---
 
 ## 4. The methodological contribution (do not undersell this)
 
-The thread produced six transferable results about how to run and score
+The thread produced seven transferable results about how to run and score
 activation-patching experiments. For an interpretability audience these may be
 worth more than D1.
 
@@ -238,6 +254,12 @@ worth more than D1.
   token count, the null spread and the surface control fixed by construction, and
   turns a descriptive gap into a sign test on discordant pairs (D7, p = 9.0e-44
   on 144 pairs). The extra cost was one additional patched row per item.
+- **A placement manipulation can also move clean difficulty.** In the paired gap
+  arms, the items that switch from transformation to copying lose about three
+  times as much clean p(target) as the items that keep transforming (§3.12).
+  Written-trace patching should measure clean confidence for each placement and
+  either match on it or report it beside the patch outcome. Token distance and
+  clean difficulty cannot be separated in this gap sweep.
 
 Supporting the whole thread: the eight pilot artifacts are committed
 byte-for-byte outside DVC, content-addressed, with v0 schema fields *derived*
@@ -248,35 +270,30 @@ backfilled, and *inferred* fields kept separately and flagged.
 
 ## 5. Where the novelty is, and where the fight is
 
-**The increment is not "activation patching works."** It is:
+The literature pass is complete. The closest prior is Shih, Winnicki and Darve
+(2026), which already edits internal written state, predicts an exact downstream
+counterfactual and controls for copying. Geiger formalizes the interchange test;
+Tan and Kudo cover causal arithmetic chain-of-thought; Brinkmann covers known
+task structure plus mechanistic intervention; Patchscopes and Mehrafarin cover
+hidden-state transplantation. Do not claim novelty for any one of those
+ingredients.
 
-1. **A ground-truth dependency graph.** Most patching work on reasoning has no
-   independent statement of which computation should influence which; here the
-   graph is generated, so ancestor/non-ancestor is not a judgement call and the
-   counterfactual answer is known in closed form.
-2. **The written-vs-latent question, answered by an omission control** (D3+D4).
-   This is the piece that speaks directly to the faithfulness-of-CoT literature,
-   which mostly perturbs the *text*; the omission arm perturbs the text while
-   holding token count, position and notation fixed, and pairs it with a decoy
-   arm that separates "the notation is unreadable" from "the value is missing."
-3. **The propagate-vs-copy contrast as a general critique** (§4, bullet 1).
-4. **A within-item dissociation between two patch sites in one trace** (D7). The
-   depth ladder can only compare an item at depth 1 against a *different* item at
-   depth 2. The chain arm patches the ancestor and the written intermediate in the
-   same trace, against the same clean readout and the same null spread, which
-   converts the central claim from a between-condition gap into a paired test —
-   and produces the cell that had never been measured anywhere: a two-step site
-   *nearer* the read position than the one-step sites that work, and dead
-   (0/144 at 23 tokens, against 85.8% for one step at 16–30).
+The defensible increment is:
 
-**Literature grounding is the biggest un-run task on this paper.** No
-DAG-specific literature pass has been done — `RELATED_WORK.md` covers the RMD
-thread. Before drafting, ground against at minimum: causal tracing / ROME-style
-patching methodology, path patching and causal scrubbing (which is the closest
-prior art for "does the model's computation respect the stated graph"), CoT
-faithfulness work (perturbation-based and filler-token), and any synthetic-DAG
-or algorithmic-task interpretability benchmark. **Assume something close exists
-and find it before writing**, not after review.
+1. **A clean/implied/raw semantic assay** that separates recipient-side
+   transformation, literal donor copying and clean preservation on every item.
+2. **A same-trace immediate-read boundary**: the last intermediate controls the
+   answer 144/144 times while its ancestor controls it 0/144 times.
+3. **A larger one-step versus multi-step boundary** (555/603 against 0/432) with
+   overlapping token-distance controls.
+4. **A measurement result:** probability and total-variation effects can remain
+   after exact semantic counterfactual control disappears.
+
+The omission arm is supporting evidence, not proof that written text overwrites
+latent state. The ancestor edit is a measured mixture — implied 267/315, raw
+46/315, clean 0/315 — not a pure propagation mechanism and not an unresolved
+semantic outcome. See the linked research note for sources and wording
+guardrails.
 
 Expected fight: a reviewer who reads "1.5B distill, synthetic arithmetic,
 digit readout" and asks whether any of it transfers. §6 is the answer.
@@ -288,16 +305,17 @@ digit readout" and asks whether any of it transfers. §6 is the answer.
 ### 6a. Workshop paper — submittable now
 
 Everything in §2 exists on disk, is committed, and has survived three rounds of
-external review. What is missing is **the write-up and the literature pass**, not
-evidence.
+external review. The literature pass is complete. What is missing is the
+write-up, not evidence.
 
 - Title direction: *"One step, and no further: where a patched residual state is
   read in a written chain of thought."*
 - Spine: D1 (pre-registered, matched, p = 5.96e-8) → D7 (the same dissociation
   *within* one item, p = 9.0e-44, which is also D8, the positive control that
-  makes the depth-2 silence attributable) → D2 (a step cliff, not distance and
-  not decay) → D3+D4 (the model reads, it does not compute) → §3 stated as
-  limits, with §3.1 and §3.2 given real space rather than a footnote.
+  makes the depth-2 semantic null attributable) → D2 (a semantic cliff with
+  distributional decay, not token distance alone) → D3+D4 (the written path
+  value is behaviorally required) → §3
+  stated as limits, with §3.1 and §3.2 given real space rather than a footnote.
 - E3 changed the spine's shape, not its length: D1 stays the headline because it
   is the pre-registered one, and D7 goes immediately after it because it answers
   the first question a reader has about D1 — whether the depth-2 null is the
@@ -307,9 +325,9 @@ evidence.
 - The negative and the methodology are **part of the contribution**, not a
   limitations section. A workshop that takes "here is a control that failed and
   here is what it cost us to notice" is the right room for this.
-- Cost: the draft, plus the literature pass. No GPU.
+- Cost: the draft and clustered summaries from existing artifacts. No GPU.
 
-### 6b. Main conference — and why E4 is now answered rather than pending
+### 6b. Main conference — and why E4 is not on the critical path
 
 This is a genuine main-conference candidate, and it is the stronger of the two
 threads in this repo, because the effect is large, pre-registered, and cleanly
@@ -318,37 +336,31 @@ contrast on one checkpoint and one format — better measured than it was on
 2026-08-15, but not broader.
 
 > **E4 — the node-by-node influence matrix against the transitive reduction — is
-> dead on this format and gated on any other.** An earlier draft ranked it first;
-> that was wrong. The 2026-08-15 revision gated it on two predictions, and E3 has
-> now **measured both**, which upgrades the argument from a forecast to a result:
+> not on this paper's critical path.** An earlier draft ranked it first. E3
+> answers the decision that motivated it, but it does not measure every possible
+> influence-matrix estimand:
 >
-> 1. **The matrix's answer is no longer a prediction — it has been observed.**
->    The gating argument was that every intermediate is written (`dag_tasks`
->    states k−1 results at depth k), so by D1 and D3 the influence of any
->    non-adjacent node must be zero *because the written token determines the
->    answer and the patch does not touch it*. E3 measured exactly that quantity
->    across eight sites at step counts 1, 2 and 3: the three sites more than one
->    step out are **0/432**, spanning 23 to 48 tokens from the read position — a
->    range that overlaps the one-step sites, which land 92%. There is no decay
->    structure to find between two steps and three either (D7's third row: 0
->    discordant pairs of 144). The influence matrix on this format is therefore
->    the adjacency matrix of the last step, and running it would spend roughly
->    thirty times the forward passes to re-measure an off-diagonal that has been
->    observed to be empty at every step count the format admits. **Not gated —
->    answered, and negative.** It belongs in the paper as a measured result, not
->    in a future-work list.
-> 2. **A nonzero cell is still not interpretable, and now we know at which site.**
->    §3.1 measured propagate-vs-copy at N and it came apart by site: 97.9–100%
->    for the chain edit, but **53.8–57.7% for the ancestor edit**, which is the
->    edit every cell of the matrix would be built from. The coin flip did not go
->    away with n = 20 → n ≈ 100; it localised. So this reason has not weakened —
->    it has hardened, and it now applies precisely to E4's unit of measurement.
+> 1. **The exact-semantic result is already sufficient for the paper's claim.**
+>    At every measured path site with two or more remaining operations, the
+>    implied digit is top 0/432 times; one-step sites land it 555/603 times across
+>    overlapping token-distance bands. A full semantic matrix is unlikely to
+>    change the immediate-read result. This does not show that off-diagonal
+>    activation influence is zero. D5 measures smaller probability and TV
+>    effects at multi-step sites. Mapping those effects would be a different
+>    experiment with a different estimand.
+> 2. **The clean/implied/raw assay makes a nonzero semantic cell interpretable.**
+>    The chain edit is implied 288/288 and raw 0/288. The depth-1 ancestor edit is
+>    implied 267/315, raw 46/315 and clean 0/315. The ancestor is a measured
+>    mixture dominated by recipient-side transformation, not the unresolved coin
+>    flip suggested by the change-score margin. Any future matrix should report
+>    these semantic classes rather than the margin alone.
 
-**What survives of E4.** Only the version run on a format that clears G1, where
-the intermediate is *unwritten* and a non-adjacent cell could be nonzero for an
-interesting reason. That is a different experiment from the one in the original
-plan, and it inherits none of this format's results. Everything below is about
-reaching that format.
+**What survives of E4.** The version relevant to the paper's structural claim
+runs on a format that clears G1, where the intermediate is *unwritten* and a
+non-adjacent semantic cell could be nonzero. A distributional matrix on the
+current format is also possible, but it asks where weaker activation influence
+remains, not whether the transplanted value controls the computation. Everything
+below is about reaching the G1 format.
 
 **The gate, and why its two halves are one experiment.** A format in which the
 intermediate is *unwritten* is itself the intervention that does not copy a
@@ -368,16 +380,14 @@ two acceptance criteria.
 - **G2 — selective propagation.** On a format that clears G1: the patch moves the
   answer toward the implied value, and does so for ancestors and not for
   non-ancestors, with the raw-digit reading no longer available as an explanation.
-  This is the claim §3.1 currently cannot support. E3 sharpened what G2 has to
-  show: the chain arm demonstrates that this model *can* apply one remaining
-  arithmetic step to a patched value and does so essentially always (D9), so G2 is
-  not asking whether the capability exists. It is asking whether the capability is
-  reachable across a step the model would otherwise satisfy by reading a token —
-  which is a narrower and more answerable question than it was on 2026-08-15.
+  E3 shows that one-step ancestor edits usually transform the donor value and
+  that the chain edit does so in every eligible item (D9). G2 asks whether this
+  selective semantic control survives another operation when the model cannot
+  read the needed intermediate from the trace.
 
-**Only if G1 and G2 both clear does E4 become worth running** — and at that point
-it is genuinely the experiment that converts a two-point contrast into a claim
-about structure, which is why it stays in the plan rather than being dropped.
+**Only if G1 and G2 both clear does the structural E4 become worth running** —
+and at that point it converts a two-point contrast into a claim about structure,
+which is why it stays in the plan rather than being dropped.
 
 **What this does to the ordering.** E5 moves up and changes role. It was a
 breadth follow-on; it is now the most likely *route to G1*, because if no
@@ -407,8 +417,8 @@ So:
    attributable (D8). On a G1 format there is no written intermediate to patch,
    so the chain site has to be redefined for that design — do that at
    registration time, not after.
-4. **E4 on a G1 format, only then** — and not the E4 in the original plan, which
-   §6b now reports as measured and negative rather than pending.
+4. **E4 on a G1 format, only then.** The current results answer the decision to
+   prioritize it; they do not claim to contain a full node-by-node matrix.
 
 GPU cost is genuinely small: a current arm is ~225 forward passes of 127-token
 sequences on a 1.5B model. Item-family design, not compute, is the constraint —
@@ -442,20 +452,18 @@ on the evidence that exists, and none of it depends on this gate clearing.
   `dag_stage_b` rather than restating them, so the numbers stay comparable
   instead of merely adjacent.
 - **Open write-up debt**, in the order it should be cleared:
-  1. The post-hoc propagate/copy recount on the 24 matched E2 pairs (§3.1) is
-     computed but not yet in `ANALYSIS.json`, the E2 README, or
-     `EXPERIMENT_LOG.md`. It needs a `--reanalyse` pass following the
-     `exact_paired` precedent — added-after-the-run, exploratory, reported and
-     never gated. E3 raised the value of doing this: §3.1 is now a table with
-     four entries in it and the E2 recount is one of them.
-  2. `notebooks/15_dag_paper_story.ipynb` predates E3 and does not contain D7,
-     D8, D9 or the step-cliff framing. Its generator script must be recovered or
-     rewritten first — the generators live outside the repo, which is the same
-     fragility `dag_e3_ladder.py` was extracted to fix.
-  3. `notebooks/14_rmd_paper_story.ipynb` still cites `PAPER_STRATEGY.md` §3/§7c
+  1. `notebooks/15_dag_paper_story.ipynb` predates E3 and does not contain D7,
+     D8, D9 or the semantic-cliff framing. Its generator script must be recovered
+     or rewritten first — the generators live outside the repo, which is the
+     same fragility `dag_e3_ladder.py` was extracted to fix.
+  2. `notebooks/14_rmd_paper_story.ipynb` still cites `PAPER_STRATEGY.md` §3/§7c
      in a markdown cell; the file split on 2026-08-15 and the reference is stale
      (the section numbers still resolve, the filename does not).
-  4. The DAG literature pass, §5. Still the biggest un-run task on this paper.
+  3. Integrate the literature and claim audit from §5 into the manuscript.
+- The post-hoc carry/copy recount on the 24 matched E2 pairs is no longer open
+  debt. E3 supplies the committed, at-N semantic analysis. Keep the E2 19/5
+  result as exploratory history; add a matched-family sensitivity artifact only
+  if a reviewer asks for it.
 - `EXPERIMENT_LOG.md` correction #4 currently ends "Restoring it is the next
   small run." That is no longer the plan: the cross-item arm exists and has run
   (four seeds, 2026-08-14); what E2 lacks is only the *matched-pairs* version,
