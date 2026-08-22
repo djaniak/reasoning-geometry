@@ -1,16 +1,17 @@
-# Paper Strategy (RMD) — Hidden-State Geometry for Reasoning Reliability
+# Paper Strategy (RMD): Hidden-State Geometry for Reasoning Reliability
 
-*Durable working doc (2026-06-19). Survives context compaction. Seeds the second
-literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
+*Durable working document (2026-06-19). Survives context compaction. Seeds the
+second literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 `FINDINGS.md` (now carries a correction banner), deep-research run `wf_ea6e6b93-88e`.*
 
-> **Split out of `PAPER_STRATEGY.md`, 2026-08-15.** This file is the
+> **Split out of `PAPER_STRATEGY.md`, 2026-08-15.** This file covers the
 > selective-prediction / Mahalanobis-geometry paper only. The arithmetic-DAG
-> activation-patching thread is a **separate paper** with a separate doc,
-> [`PAPER_STRATEGY_DAG.md`](PAPER_STRATEGY_DAG.md) — different model, different
-> data, different claim, no shared result. Nothing in this file speaks to it and
-> it should not be cited as if it did. Section numbers below are unchanged from
-> the pre-split file, so existing `§n` references still resolve.
+> activation-patching thread is a **separate paper** with a separate document,
+> [`PAPER_STRATEGY_DAG.md`](PAPER_STRATEGY_DAG.md). It uses a different model,
+> different data, and a different claim, and shares no result with this one.
+> Nothing in this file speaks to it, and it should not be cited as if it did.
+> Section numbers below are unchanged from the pre-split file, so existing `§n`
+> references still resolve.
 
 ---
 
@@ -25,12 +26,12 @@ literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit),
 > remains on Qwen2.5-7B-Instruct and DeepSeek-R1-Distill-Llama-8B, but only the Llama
 > residual survives correction across models.**
 
-The contribution is the evaluation, not a new geometry statistic. Vazhentsev et al.
-already define token-level RMD and whole-trace ATRMD. On both reasoning-distilled
-models, ATRMD recovers nearly the full increment; restricting the mean to the final
-20% of tokens matters only on Qwen2.5-7B-Instruct. The paper should present the tail
-as a model-dependent localization and foreground the controlled increment over a
-strong self-consistency baseline.
+The contribution of this work is the evaluation rather than a new geometry
+statistic. Token-level RMD and whole-trace ATRMD are already defined by Vazhentsev
+et al. On both reasoning-distilled models, ATRMD recovers nearly the full increment.
+Restricting the mean to the final 20% of tokens matters only on Qwen2.5-7B-Instruct.
+The paper should therefore present the tail as a model-dependent localization, and
+should foreground the controlled increment over a strong self-consistency baseline.
 
 The current evidence supports post-generation abstention and risk ranking after
 eight traces. It does not yet support single-trace verification, pre-generation
@@ -38,57 +39,64 @@ routing, adaptive compute allocation, or within-prompt reranking. The next test 
 whether geometry available after the first `k` traces predicts the marginal value of
 another sample and improves accuracy at matched compute.
 
-**[Amendment, 2026-08-10 — that test ran at k = 1, and it failed.]** The allocation
-precheck (`allocation_precheck.py`; `EXPERIMENT_LOG.md`, 2026-08-10) asked exactly
-the question in the paragraph above and got a no. Against `g(p) = a(p,8) − a(p,1)`,
-computed exhaustively over all `C(8,k)` sibling subsets, single-trace geometry ranks
-the gain backwards on all three models (Spearman −0.042 / −0.057 / −0.074) while
-correlating +0.51 / +0.24 / +0.37 with the pass rate. The gate passed 1 of 3, on
-R² = +0.0005. **Geometry reads difficulty but not marginal gain**, and no policy
-was written. Do not list adaptive compute allocation as a pending direction; list it
-as closed. Nothing else here predicts `g` either, so this is not a defeat relative
-to cheap baselines — the target is mostly zero (79% / 90% / 68% of prompts) and
-barely ordered by difficulty (ρ −0.09 / −0.16 / −0.04). Prior art for the direction,
-recorded before the run, is `RELATED_WORK.md` §6.
+**[Amendment, 2026-08-10. The test was run at k = 1 and did not pass.]** The
+allocation precheck (`allocation_precheck.py`; `EXPERIMENT_LOG.md`, 2026-08-10)
+asked the question stated in the paragraph above, and the answer was negative.
+Against `g(p) = a(p,8) − a(p,1)`, computed exhaustively over all `C(8,k)` sibling
+subsets, single-trace geometry ranks the gain in the wrong order on all three models
+(Spearman −0.042 / −0.057 / −0.074), while correlating +0.51 / +0.24 / +0.37 with
+the pass rate. The gate passed on 1 of 3 models, at R² = +0.0005. Geometry therefore
+reads difficulty but not marginal gain, and no policy was written. Adaptive compute
+allocation should be listed as closed rather than as a pending direction. No other
+predictor tested here explains `g` either, so this is not a defeat relative to the
+cheap baselines: the target is mostly zero (79% / 90% / 68% of prompts) and is only
+weakly ordered by difficulty (ρ −0.09 / −0.16 / −0.04). Prior work on this direction,
+recorded before the run, is listed in `RELATED_WORK.md` §6.
 
 The label-efficiency result is limited to a small budget. At 50 labelled prompts,
 geometry leads a pooling-matched linear probe by −0.033 AURC. The gap disappears at
-100 prompts, and the probe leads at larger budgets. Do not claim general sample
-efficiency.
+100 prompts, and the probe leads at larger budgets. General sample efficiency should
+not be claimed.
 
-The paper's second contribution is methodological. It shows how trace length,
+The second contribution of the paper is methodological. It shows how trace length,
 generation caps, parse failures, layer selection, weak difficulty controls, and
 fixed-prediction uncertainty can inflate claims about reasoning geometry. Prior
-trace-correctness and tail-mechanism claims shrink or fail after these controls.
+trace-correctness and tail-mechanism claims shrink or fail once these controls are
+applied.
 
 Full evidence: `EXPERIMENT_LOG.md` entries dated 2026-08-06 through 2026-08-10 and
 `RELATED_WORK.md` §nearest-neighbours.
 
 ## 2. Verified, de-confounded findings (what we can claim)
 
-The 2026-07-18 Qwen localized rerun is the current load-bearing result. Older
-cross-model, temperature, low-dimensional, and selective-prediction claims below
-are historical until clean-budget replications are collected.
+The 2026-07-18 Qwen localized rerun is the result the current argument rests on.
+The older cross-model, temperature, low-dimensional, and selective-prediction claims
+listed below remain historical until clean-budget replications are collected.
 
-- **Length is a deceptively strong correctness baseline** (pooled AUC ~0.74 Qwen / ~0.83
-  DeepSeek) that prior geometry/UQ work never benchmarked against as a standalone predictor.
+- **Length is a strong correctness baseline** (pooled AUC ~0.74 Qwen / ~0.83
+  DeepSeek) that prior geometry and UQ work never benchmarked against as a standalone
+  predictor.
 - **On clean Qwen Best-of-8 traces, entropy-localized RMD beats full-trace RMD and a
   matched random-token control at all three layers.** It remains competitive with
   output baselines and has only suggestive incremental probe value.
-- **The signal is between-prompt (solvability), not within-prompt.** Pooled parseable RMD
-  is positive; within-prompt (per-attempt) is at chance (Qwen 0.515, DeepSeek 0.27 at n=13).
-- **Termination is mostly recoverable from length** (Qwen length detects unparsed at 0.996 >
-  RMD 0.84) — do NOT headline "RMD rejects non-terminating traces."
-- **The old low-dimensional distillation and transfer claims are rejected or weakened by
-  parseable-only audits.** Do not use them as current paper pillars.
-- **Selection is closed:** geometry does not improve Best-of-8 tie-breaking; the useful
-  downstream direction is prompt-level abstention/compute allocation.
-- **The scarce-label advantage is two thirds decision-function form, one third
-  positive-only supervision, and neither survives 100 labels** (2026-08-08 ladder, §7f).
-  This is the claim that replaced "one-class geometry is unusually sample-efficient",
-  which was measured against a probe that differed in three ways at once.
+- **The signal is between-prompt (solvability) rather than within-prompt.** Pooled
+  parseable RMD is positive, whereas within-prompt (per-attempt) performance is at
+  chance (Qwen 0.515, DeepSeek 0.27 at n=13).
+- **Termination is mostly recoverable from length** (Qwen length detects unparsed at
+  0.996, against RMD 0.84). The claim "RMD rejects non-terminating traces" should
+  therefore not be used as a headline.
+- **The earlier low-dimensional distillation and transfer claims are rejected or
+  weakened by parseable-only audits.** They should not be used as current paper
+  pillars.
+- **Selection is closed.** Geometry does not improve Best-of-8 tie-breaking. The
+  useful downstream direction is prompt-level abstention and compute allocation.
+- **The scarce-label advantage is two thirds decision-function form and one third
+  positive-only supervision, and neither component survives 100 labels** (2026-08-08
+  ladder, §7f). This claim replaced the earlier statement that one-class geometry is
+  unusually sample-efficient, which had been measured against a probe differing in
+  three respects at once.
 
-## 3. Contamination ledger (CRITICAL — re-validate before using)
+## 3. Contamination ledger (CRITICAL: re-validate before using)
 
 Mechanism: `collect_data.py` auto-labels no-parseable-answer traces as incorrect; truncated
 (length-capped) generations dominate the "incorrect" class.
@@ -105,33 +113,39 @@ selective-prediction AUSC (DeepSeek 0.633), difficulty/subject stratification. T
 "DeepSeek ≫ Qwen geometry effect" tracks differential truncation (43% vs 8%).
 **RETRACTED:** within-prompt 0.93 "genuinely trace-level" claim.
 
-**Amended 2026-08-03.** The mechanism line above is right about the *label* and wrong
-about the *traces*. Capped traces resumed to 16,384 tokens terminate 70% [0.56, 0.81]
-of the time and are correct 46% of those times, versus 5.6% as scored. Capping is a
-budget shortfall, so the contaminated rows are censored observations rather than
-failures. Two consequences for the paper: (i) exclusion is defensible as missing-data
-handling, which is a stronger footing than "drop the degenerate traces"; (ii) do not
-write that geometry detects non-termination — it detects *unfinished*, and the
-distinction is checkable. Reviewers of a truncation-heavy table will ask; the
-continuation study is the answer. Ledger: `EXPERIMENT_LOG.md` (2026-08-03).
+**Amended 2026-08-03.** The mechanism stated above is correct about the *label* and
+incorrect about the *traces*. Capped traces resumed to 16,384 tokens terminate 70%
+[0.56, 0.81] of the time, and are correct in 46% of those cases, against 5.6% as
+scored. Capping is a budget shortfall, so the contaminated rows are censored
+observations rather than failures. This has two consequences for the paper. First,
+exclusion is defensible as missing-data handling, which is a stronger footing than
+dropping degenerate traces. Second, the paper should not state that geometry detects
+non-termination, because what it detects is an unfinished trace, and the distinction
+is checkable. Reviewers of a truncation-heavy table are likely to raise this point,
+and the continuation study provides the answer. Ledger: `EXPERIMENT_LOG.md`
+(2026-08-03).
 
 ## 4. Literature map (deep-research wf_ea6e6b93-88e, 21/25 claims confirmed)
 
-- **RMD primitive is NOT novel.** NAACL 2025 [arXiv:2502.14427] (SAT(R)MD) already does
-  token-level RMD vs a C4 background. *Most dangerous overlap — read first.* Differentiate on:
-  trace-level single score, positive-only one-class fit, length-controlled, reasoning/BoN application.
-- **Trained probes are strong baselines reviewers will demand we beat:** PCA+LDA ~80% on MATH
-  [SWIFT, arXiv:2505.12225]; Semantic Entropy Probes [arXiv:2406.15927]; TrajSelector
-  [arXiv:2510.16449]. A positive-only RMD fit likely loses to these at raw correctness.
-- **Within-prompt geometry is a graveyard:** INSIDE/EigenScore [arXiv:2402.03744] is
-  within-prompt self-consistency, scores *below random* on GSM8K in ACL-2025 survey
-  [2025.findings-acl.1101]. → between-prompt difficulty is the white space.
-- **Length-as-baseline gap is real** but state as "under-controlled in prior work," not
-  "never studied" (2-1 vote). Semantic entropy [Nature 2024] only catches confabulations,
-  misses systematic reasoning errors → motivates a single-trace representation signal.
-- **Refuted/over-claimed:** SE-as-universal-SOTA, latent-reranking-beats-majority,
-  GenRM-as-SOTA, SWIFT-beats-heavy-RMs — reduces competitive pressure, consistent with our
-  at-chance within-prompt finding.
+- **The RMD primitive is NOT novel.** NAACL 2025 [arXiv:2502.14427] (SAT(R)MD) already
+  computes token-level RMD against a C4 background. *This is the closest overlap and
+  should be read first.* Differentiation rests on: a trace-level single score, a
+  positive-only one-class fit, length control, and the reasoning/BoN application.
+- **Trained probes are strong baselines that reviewers will expect us to beat:**
+  PCA+LDA ~80% on MATH [SWIFT, arXiv:2505.12225]; Semantic Entropy Probes
+  [arXiv:2406.15927]; TrajSelector [arXiv:2510.16449]. A positive-only RMD fit is
+  likely to lose to these at raw correctness.
+- **Within-prompt geometry has repeatedly failed in prior work.** INSIDE/EigenScore
+  [arXiv:2402.03744] is within-prompt self-consistency and scores *below random* on
+  GSM8K in the ACL-2025 survey [2025.findings-acl.1101]. Between-prompt difficulty is
+  therefore the open direction.
+- **The length-as-baseline gap is real**, but it should be stated as "under-controlled
+  in prior work" rather than "never studied" (2-1 vote). Semantic entropy [Nature 2024]
+  captures only confabulations and misses systematic reasoning errors, which motivates
+  a single-trace representation signal.
+- **Refuted or over-claimed in prior work:** SE-as-universal-SOTA,
+  latent-reranking-beats-majority, GenRM-as-SOTA, SWIFT-beats-heavy-RMs. This reduces
+  the competitive pressure and is consistent with our at-chance within-prompt finding.
 
 ## 5. Three candidate framings (ranked)
 
