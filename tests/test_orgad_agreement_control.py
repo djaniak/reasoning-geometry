@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orgad_agreement_control import (
+from controls.orgad_agreement_control import (
     MIN_STRATUM_CLASS,
     VOTELESS_FEATURE_NAMES,
     _readout_specs,

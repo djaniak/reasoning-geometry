@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from analyze import (
+from analysis.analyze import (
     _concatenate_hidden_tokens,
     _fit_lw_precision,
     _prepare_hidden_tokens,

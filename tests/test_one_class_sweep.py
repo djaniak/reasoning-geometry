@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from one_class_sweep import (
+from geometry.one_class_sweep import (
     evaluate_one_class_sweep,
     fit_projected_references,
     score_projected,

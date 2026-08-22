@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import selective_prediction
+import applications.selective_prediction as selective_prediction
 
 
 def _traces():

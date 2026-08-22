@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from prompt_decomposition import (
+from applications.prompt_decomposition import (
     HIDDEN_PROBE_METHODS,
     HIDDEN_PROBE_REGIONS,
     SUPERVISED_METHODS,

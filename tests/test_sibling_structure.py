@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sibling_structure import (
+from controls.sibling_structure import (
     _regime,
     load_rows,
     prompt_table,

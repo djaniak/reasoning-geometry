@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from difficulty_control import _delta_seed, sibling_difficulty
+from controls.difficulty_control import _delta_seed, sibling_difficulty
 
 
 def _trace(prompt_id: int, length: int) -> dict:

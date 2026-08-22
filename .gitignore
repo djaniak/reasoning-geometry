@@ -22,7 +22,71 @@ env/
 
 # DVC-managed directories (tracked via dvc.yaml / .dvc files, not git)
 /data/
-/results/
+/results/*
+
+# Exception: the DAG patching artifacts are not a DVC stage and never were --
+# they appear in neither dvc.yaml nor dvc.lock. They are half a megabyte of JSON
+# and the only record of the pilot's per-item measurements, so they go in git
+# directly. There is no DVC remote on this host, which would make .dvc/cache the
+# only copy and a checkout/gc irreversible; git is the safer home for something
+# this small. Only .json and the README are admitted, one path at a time, so a
+# stray large output dropped in this directory cannot ride along.
+!/results/dag_patching/
+/results/dag_patching/*
+!/results/dag_patching/*.json
+!/results/dag_patching/README.md
+
+# Same exception, one level down: the paired depth-ladder rerun. Kept apart
+# from the archived, immutable package above rather than merged into it.
+!/results/dag_patching/paired_ladder/
+/results/dag_patching/paired_ladder/*
+!/results/dag_patching/paired_ladder/*.json
+!/results/dag_patching/paired_ladder/README.md
+
+# And the cross-item donor control, likewise its own arm.
+!/results/dag_patching/cross_item/
+/results/dag_patching/cross_item/*
+!/results/dag_patching/cross_item/*.json
+!/results/dag_patching/cross_item/README.md
+
+# And the v3_distinct family: the ladder and the cross-item arm rerun on a
+# generator that keeps the copied digit off the clean answer.
+!/results/dag_patching/v3_distinct/
+/results/dag_patching/v3_distinct/*
+!/results/dag_patching/v3_distinct/*.json
+!/results/dag_patching/v3_distinct/README.md
+
+# And E2 stage A: clean forward passes only, no patch in the directory. What
+# makes it worth committing is when it was written -- the selection it holds was
+# computed before any stage-B measurement existed.
+!/results/dag_patching/e2_screening/
+/results/dag_patching/e2_screening/*
+!/results/dag_patching/e2_screening/*.json
+!/results/dag_patching/e2_screening/README.md
+
+# And E2 stage B: the patched run over the pairs stage A chose. Kept beside the
+# screening rather than inside it, because that directory's claim is that it
+# holds no patched number and this one is nothing but patched numbers.
+!/results/dag_patching/e2_stage_b/
+/results/dag_patching/e2_stage_b/*
+!/results/dag_patching/e2_stage_b/*.json
+!/results/dag_patching/e2_stage_b/README.md
+
+# And E3 at the registered N, with the chain-node arm: 15 cells of 48 items.
+#
+# Size is worth stating, since this directory alone is bigger than every one
+# above put together: ~27 MB on disk against their ~8.4 MB, because
+# `probs_patched` is ten floats on every one of ~1,800 rows per arm and there are
+# fifteen arms. What git stores is the compressed size, and JSON of this shape
+# compresses about 6.5x -- ~4.1 MB against the existing arms' ~1.3 MB. That field
+# is what the absolute-effect floor and every argmax reading are computed from,
+# and re-running to recover it costs a GPU, so it is worth the four megabytes.
+# The `.log` files are left out, as everywhere above -- the gate tables they hold
+# are derivable from the JSON.
+!/results/dag_patching/e3_ladder/
+/results/dag_patching/e3_ladder/*
+!/results/dag_patching/e3_ladder/*.json
+!/results/dag_patching/e3_ladder/README.md
 
 # DVC internals (keep .dvc/config and .dvc/.gitignore, but not cache)
 .dvc/cache/
@@ -57,3 +121,10 @@ docs/superpowers
 
 # Local safety copy of results/ before a rerun (not a deliverable)
 /.results_backup_*/
+
+# The written-versus-omitted contrast: does stating the intermediate result
+# suppress the patch? Same batch under two renderings.
+!/results/dag_patching/written_vs_omitted/
+/results/dag_patching/written_vs_omitted/*
+!/results/dag_patching/written_vs_omitted/*.json
+!/results/dag_patching/written_vs_omitted/README.md

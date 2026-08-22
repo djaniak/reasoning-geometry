@@ -1,0 +1,305 @@
+{
+  "note": "Original artifacts are immutable and content-addressed. v0 fields are derived by regenerating items, never backfilled. Per artifact: `run_commit` is the commit that produced the run, `replay_command` reproduces it from the recorded settings, and `inferred_fields` names provenance the report never stated.",
+  "manifest_generation_commit": "d258008613bb4c2cd9b3e9eece60f00e00ff5b89",
+  "artifacts": [
+    {
+      "artifact": "feasibility.json",
+      "sha256": "55b3e8f28fd050ed57603a44d468815706fb0d27fcfaa292da38e73719f7819a",
+      "bytes": 63628,
+      "schema_version": "v0",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "condition",
+        "n_decoys"
+      ],
+      "run_commit": "015a0f40202b50ab4b8fc56ab16089f4d7a6734b",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T15:09:52.821069+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --output results/dag_patching/feasibility.json",
+      "derived_fields": {
+        "derived": true,
+        "verification": {
+          "matches": true,
+          "n_items": 5,
+          "checked": [
+            "n_tokens",
+            "target_value",
+            "edit_kind",
+            "edit_node",
+            "distance_to_read"
+          ]
+        },
+        "depth": 1,
+        "gap": [
+          1,
+          3,
+          6,
+          1,
+          1
+        ],
+        "ancestor_distance": [
+          24,
+          50,
+          89,
+          24,
+          37
+        ],
+        "ancestor_node": "a"
+      }
+    },
+    {
+      "artifact": "result_only.json",
+      "sha256": "900f9a72f1d3b4a93cf98623df8ccd6a6a9f800f82f8febdde41b3d375a19f70",
+      "bytes": 63563,
+      "schema_version": "v0",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "result_only",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "e8117b5ad2547bc96e15135fb47958d8a6e5ccb4",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T15:46:58.517518+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition result_only --seed 0 --n_items 5 --output results/dag_patching/result_only.json",
+      "derived_fields": {
+        "derived": true,
+        "verification": {
+          "matches": true,
+          "n_items": 5,
+          "checked": [
+            "n_tokens",
+            "target_value",
+            "edit_kind",
+            "edit_node",
+            "distance_to_read"
+          ]
+        },
+        "depth": 1,
+        "gap": [
+          1,
+          3,
+          6,
+          1,
+          1
+        ],
+        "ancestor_distance": [
+          24,
+          50,
+          89,
+          24,
+          37
+        ],
+        "ancestor_node": "a"
+      }
+    },
+    {
+      "artifact": "operand_only.json",
+      "sha256": "91a332ccc500b2494c925f7db1f668dc34507480c0fc758efff08fcb022e9c72",
+      "bytes": 63745,
+      "schema_version": "v0",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "operand_only",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "e8117b5ad2547bc96e15135fb47958d8a6e5ccb4",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T15:47:10.809543+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition operand_only --seed 0 --n_items 5 --output results/dag_patching/operand_only.json",
+      "derived_fields": {
+        "derived": true,
+        "verification": {
+          "matches": true,
+          "n_items": 5,
+          "checked": [
+            "n_tokens",
+            "target_value",
+            "edit_kind",
+            "edit_node",
+            "distance_to_read"
+          ]
+        },
+        "depth": 1,
+        "gap": [
+          1,
+          3,
+          6,
+          1,
+          1
+        ],
+        "ancestor_distance": [
+          24,
+          50,
+          89,
+          24,
+          37
+        ],
+        "ancestor_node": "a"
+      }
+    },
+    {
+      "artifact": "depth1_gap0.json",
+      "sha256": "d43b215062a1e3dddd87949593722472a109c3c611c56bbdf75e2f30efbda9e9",
+      "bytes": 63870,
+      "schema_version": "v1",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T16:07:57.911940+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --depth 1 --gap 0 --output results/dag_patching/depth1_gap0.json"
+    },
+    {
+      "artifact": "depth2_gap0.json",
+      "sha256": "846eb1219a74dff8b60fc4a579ba53907e397519c10596117c45a714f63a57df",
+      "bytes": 64243,
+      "schema_version": "v1",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T16:08:16.931991+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --depth 2 --gap 0 --output results/dag_patching/depth2_gap0.json"
+    },
+    {
+      "artifact": "depth3_gap0.json",
+      "sha256": "1015b65047656afdc5f72fcc62039e9907dfb0de59bbdd0497e739c2c31122b1",
+      "bytes": 64545,
+      "schema_version": "v1",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T16:08:36.204042+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --depth 3 --gap 0 --output results/dag_patching/depth3_gap0.json"
+    },
+    {
+      "artifact": "depth1_gap1.json",
+      "sha256": "a49c49a9ac11d53cdf6fce3529dae07386d2dfcdb49bb45c810f3388218b932a",
+      "bytes": 63710,
+      "schema_version": "v1",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T16:09:18.528152+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --depth 1 --gap 1 --output results/dag_patching/depth1_gap1.json"
+    },
+    {
+      "artifact": "depth1_gap2.json",
+      "sha256": "aaed6b9cca62f8fadaaa9fe371bf61dd2911a16d368ad27c93de3d3d09364f2b",
+      "bytes": 63777,
+      "schema_version": "v1",
+      "model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "tokenizer_revision": "ad9f0ae0864d7fbcd1cd905e3c6c5b069cc8b562",
+      "seed": 0,
+      "condition": "both",
+      "n_items": 5,
+      "n_decoys": 6,
+      "layer_bins": [
+        6,
+        13,
+        20,
+        27
+      ],
+      "inferred_fields": [
+        "n_decoys"
+      ],
+      "run_commit": "60efa8dd2c7bf086b286b4821acf775ca6fa7e90",
+      "basis": "artifact mtime, bracketed against the commit timeline; corroborated by which schema fields the report carries",
+      "artifact_mtime_utc": "2026-08-13T16:09:39.352206+00:00",
+      "mtime_still_confirms": true,
+      "replay_command": "uv run python dag_patching.py --model_name deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --condition both --seed 0 --n_items 5 --depth 1 --gap 2 --output results/dag_patching/depth1_gap2.json"
+    }
+  ]
+}

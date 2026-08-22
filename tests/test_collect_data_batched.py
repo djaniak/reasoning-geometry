@@ -13,7 +13,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from collect_data import generate_traces_batched
+from data.collect_data import generate_traces_batched
 
 
 class FakeOutput:
@@ -131,7 +131,7 @@ def test_capture_matches_batched_generation():
     must reproduce the hidden states / entropies / logprobs that
     generate_traces_batched captured during decode (exactly, on the fake model).
     """
-    from collect_data import capture_features_batched
+    from data.collect_data import capture_features_batched
 
     eos = 99
     plan = [
@@ -215,7 +215,7 @@ class FakeCaptureModel(FakeModel):
 def test_grouped_generation_bookkeeping():
     """Phase 1: cross-problem rows with different prompt lengths must keep
     per-row token streams, EOS trimming, and problem-major row order."""
-    from collect_data import generate_tokens_grouped
+    from data.collect_data import generate_tokens_grouped
 
     eos = 99
     # Rows: p0 has 2 samples, p1 has 2 samples -> 4 rows, problem-major.
@@ -240,7 +240,7 @@ def test_grouped_generation_bookkeeping():
 
 def test_grouped_generation_seed_streams():
     """Same seed -> same stream regardless of which group the row is in."""
-    from collect_data import generate_tokens_grouped
+    from data.collect_data import generate_tokens_grouped
 
     eos = 12345
     mk = lambda: FakeModel(lambda step, ids: torch.zeros(ids.shape[0], 100))
@@ -262,7 +262,7 @@ def test_two_phase_pipeline_matches_single_phase_ids():
     """Phase1 + phase2 on one problem must produce the same token streams as
     the capturing decode when fed the same seeds (identical prompt, no padding,
     identical per-row RNG consumption)."""
-    from collect_data import generate_tokens_grouped, capture_features_batched
+    from data.collect_data import generate_tokens_grouped, capture_features_batched
 
     eos = 12345
     tok = FakeTokenizer(eos_token_id=eos, prompt_ids=(1, 2, 3))

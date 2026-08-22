@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from summarize import (
+from analysis.summarize import (
     generate_combined_json,
     generate_markdown,
     load_application_alignment_result,

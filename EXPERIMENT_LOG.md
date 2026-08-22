@@ -5,6 +5,1459 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-16: E3 at N, and the chain-node arm — the collapse is a step cliff, and the scoring policy does not scale
+
+Two things in one campaign of 15 arms: E3's registered N for the paired ladder,
+and a new patch site that the ladder never had.
+
+### Parameterization
+
+No DVC stage; 15 direct CLI runs, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`,
+float32, layers 6/13/20/27 with 27 dropped from scoring.
+
+```
+uv run python -m dag.dag_patching \
+  --n_items 48 --n_decoys 6 --generator v3_distinct \
+  --depth D --gap G --seed S [--chain_edits] \
+  --output results/dag_patching/e3_ladder/depthD_gapG_seedS.json
+```
+
+`D=1` at `G∈{0,1,2}` and `D∈{2,3}` at `G=0`, each at `S∈{0,1,2}`. `--chain_edits`
+on `D∈{2,3}` only; at depth 1 there is no intermediate and the flag is a no-op.
+48 items per cell against E3's spec of 40–60, and three seeds against its "at
+least three". Artifacts in `results/dag_patching/e3_ladder/`, current row schema
+plus one new field, `steps_to_target`. Replay was checked on `depth3_gap0_seed0`
+by regenerating its 48 items and matching tokens, gap, target value, chain nodes
+and ancestor distance.
+
+The reading is a module, not a one-off script: `dag/dag_e3_ladder.py` loads no
+model, reads the arm files, and writes `ANALYSIS.json`, the way `dag_pooling`
+does. `LAYER` and the primary outcome are imported from stage B rather than
+restated, and `tests/test_dag_e3_ladder.py` asserts the three copies of the layer
+agree — so a change to one cannot leave this table reading a different depth of
+the residual stream than the run it is meant to be comparable to.
+
+```
+uv run python -m dag.dag_e3_ladder
+```
+
+### What `--chain_edits` is
+
+The ladder patches the ancestor and leaves every written intermediate clean, so
+an ancestor that does nothing at depth 2 has two readings — no value crossed the
+step, or none crossed those tokens. The new edit patches the intermediate itself:
+same two positions, same donor arithmetic, same clean readout, one step from the
+target instead of `depth`. The ancestor and the intermediate are then compared
+**inside one item**, which the depth ladder cannot do.
+
+It is off by default. The archived artifacts are re-derived by regenerating their
+items, and an extra edit in the list would fail `dag_evidence`'s replay. All 36
+stored reports rescore bit-identically under this commit and under `23098cd`.
+
+### Result — the implied digit alone on top at layer 13, eligible items only
+
+| site | steps | tokens | implied alone on top |
+|:---|---:|:---|:---|
+| depth 1, gap 0/1/2 ancestor | 1 | 11–50 | 267/315 (84.8%) |
+| depth 2 / depth 3 chain `n` | 1 | 11 | **288/288 (100%)** |
+| depth 2 ancestor | 2 | 23–36 | **0/144** |
+| depth 3 chain `m` | 2 | 23 | **0/144** |
+| depth 3 ancestor | 3 | 35–48 | **0/144** |
+
+Banded by token distance, every band holding both a one-step and a multi-step
+site splits on the step count: 1 step is 80–98% from 11 tokens out to 60
+(555/603 overall), and ≥2 steps is **0/432** everywhere. The chain arm supplies the cell that had never been
+measured — a two-step site at 23 tokens, *nearer* the read position than the
+one-step sites that work.
+
+Within-item, paired, sign test over discordant pairs: depth 2 ancestor vs chain
+144/0 (p=9.0e-44); depth 3 ancestor vs chain `n` 144/0 (p=9.0e-44); depth 3
+ancestor vs chain `m` 0/0, both dead (p=1.0). The last is what makes it a cliff
+rather than a decay.
+
+Unpredicted: the chain edit separates carrying from copying far more sharply than
+the ancestor edit — log-odds moved further toward the implied digit than toward
+the written one in 141/144 and 144/144, against roughly half for the depth-1
+ancestor arms. The readout applies the target's own remaining step to the patched
+value rather than reproducing the digit at the patched position.
+
+### Claims ruled in and out
+
+**In.** The depth collapse is about steps on the dependency path, not tokens to
+the read position, at 48 items × 3 seeds with distance fully crossed. And the
+depth-2 arm is now interpretable: `e2_stage_b/depth2.json` could only be scored an
+*invalid test*, and an invalid test is not evidence about the model. The chain row
+is the positive control that arm never had — same trace, same clean readout, same
+null spread, 144/144 — so the intervention demonstrably works there and the
+ancestor's silence is about the model.
+
+**Out.** Nothing here touches the unwritten-intermediate case. Every site measured
+reaches the target through *written* values; `../written_vs_omitted/` is still the
+only evidence on omission and is still n=5.
+
+### The scoring policy does not survive its own N
+
+`_quorum(n) = max(1, n - 1)` was calibrated at five items, where it asks for 80%.
+At 48 it asks for 47/48, or 97.9%. The surface control's real pass rate is
+85–100% in every arm here, so the verdict turns on one or two items:
+`depth1_gap0` is an *invalid test* at all three seeds (best layer 46, 45, 45 of
+48) while `depth1_gap1` is *positive* at all three (47, 47, 48) — and the failing
+arm's ancestor gap is 48/48 with directional control 47/48.
+
+The gate is **not** changed. Rewriting a quorum after seeing which arms it fails
+is a retroactive policy move, and it would be made on evidence produced by the run
+being scored. The per-layer counts are in each arm's `gates` block; the rates
+above are what the result is read off. **Next dependent stage:** a pre-registered
+decision on what the quorum should be as a function of N, written before it is
+applied to anything.
+
+### Limitations
+
+Single model, single format, single condition (`both`). The chain arm narrows
+which chains are sampled — every chain line must admit a donor of its own — so a
+`--chain_edits` arm is not item-identical to a plain run at the same seed; the
+spine, the target value and the ancestor edit are unchanged, and
+`tests/test_dag_tasks.py` pins all three. The depth-1 arms are unscreened, unlike
+`e2_stage_b`, so 80–89% here against 24/24 there is the cost of dropping the
+screen and not a disagreement.
+
+## 2026-08-15: Corrections — E2 says less about depth than I wrote, its interval is not an interval, and the float32 run was the whole model
+
+A third external review (codex) of `39224f9` found five things wrong with how the
+two E2 entries below report themselves. Four are corrections and one is a rule
+for the next screen. **No measured number moves.** `ANALYSIS.json` was regenerated
+from the committed arm files with `dag_stage_b --reanalyse`, which loads no model;
+the regenerated file is byte-identical to the one the run wrote apart from a
+single added key, and that was checked field by field rather than assumed. The
+arm files themselves are untouched.
+
+### 1. "The depth result is about graph depth" is not what was tested
+
+The stage-B entry says the contrast persisting after matching means "the depth
+result is about graph depth". It does not, and `dag_tasks` has said so in its own
+module docstring since before the run: depth adds an operation, a written
+intermediate result, a new variable binding and a changed local context all at
+once, so the ladder measures whether a patched state still moves the answer when
+a written intermediate contradicts it — "not 'distance in the graph', and the
+numbers must not be read that way". Matching two observed covariates removes two
+alternative explanations; it does not turn the remaining bundle into one variable.
+
+The sentence the evidence supports is:
+
+> The one-versus-two-step contrast persists after matching on clean confidence
+> and ancestor token distance.
+
+Applied in place in `results/dag_patching/e2_stage_b/README.md`. The entry below
+is left as written, with this correction pointing at it.
+
+### 2. `[1.000, 1.000]` is the absence of a counterexample, not a bound
+
+The registered bootstrap resamples 24 pairs whose outcomes are all `(1, 0)`, so
+every replicate is exactly 1 by construction. The entry below already says the
+interval is degenerate, then quotes it as a 95% interval anyway. It should not be
+read as uncertainty at all.
+
+The test a matched design calls for is the one-sided exact test on the discordant
+pairs — concordant pairs carry no information about a difference — which is the
+sign test, which is exact McNemar. With 24 discordant pairs and none against:
+
+| reading | value | what it assumes |
+|:---|:---|:---|
+| paired bootstrap (registered) | difference 1.00, interval [1.000, 1.000] | nothing; it has nothing to resample |
+| **exact paired, one-sided** | **p = 2⁻²⁴ = 5.96e-8** | 24 matched pairs |
+| Fisher's exact, one-sided | p = 3.1e-14 | 48 independent observations |
+
+Fisher's is the number the entry below leads with and it is the wrong model for
+this design: it credits a matched-pair experiment with twice the independent
+observations it has. Quote 5.96e-8. `dag_stage_b.exact_paired` computes it, the
+artifact now carries it, and both it and the bootstrap are reported together —
+neither is registered as a p-value, since the registration named the bootstrap
+and no p-value at all.
+
+### 3. float32 changed the model, and the readout was never the variable
+
+`MODEL_DTYPE` (was `READOUT_DTYPE`) reaches `from_pretrained`, so E2 ran the whole
+forward pass in float32 — every matmul, not the softmax the digits come out of.
+E2 is internally valid, because both depths ran at the same precision, but it is
+**not** a same-precision replication of the archived bfloat16 depth-1 result, and
+nothing below should be read as one.
+
+The stage-A entry goes further and says "the ties were the recording precision and
+not the model". That is false, and the code alone settles it: `digit_readout`
+calls `.float()` before it softmaxes and always did, so the archived bfloat16 runs
+took their readouts in float32 too. The recording precision was never bfloat16
+and was never the variable.
+
+What the archived ties actually are, then: bit-identical bfloat16 *logits*. All
+nine archived files with tied clean readouts are bfloat16 runs; every tie is exact
+float equality in the stored probabilities; and one step of the bfloat16 grid at
+this magnitude separates two float32 probabilities by about 1e-6, some three to
+five orders of magnitude above what float32 resolves there. No readout precision
+would have broken those ties. A different model run did.
+
+So the honest version of the stage-A headline is that float32 removes the ties
+because it changes the arithmetic that produces the logits, not because it records
+the answer more finely.
+
+### 4. The missing cross-item arm is a protocol deviation
+
+The registration named all five row kinds. Stage B ran four. The reason is in
+`dag_stage_b.ROW_KINDS` and in the entry below — a cross-item batch is selected
+for mutual donatability and is therefore a different batch from the one stage A
+matched — and the artifacts record it in `unreachable_row_kinds`. What was missing
+is the label: this is a **deviation from the registered protocol**, not a design
+detail. It does not touch the registered ancestor outcome, and it leaves the
+matched run without its strongest portable-state control, which is the one that
+would show the transplanted state carries content across items rather than within
+one. Restoring it is the next small run.
+
+### 5. The matching rule needs a caliper before the next screen, not after
+
+Recorded below and not corrected, because there is nothing to correct: the
+registered rule bounds ancestor distance to ±2 tokens and bounds confidence only
+by ordering the greedy. Screening was widened from 410 items to 1,230 rather than
+picking a tolerance after seeing which tolerance decided proceed-versus-stop, and
+the loose tail disappeared on its own. That was the right call with no stage-B
+outcome in existence. It is still discretion a replication should not have to
+exercise, so **the frozen protocol for any further checkpoint carries a confidence
+caliper and a screening cap fixed in advance.**
+
+### What none of this changes
+
+24/24 against 0/24, at worst 0.0007 apart in clean `p(target)` and one token of
+ancestor distance, over 24 distinct spines per arm, with 0/192 control rows moving
+in either arm. The result stands; four sentences about it did not.
+
+## 2026-08-15: E2 stage B — the depth contrast survives matching, and one arm gets two verdicts
+
+**Three claims in this entry overreach**: the depth wording, the interval quoted
+as a 95% interval, and Fisher's exact as the inferential number. See the
+corrections entry at the top of the file. Left as written, with the corrections
+stated there.
+
+The 24 matched pairs, patched at layer 13. Artifacts in
+`results/dag_patching/e2_stage_b/`. The protocol is the pre-registration two
+entries below, committed in `6f1e9a7` before the selection rule existed. Nothing
+in the analysis moved between stage A and stage B.
+
+### The registered outcome is the second of the three
+
+| depth | n | implied uniquely top | ties | clean p(target) min / median / max | ancestor distance |
+|---:|---:|:---|---:|:---|:---|
+| 1 | 24 | **24/24** | 0 | 0.696 / 0.914 / 0.990 | 24–37 |
+| 2 | 24 | **0/24** | 0 | 0.696 / 0.913 / 0.990 | 23–36 |
+
+Difference 1.00, 95% interval [1.000, 1.000] over 1,000 bootstrap replicates of
+whole pairs; Fisher's exact one-sided p = 3.1e-14. The confidence quantiles agree
+to three decimals and the distance supports overlap, which is what stage A was
+for. **The contrast persists after matching, so the depth result is about graph
+depth** and not about the clean confidence or the token distance that move with
+it.
+
+The interval is degenerate because the separation is perfect, not because the
+estimate is precise. Zero discordant pairs leaves a resampler nothing to vary,
+and [1.000, 1.000] means "no item went the other way", not a tight bound.
+
+### One arm, two verdicts, and the registration did not foresee it
+
+The registered validity gate is null flips at 20%. Both arms are nowhere near it:
+nulls 0/144, surface-nulls 0/24, non-ancestors 0/24, at both depths.
+`control_specificity` is 24/24 on the implied digit against 0/192 control rows
+moving at depth 1, and 0/24 against 0/192 at depth 2.
+
+But `dag_patching` scores the depth-2 arm as an **invalid test**, on
+`directional_control_failed` and `surface_above_null`. Its gates are relative, and
+at depth 2 nothing moves for a relative gate to be relative to. So by the gate
+registered for E2 the arm is a valid negative, and by the project's own arm
+scorer it is unreadable. Both labels are in the artifacts and neither has been
+edited to agree with the other.
+
+They are answering different questions — the arm scorer asks whether one arm's
+gates can be read, E2 asks whether the ancestor edit installs its digit at one
+depth and not the other — but the registration named the null-flip gate as stage
+B's validity criterion and did not anticipate a second verdict on the same rows.
+That is a hole in the registration, not in the measurement. The defensible
+reading is that the contrast stands on the paired comparison, and the depth-2 arm
+taken alone is not independently scoreable.
+
+### The depth-2 patch is not inert, it is unaimed
+
+Median TV at layer 13: ancestor 0.9868 at depth 1 against 0.0877 at depth 2, with
+nulls at 0.0043 and 0.0046. So the depth-2 donor state reaches the read position
+and moves it about twenty times as much as a null edit does. It simply does not
+put the implied digit anywhere near the top.
+
+| depth | p(implied) | p(raw) | p(target) | remaining |
+|---:|:---|:---|:---|:---|
+| 1 | 0.0006 → 0.8579 | 0.0005 → 0.1065 | 0.9136 → 0.0023 | 0.0781 → 0.0150 |
+| 2 | 0.0006 → 0.0013 | 0.0006 → 0.0028 | 0.9132 → 0.8040 | 0.0777 → 0.1616 |
+
+At depth 2 the mass leaving the clean answer goes to the *other* digits — the
+remaining mass roughly doubles — while p(implied) stays at 0.001. The patch adds
+noise rather than an answer. And at depth 1 the donor's literal digit is promoted
+about two hundredfold, 0.0005 → 0.1065, while never once winning (0/24): the
+2026-08-15 correction's point that "the recipient transforms the donor value" is
+too clean a sentence survives into the matched run.
+
+### What this does not establish
+
+Layer 13 is inherited from the `v3_distinct` discovery table and was not
+re-searched, so the depth-1 rate is not a fresh test — the layer was chosen on
+data that produced it. The matched window is p(target) 0.696–0.990, so this is
+the high-confidence regime and not the lower half of the range the original
+depth-1 result came from. Four of the five registered row kinds ran; the
+cross-item donor needs a batch selected for mutual donatability, which is a
+different batch from the one the matched items come from, so that arm is
+untouched here. Depth 3, the omission arms, and every mechanistic reading are
+outside this run.
+
+## 2026-08-15: E2 stage A — the window is open, 24 pairs match, and float32 leaves no ties at all
+
+**One sentence in this entry is false** — "the ties were the recording precision
+and not the model". The readout was float32 in every run, archived ones included.
+See the corrections entry at the top of the file. Left as written, with the
+correction stated there.
+
+Screening only: 1,230 clean forward passes, no patch run and none runnable from
+`dag_screening.py`. Seeds 11-40, disjoint from the archived 0-3. Artifacts in
+`results/dag_patching/e2_screening/`. The protocol is the entry below, committed
+in `6f1e9a7` before any of these items existed.
+
+### Not one tie in 1,230 items
+
+| depth | screened | eligible | clean ties | p(target) min / median / max |
+|:---|---:|---:|---:|:---|
+| 1 | 630 | 480 | **0** | 0.430 / 0.707 / 0.990 |
+| 2 | 600 | 599 | **0** | 0.684 / 0.992 / 1.000 |
+
+Against 5 tied clean readouts in 33 under bfloat16. The correction below is
+confirmed from the other side: the ties were the recording precision and not
+the model, and moving off the 0.125-nat grid removes them rather than reducing
+them. Nothing else about the readout changed — depth 2 is still near-saturated
+and depth 1 still is not.
+
+### The comparison is constructible, and wider than registered
+
+Window `(0.684, 0.990)`. **24 matched pairs**, at the registered ceiling, above
+the floor of 16 — the registered decision is **proceed to stage B**. Matching is
+tight: worst pair 0.0007 in clean `p(target)` and 1 token of ancestor distance,
+over 24 distinct spines per depth, drawn from 14 depth-1 seeds and all three gap
+placements.
+
+**One registered limit is weaker than I wrote it.** The entry below predicted the
+window would sit near the top of the depth-1 range, because depth-2 confidence
+looked saturated in the five archived items. At 600 items it is not: depth 2
+reaches down to 0.684. The selected pairs span 0.696 to 0.990 with median 0.918.
+That covers the upper half of the range where the depth-1 result was obtained
+(0.53-0.96) and still not the lower half, so the caveat is narrowed rather than
+withdrawn — a stage-B null would speak to p(target) above about 0.70.
+
+### A hole in the registered rule, closed with items rather than an amendment
+
+The rule bounds ancestor distance to ±2 tokens but bounds confidence only by
+ordering the greedy, with no tolerance. On a first 410-item screen that bit:
+greedy filled to the ceiling with pairs as far apart as 0.165 in `p(target)`,
+and a 0.79-against-0.96 pair is not confidence-matched in any sense this
+experiment needs. A tolerance of 0.05 would have left 14 pairs and stopped the
+experiment; one of 0.10 would have left 17 and continued it. Choosing between
+those *after* seeing that they decide proceed-versus-stop is exactly the move
+the registration exists to prevent, even with no stage-B outcome in existence.
+
+So the rule was not touched. Screening went from 410 items to 1,230 instead,
+which is cheap — clean forwards, minutes — and the loose tail disappeared on its
+own: every one of the 24 pairs now matches to 0.0007 or better. Recorded because
+the hole is still in the rule and a future screen small enough would hit it.
+
+### Stage B, unchanged
+
+Layer 13, the 24 pairs, all five row kinds, `control_specificity` beside every
+verdict. Primary outcome the implied digit uniquely on top, one test, spine-
+cluster bootstrap. Nothing about the analysis moves on the strength of stage A.
+
+## 2026-08-15: Pre-registration — E2, whether the depth contrast survives matching on clean confidence and ancestor distance
+
+Written before any E2 item is generated and before the float32 change below
+exists, so that neither the selection rule nor the stop condition can be a
+post-hoc choice. Nothing here rescores or reinterprets an archived run. Committed
+alone, ahead of the code, so the commit timestamp is the registration timestamp.
+
+### What E1 leaves open
+
+The depth ladder collapses after depth 1 — `21/23` implied wins at depth 1 and
+`0/5` at depth 2 and 3, with no ties at either failing depth, so the failure is
+not the bfloat16 resolution artefact corrected in the entry below. But depth is
+confounded with two other quantities that move with it, and the archived runs
+cannot separate them.
+
+**Clean confidence.** The written arms, `v3_distinct` at layer 13, seed 0:
+
+| depth | eligible clean p(target) | pooled range |
+|---:|:---|:---|
+| 1 | 0.666, 0.725, 0.961 | 0.53 – 0.96 across seeds 0-3 |
+| 2 (`none`) | 0.966, 0.975, 0.996, 0.997, 0.999 | — |
+| 3 (`none`) | 0.997 – 0.999 | — |
+
+The supports do not overlap at all: the largest depth-1 value is 0.961 and the
+smallest depth-2 value is 0.966. Every depth-1 success is on an item the model
+was unsure of, and every depth-2 failure is on an item it was sure of. A patch
+that fails to move a near-saturated readout is not evidence about graph depth.
+
+**Ancestor token distance.** `ancestor_distance` at gap 0 is `{11, 24}` at
+depth 1, `{23, 36}` at depth 2, `{35, 48}` at depth 3. Adjacent depths overlap
+to within one token; non-adjacent depths do not overlap at all.
+
+**Clustering.** The `21/23` rests on 17 distinct spines, not 23 independent
+draws: four spines contribute three or four gap placements each. (The
+`cross_item` `11/14` is 14 distinct spines with no repeats, so that arm is not
+clustered.) This was raised in external review as "5 spines"; the true figure is
+17, which is milder but still not 23.
+
+### What is not being tested
+
+Layer 13 only, fixed from the `v3_distinct` discovery table and **not** re-searched
+here. That makes this run confirmatory for the depth *contrast* and not for the
+layer: the depth-1 rate is not a fresh test of anything, because the layer was
+chosen on data that produced it. Also outside the confirmatory set, and not to be
+reported as a result of this run: depth 3, the `cross_item` donor claim, the
+omission arms, any other layer, and anything mechanistic. Those are exploratory
+if run at all.
+
+### The measurement change: a float32 readout, recorded rather than inferred
+
+`collect_data.load_model` hardcodes `torch_dtype=torch.bfloat16`, which is why
+the digit logits sit on a 0.125-nat grid and eight of the fifty-three depth-1
+readouts are exact two-digit ties. A 1.5B model in float32 is about 6 GB of
+weights against 46 GB of A40, so this costs nothing worth counting.
+
+Registered as a precondition of stage A, with tests, before any item is generated:
+
+- `load_model` gains an explicit `dtype`, defaulting to `torch.bfloat16` so no
+  existing behaviour moves.
+- `dag_patching` requests `torch.float32` and writes `readout_dtype` into the
+  report. The archived eight had their dtype traced through a call chain after
+  the fact; no future run should need that.
+- `dag_pooling` **refuses** to pool records of differing `readout_dtype` into one
+  rate. The E2 counts must not be compared against the archived bf16 counts as
+  though they were the same measurement, and the tool should enforce that rather
+  than a reader remembering it.
+
+Tie-aware scoring stays exactly as committed. float32 is expected to decide most
+of the current ties, not to make the tie policy unnecessary.
+
+### Stage A — screening, clean forwards only
+
+`v3_distinct`, `--omit none`, `--condition both`, float32, no patching. 200 items
+at depth 1 and 200 at depth 2, over fresh seeds disjoint from 0-3. Depth 1 is
+generated at gaps 0, 1 and 2 to widen the `ancestor_distance` support toward the
+depth-2 range; the gap sweep is a distance sampler only, and the one-item-per-spine
+rule below removes the placement repeats before anything is compared.
+
+Recorded per item: `clean_probs`, `clean_correct_unique`, `clean_target_share`,
+`ancestor_distance`, `gap`, seed, index, `readout_dtype`. Archived even if stage
+A stops the experiment.
+
+### The selection algorithm, fixed here
+
+It runs on stage-A clean measurements only. No patched outcome exists when it
+runs, which is the property that makes it a selection rule rather than a choice.
+
+1. **Eligible** = clean target uniquely on top (`clean_correct_unique`), float32.
+2. **Confidence window** `W = [max(min₁, min₂), min(max₁, max₂)]` over the
+   eligible per-depth supports of `clean_target_share`. Empirical, but computable
+   from clean data alone.
+3. **Distance matching.** One-to-one greedy pairing of eligible depth-2 items to
+   eligible depth-1 items inside `W`, requiring `|Δ ancestor_distance| ≤ 2`
+   tokens, ordered by `|Δ clean_target_share|` then `|Δ ancestor_distance|`, no
+   item reused.
+4. **One item per spine**, enforced on the selected set: at most one `(seed,
+   index)` per depth, keeping the best-matching placement.
+5. Take up to 24 matched pairs; stop taking at 24.
+
+### Stage A stop condition, and the three registered outcomes
+
+Minimum **16 matched pairs**. Fisher's exact at n = 16 per arm has 0.93 power
+against a fall from 0.9 to 0.3 and only 0.58 against a fall to 0.5, so this run
+is powered to detect a *collapse* and not an attenuation. An intermediate result
+is a registered possibility and will be reported as inconclusive, not as either
+verdict.
+
+- **Fewer than 16 pairs.** Stop at stage A, run no patches. The depth contrast is
+  confounded with clean confidence and cannot be unconfounded within this item
+  family. Close the depth claim and report one step only.
+- **Contrast persists** after matching → the depth result is about graph depth.
+- **Rates converge** after matching → the contrast was confidence, not depth, and
+  the result is a caution about patching into near-saturated readouts.
+
+All three are reportable. That is the point of running it.
+
+### Stage B — the patched run
+
+Layer 13, the matched pairs only, all five row kinds retained (`ancestor`,
+`non_ancestor`, `null`, `surface_null`, `cross_item`), `control_specificity`
+reported beside every verdict.
+
+**Primary outcome:** the implied digit uniquely on top under the `ancestor` patch.
+Test: the depth-1 minus depth-2 difference in that proportion, 95% interval from a
+1,000-replicate spine-cluster bootstrap. One test, no others in the confirmatory
+set.
+
+**Secondary, reported and not gated:** the full four-way level split — median
+clean → patched `p(implied)`, `p(raw)`, `p(target)`, and the remaining mass — per
+depth, with ties counted apart. This is the split that matters, because at depth 1
+the transplanted state promotes the donor's *literal* digit too (0.0005 → 0.373
+under a foreign donor), and a reader will ask. `delta_toward` is reported but is
+**not** an outcome: it is a log-odds gain from a baseline that differs by digit,
+which is why the `cross_item` margin column read 4/14 while the argmax read 11/14.
+
+**Validity gate, keeping the verdict space three-valued:** if null edits flip the
+answer on 20% or more of an arm's control rows, that arm is an **invalid test** and
+the comparison is not made for it. `depth2_chain` is the precedent — nulls flipped
+23/40 there and every relative gate passed anyway.
+
+### Budget
+
+400 clean forwards for stage A; at most 48 items × the row-and-layer sweep for
+stage B. Single GPU, one checkpoint, no new item family.
+
+### Limits of this design, stated in advance
+
+`W` will sit near the *top* of the depth-1 confidence range — the archived depth-1
+support reaches 0.961 and depth 2 begins at 0.966 — so the matched comparison
+tests the depth contrast in the high-confidence regime only. A null in stage B is
+evidence about that regime. It neither restores nor refutes the depth claim at the
+moderate confidences where the depth-1 result was actually obtained, and it will
+not be written up as though it did.
+
+## 2026-08-15: Corrections — the readout is bfloat16, so `25/25` was a tie-break, and three claims the omission arms do not license
+
+A second external review (codex) of `5f6c899` found that the pooled table
+published in the entry below breaks exact ties by digit order, and that three
+sentences in the omission entry claim more than the intervention identifies.
+Both are mine. The counts here supersede the table below; the wording
+corrections are applied in place in
+`results/dag_patching/written_vs_omitted/README.md` and restated here. No
+verdict moves and no artifact is rewritten.
+
+### The digit readout is on a 0.125-nat grid, and eight depth-1 readouts are exact ties
+
+`dag_patching` loads through `collect_data.load_model(False, ...)`, which is
+`torch_dtype=torch.bfloat16`. The logits are therefore bfloat16 and the digit
+readout inherits its resolution: across every `v3_distinct` readout the top-two
+logit gap takes only the values 0, 0.125, 0.25, 0.375, ... — exact multiples of
+one bfloat16 ulp at this magnitude. Nothing finer was ever measured.
+
+Two digits at *bit-identical* probability are consequently common, not freakish:
+
+- 8 of the 53 depth-1 patched readouts have two digits sharing the maximum.
+- 5 of the 33 depth-1 clean readouts do.
+
+`probs.index(max(probs))` resolves those by returning the lowest tying digit.
+That is a property of `list.index`, and in the pooled table it broke every tie
+in the flattering direction, because the review's own tie policy — stated in
+`dag_patching` and not applied in `dag_pooling` — says a bare argmax on a tie is
+an artefact.
+
+### The corrected depth-1 counts
+
+Denominator: items whose clean answer is *uniquely* on top. Numerator: the
+implied digit *uniquely* on top. Ties counted apart rather than resolved.
+
+| donor | depth | n | clean uniquely right | clean tied | implied uniquely top | tied implied/raw | raw uniquely top | toward>raw |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `ancestor` | 1 | 33 | 23 | 5 | **21/23** | 2 | 0/23 | 17/23 |
+| `cross_item` | 1 | 20 | 14 | 3 | **11/14** | 3 | 0/14 | 4/14 |
+
+Was `25/25` and `15/16`. Three things this changes and one it does not:
+
+- The implied digit never *loses*. In all 23 and all 14 it is at least tied for
+  the top; the corrections are all ties, never a third digit winning.
+- The raw donor digit is uniquely top **zero** times, against `1/16` before.
+  That one cross-item raw win was a clean-tied item and is now out of the
+  denominator entirely.
+- The lowest confidence band **empties**. Both depth-1 items under p(target)
+  0.50 were clean ties, so the eligible depth-1 range is now 0.53 to 0.96 and
+  the flat-in-confidence claim is made over a narrower span than stated below:
+  `[0.50, 0.80)` 15/17 with 2 ties, `[0.80, 1.00)` 6/6.
+- The depth contrast does not move. Depth 2 and 3 stay at 0 implied wins with no
+  ties at all, so the failure there is not a resolution problem.
+
+`dag_pooling` now reports the unique counts and keeps the bare-argmax ones
+beside them under legacy names, so the difference is auditable rather than taken
+on trust. `POOLED.json` is regenerated.
+
+### `toward>raw` is baseline-sensitive and should not be read as a contradiction
+
+The margin column falls to 17/23 and 4/14, and the entry below reads that as the
+argmax and the margin disagreeing. On the levels they do not. Medians over the
+eligible depth-1 items, clean to patched:
+
+| donor | p(implied) | p(raw) | p(target) | p(implied) > p(raw) |
+|:---|:---|:---|:---|---:|
+| `ancestor` | 0.0006 → 0.728 | 0.0009 → 0.244 | 0.702 → 0.002 | 21/23, 2 equal |
+| `cross_item` | 0.0021 → 0.585 | 0.0005 → 0.373 | 0.703 → 0.008 | 11/14, 3 equal |
+
+`delta_toward > delta_toward_raw` compares log-odds *gains*, and the raw digit
+usually starts lower, so it can gain more while finishing well behind. The
+cross-item 4/14 is mostly that, not a rival digit winning.
+
+What survives is smaller but real: the transplanted state promotes **both** the
+donor's literal digit and the recipient-transformed one, 0.0005 → 0.373 for the
+raw digit under a foreign donor. "The recipient transforms the donor value" is
+therefore too clean. The transformed digit wins; the untransformed one is also
+strongly promoted, and any claim about selectivity has to say so.
+
+### Three sentences the omission arms do not license
+
+- **"There is no latent computation for the written trace to overwrite."** Not
+  identified. Behavioural failure after removing a written value cannot separate
+  computing the value, binding it, retaining it, and retrieving it; no
+  activation was read at a matched slot for the omitted result. What the arms
+  support is that **no behaviourally usable carried intermediate was detected**.
+- **"The model cannot produce the answer at all."** It produces it 2/5 and 1/5.
+  The word is *collapses*.
+- **"The collapse is attributable to the missing value on the path and to
+  nothing else."** The decoy arms omit `decoys[:depth-1]` — the first decoys,
+  not position-matched substitutes for the path lines. They establish that the
+  ` # # # #` notation is legible; they do not rule out every path-specific
+  effect other than the value.
+
+One scope error alongside them, which is mine and not in either document: I have
+been treating the decoy control as making *the experiment* interpretable. It
+makes the **clean-behaviour ablation** interpretable. The patching arms at depth
+2 and 3 still hit the pre-registered stop condition, and a control added
+afterwards does not convert a stopped contrast into a valid causal test.
+
+## 2026-08-15: Pooled, the depth-1 effect is thirty-three items and does not decay with confidence
+
+**Superseded in part by the corrections entry above**: the counts in this entry
+break exact bfloat16 ties by digit order. Read `21/23` and `11/14` for the
+bolded numbers below.
+
+No GPU. `dag_pooling.py` reads the committed arms, deduplicates by measurement
+content, and reports one outcome per item at layer 13: the argmax of the patched
+digit readout. Derived into `results/dag_patching/POOLED.json`; regenerate with
+`uv run python dag_pooling.py`. Nothing is rescored and no verdict moves.
+
+Every arm holds five items and every arm README reports its own five, so the
+strongest count anywhere in the repository was `5/5`. The arms already hold 83
+measurements. Clean-correct items, at layer 13:
+
+| donor | depth | omit | n | seeds | clean ok | implied | raw | clean | toward>raw |
+|:---|---:|:---|---:|:---|---:|---:|---:|---:|---:|
+| `ancestor` | 1 | none | 33 | 0-3 | 25/33 | **25/25** | 0/25 | 0/25 | 19/25 |
+| `ancestor` | 2 | none | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `ancestor` | 2 | decoy | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `ancestor` | 3 | none | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 2/5 |
+| `ancestor` | 3 | decoy | 5 | 0 | 5/5 | 0/5 | 0/5 | 5/5 | 1/5 |
+| `cross_item` | 1 | none | 20 | 0-3 | 16/20 | **15/16** | 1/16 | 0/16 | 6/16 |
+
+The chain-omitted rows are in the file and are deliberately not in this table:
+they hit the pre-registered stop condition, so they are a clean-behaviour
+ablation and not a patching test. Omission is a grouping key in `_arm_group` so
+they cannot merge into a written arm's rate by accident.
+
+### The confidence entanglement does not hold up
+
+The worry was recorded on 2026-08-14: the arms that clear the `answer_moved`
+floor are the arms where the clean answer is least often the model's own, so the
+effect might be nothing but a model that is easy to push when unsure. Banded
+within depth 1, clean-correct items only:
+
+| p(target) | n | landed on implied |
+|:---|---:|---:|
+| [0.00, 0.50) | 2 | 2/2 |
+| [0.50, 0.80) | 17 | 17/17 |
+| [0.80, 1.00) | 6 | 6/6 |
+
+Flat. It is not a low-confidence artefact within the range the family reaches.
+All eight misses in the depth-1 pool are items whose clean answer was already
+wrong, where there was no clean answer for the patch to move off.
+
+Bands are taken *within* a depth and never across. Depth and clean confidence
+are collinear here -- depth-1 items top out at 0.961 and every written depth-2
+item starts at 0.966 -- so a pooled top band is almost entirely depth-2 misses
+and reads as exactly the decay the table exists to rule out.
+
+### What this does not buy
+
+The two families **abut and never overlap**, so no item pair separates depth from
+confidence. The nearest pair is one observation each: depth 1 at p(target) 0.961
+gives tv 0.985, lands on the implied digit, and leaves the clean answer at
+0.0017; depth 2 at 0.966 gives tv 0.154, misses, and leaves it at 0.813.
+
+Nor is any of this held out. Layer 13 was chosen from these same runs, the three
+gap placements are repeated measures on the same DAGs, and it is one checkpoint.
+Pooling buys precision on an effect already seen; a fresh family still has to
+confirm it.
+
+### The margin and the argmax disagree, and both are reported
+
+`toward>raw` is the log-odds margin -- did the implied digit gain more than the
+raw donor digit -- and it is 19/25 and 6/16 where the argmax is 25/25 and 15/16.
+The raw digit often gains a great deal while still losing. Under the cross-item
+donor especially, "the implied digit wins" and "the implied digit moved most" are
+not the same claim, and neither is allowed to stand in for the other.
+
+## 2026-08-15: Omitting the intermediate result does not restore the patch, and the control says why
+
+**Three sentences in this entry overclaim**; see the corrections entry at the
+top of the file. Left as written, with the corrections stated there.
+
+Eight arms in `results/dag_patching/written_vs_omitted/`, `v3_distinct`, seed 0,
+`n_items 5`, `condition both`. The registered prediction is in `78a6461`.
+
+The hypothesis under test, from the review: the depth collapse might not be
+about graph depth at all, because depth 2 and 3 also add **written correct
+intermediate values**. If the model computes the answer latently and the written
+value overwrites or dominates that, then unwriting it should restore the patch.
+
+`--omit chain` renders the chain lines without their results, padded with
+comment markers to the exact token count of the ` = <digit>` they replace:
+
+```
+m = a - 2 = 3 # w        ->    m = a - 2 # # # # w
+```
+
+Same length -- 139 tokens either way at depth 2 -- same positions, same batch:
+omission draws nothing from the stream, so it is the same item rendered twice.
+
+At layer 13:
+
+| Arm | clean top = target | clean p(target) | ancestor -> implied | ancestor moved | controls moved |
+|:---|---:|---:|---:|---:|---:|
+| `depth1_none` / `depth1_chain` | 4/5 | 0.666 | **5/5** | 5/5 | 4/40 |
+| `depth2_none` | 5/5 | 0.996 | 0/5 | 0/5 | 0/40 |
+| `depth2_decoy` | 5/5 | 0.997 | 0/5 | 0/5 | 0/35 |
+| `depth2_chain` | 2/5 | 0.240 | 1/5 | 4/5 | **23/40** |
+| `depth3_none` | 5/5 | 0.999 | 0/5 | 0/5 | 0/40 |
+| `depth3_decoy` | 5/5 | 0.999 | 0/5 | 0/5 | 0/30 |
+| `depth3_chain` | 1/5 | 0.050 | 0/5 | 4/5 | **33/40** |
+
+### The first read was wrong, and the control is what caught it
+
+The `chain` arms move the answer 4/5 where the written arms move it 0/5. Taken
+alone that reads as the hypothesis confirmed, and `depth2_chain` is **scored
+`positive` by the scorer**. It is not. Three things say so, none of them a gate:
+
+- The ancestor lands on the digit it predicts 1/5 and 0/5 of the time, against
+  5/5 at depth 1.
+- The background moves with it: nulls 23/40 and 33/40, and a *comment-tag*
+  rewrite flips the answer 3/5 and 4/5.
+- Clean correctness collapses to 2/5 and 1/5, and the clean target's share to
+  0.240 and 0.050. The model has stopped solving the task.
+
+Every gate in the scorer is relative -- ancestor against nulls, surface against
+nulls -- so a background that moves as much as the ancestor clears all of them.
+The floor added yesterday catches an arm where *nothing* moves; nothing caught
+the mirror case where *everything* does. New `control_specificity` diagnostic,
+reported and never binding, records exactly the three numbers above.
+
+It is a diagnostic rather than a gate because control flips are not unique to
+the broken arm: `paired_ladder/depth1_gap0` has nulls at 16/30 and tags at 3/5,
+and the published depth-1 positives would all be caught by a naive version of
+it. What separates depth 1 is not that the background is silent but that the
+ancestor lands on the *implied* digit, 14/15 across the arms, which a control
+has no reason to produce. Gating on background movement alone would be a fourth
+retroactive policy move on evidence that does not support one.
+
+### The decoy control is what makes the result interpretable
+
+Clean accuracy differing sharply between formats was the pre-registered stop
+condition: the manipulation changed two things at once, so the interaction could
+not be read. `--omit decoy` separates them. It omits the same number of values,
+with the same notation and the same token budget, from lines the target does not
+depend on -- so the answer stays computable from what is written.
+
+**The decoy arms are indistinguishable from the written arms**: 5/5 clean at
+p(target) 0.997 and 0.999, nothing moved, no control movement. The notation is
+perfectly legible. The model reads ` # # # #` without difficulty.
+
+So the collapse in the `chain` arms is attributable to the missing value on the
+dependency path and to nothing else.
+
+### What that means
+
+The hypothesis is **not supported**, and the reason is more interesting than a
+null would have been. There is no latent computation for the written trace to
+overwrite: with the path value unwritten, the model cannot produce the answer at
+all -- p(target) 0.240 at depth 2 and 0.050 at depth 3, against 0.996 and 0.999
+when it is written. It is *reading* the intermediate value, not computing it.
+
+Which reframes the depth collapse. It is not that a patched state is suppressed
+by a competing written value. It is that at depth 2 and beyond the answer is
+determined by the written intermediate token, the patch does not touch that
+token, and nothing downstream reads the state the patch does write. The depth-1
+result stands unchanged and is now the more precise claim: one step, into a
+value the trace states next, is where a patched residual state is read.
+
+Depth 1 is the manipulation's own control and behaves exactly as it must:
+`depth1_none` and `depth1_chain` are identical files apart from the recorded
+flag, because there is no chain to omit.
+
+Five items, one seed, one checkpoint, one notation for omission. A model that
+never learned to carry an unstated intermediate is not the same claim as a model
+that cannot; distinguishing those needs a checkpoint that was trained on traces
+with unstated steps, which this one was not.
+
+## 2026-08-15: Corrections — a wrong justification, two layer-selected counts, and a diagnostic that reframes the depth-1 positives
+
+An external review of `5877120` (codex) found four defects in the two entries
+below. Three are mine and I state them plainly; the fourth is a
+design gap the review found that I had not considered. Nothing here changes a
+verdict. Earlier entries are left as written, with pointers back to this one.
+
+### The floor's threshold was justified by a false claim
+
+I wrote, in the code and in the entry below, that a half is "the largest
+threshold that is not a free parameter -- below it the clean answer cannot still
+be the argmax". **That is false.** A half is the majority boundary. A digit at
+0.40 is the argmax of a ten-way distribution whenever the other nine average
+0.067, and the tightest scalar-only sufficient condition for ten classes is a
+share below 0.1.
+
+It is not only a wording error. Of the 360 stored ancestor rows, 37 sit in the
+band [0.1, 0.5) where the share does not settle the question, and **5 of those
+are called moved while the clean digit is still on top.**
+
+The fix is not a better threshold. Where `probs_patched` exists there is no
+threshold to choose: test whether the clean digit is still alone at the top. A
+tie is not a move -- which co-maximum a bare argmax returns is an artefact of
+digit order, and the stored runs contain bit-exact top ties, two of them in
+`v3_distinct/depth1_gap0` alone (0.4835 against 0.4835, 0.4941 against 0.4941,
+equal to the last bit of float32). The share survives only as the fallback for
+the archived eight, which predate the field. It is exact at or above 0.5 and
+below 0.1 and can only over-call movement in between, so it never misses a real
+move; the gate now records which of the two tests decided it.
+
+**No verdict changes**, across all 17 reports that carry rows. The one layer
+whose quorum differs is `paired_ladder/depth1_gap0` layer 27, which is not a
+scoring layer. So the defect was real, was stated confidently, and cost nothing
+-- but only because the measured shares happened to fall 0.000-0.040 and
+0.946-0.992, either side of the ambiguous band.
+
+The one place it does cost something: `operand_only` sits at 0.401, inside the
+band, and is archived, so it has no `probs_patched` and **its argmax cannot be
+tested at all.** My claim below that "that arm's answer *does* move" is not
+supported by anything in the artifact. It is unknown.
+
+### Two reported counts were selected on a per-arm layer
+
+The cross-item mass table below reports "n=20 -> implied 12 / raw 6 / clean 1 /
+other 1". That count was taken at each seed's own joint layer, which differs by
+seed, and the mechanism is layer-dependent. At a fixed layer it reads:
+
+| layer | ancestor, depth-1 arms | cross-item, seeds 0-3 |
+|:---|:---|:---|
+| 6  | 13 implied / 2 raw | 14 implied / 5 raw / 1 other |
+| 13 | **14 implied / 1 raw** | **16 implied / 4 raw** |
+| 20 | 12 implied / 3 raw | 10 implied / 5 raw / 2 clean / 3 other |
+
+So the reported figure understated the effect and hid its layer dependence at
+once. Report the table, not a chosen-layer count. Layer 13 is the strongest, and
+having been chosen by looking at this table it is a discovery layer: fixing it
+in advance is a condition on the next run, not a result of this one.
+
+The ancestor row's `n=15` is also not 15 independent items. `depth1_gap{0,1,2}`
+share one arithmetic spine set -- target values `[3, 7, 5, 5, 7]` in all three
+-- so it is five spines at three gap positions. Five paired items, three
+position conditions.
+
+### `joint_layer` was reported, not applied
+
+The paired-ladder entry says the run was "scored under `v2_one_sided` and
+`joint_layer` from the start". `joint_layer` carries `applied_to_verdict: False`
+in the scorer and in every report; it was frozen in advance and reported beside
+the verdict, which is what made that run a prospective test, but it did not
+decide anything. Read "frozen and reported from the start".
+
+### The gap the review found: the clean answer is often not the model's answer
+
+`v3_distinct` made the implied, raw and clean digits distinct. It does not make
+the model's clean behaviour correct, and nothing gated on that. New
+`clean_answer` diagnostic, reported and never binding:
+
+| Arm | clean top digit is the target |
+|:---|:---|
+| every depth-2 and depth-3 arm | **5/5** |
+| `v3_distinct/depth1_gap{0,1,2}` | 4/5, 4/5, 3/5 |
+| `paired_ladder/depth1_gap{0,1,2}` | 2/5, 3/5, 2/5 |
+| archived `depth1_gap{0,1,2}` | 3/5, 2/5, **1/5** |
+| `cross_item` seeds 0-3 | 2/5, 4/5, 5/5, 4/5 |
+| `v3_distinct/cross_seed{0..3}` | 3/5, 5/5, 3/5, 5/5 |
+
+The pattern is the concerning part and it is not in the review: **the arms that
+pass the floor are the arms where the clean answer is least often the model's
+own answer, and the arms that fail it are 5/5 correct.** Both follow from clean
+confidence -- 0.59-0.67 at depth 1 against 0.99 at depth 2 and 3 -- so
+`answer_moved` and clean correctness are entangled through it. An arm can clear
+the floor partly because the model was undecided to begin with.
+
+This does not overturn depth 1: the patched readout lands on the *implied*
+digit, which an undecided model has no particular reason to do. But "the patch
+flipped the answer" is only a counterfactual flip where the clean target was the
+answer, and on the archived `depth1_gap2` that is one item in five.
+
+It is a diagnostic, not a gate. Binding the verdict to it would be a third
+retroactive policy move on runs already scored under two. The place to require
+clean correctness is the generator of the next family.
+
+### Also from the review, and agreed
+
+`gate_policy_version` names the surface policy alone, so adding the floor
+changed the verdict function while leaving the label untouched:
+`paired_ladder/depth2_gap0.json` reads `v2_one_sided` / `positive` on disk while
+a rescore under that same label calls it a scientific negative. One name, two
+functions. Reports now carry `verdict_version` (`v1_gap_only` ->
+`v2_gap_and_floor`), and a rescore keeps the original beside the original
+verdict.
+
+The review's substantive point, which no gate repair reaches: pairing fixed the
+item family and the token distance, but depth 2 and depth 3 also add **written
+correct intermediate values** that depth 1 does not have. Depth and the amount
+of correct scaffolding already in the text move together, and clean confidence
+rising to 0.99 is what teacher-forced text dominating the latent state would
+look like. The depth collapse is real; its cause is not identified. The next run
+is the written-versus-omitted contrast, not more depth, models or checkpoints.
+
+## 2026-08-14: The floor changes four verdicts and v3 confirms depth 1 on a well-posed family
+
+Two changes, both following from the entry below.
+
+### `answer_moved`: gate on whether the answer moved, not only on whether it moved more
+
+Every gate was a ratio or a one-sided comparison, so none noticed when both
+sides of the comparison were approximately zero. The floor asks whether the
+clean answer still holds a majority of the digit readout after patching.
+
+A half is the largest threshold that is not a free parameter -- below it the
+clean answer cannot still be the argmax -- and it does no work here anyway:
+
+> **Corrected 2026-08-15.** The clause after the dash is false: a half is the
+> majority boundary, not the argmax boundary. See the corrections entry above.
+> The floor now tests the argmax directly where the distribution is stored. No
+> verdict in this entry changes.
+
+| | clean share at the best layer |
+|:---|:---|
+| arms that fail | 0.946, 0.961, 0.966, 0.991, 0.992 |
+| arms that pass | 0.000 - 0.040 |
+| `operand_only` | 0.401 (the only arm anywhere near the line) |
+
+A 20x gap around the threshold is the evidence that it was not tuned to
+produce this result. Failing it is a **scientific negative**, not an invalid
+test: such a patch was directional, quiet and selective, and simply did not
+change the answer. It also joins the joint-layer rule.
+
+It is computable on the archived reports without a replay -- they store
+`delta_away` per row and `clean_target_logodds` per item, so `rescore_report`
+joins the two. A report supplying neither leaves the floor *unmeasurable*,
+which fails rather than passes. **No archived file was modified**, and the
+manifest re-derives identically.
+
+Four verdicts change, all of them depth 2 or depth 3, in both families:
+
+| Arm | archived | with floor |
+|:---|:---|:---|
+| `depth2_gap0` (archived and paired) | positive | **scientific negative** |
+| `depth3_gap0` (archived and paired) | positive | **scientific negative** |
+
+`operand_only` is unchanged, but its share of 0.401 is worth recording: that
+arm's answer *does* move, and it is a negative because the movement is not
+selective, not because nothing happened.
+
+> **Corrected 2026-08-15.** 0.401 does not establish that the answer moved --
+> it falls in the band where the share is uninformative, and `operand_only` is
+> archived with no stored distribution, so its argmax cannot be tested. Unknown,
+> not moved.
+
+### `v3_distinct`: the generator keeps all three competing digits apart
+
+`v2_paired` kept the implied value off the clean answer but nothing kept the
+**raw** digit off it, so 2 of 20 ancestor items and 1 of 20 cross-item items
+posed a question with two identical answers. One more rejection, decided by the
+spine alone so it fires identically at every depth, and tested on the reroll
+rather than on the digit a given condition renders so it fires identically in
+all three conditions -- the clean trace has to be the same under each. Donor
+eligibility in the cross-item arm carries the same rule, since that digit comes
+from another item.
+
+It moves the random stream, so it is a new family and the new default, not a
+repair to `v2_paired`. A test pins that `v2_paired` still carries the defect, so
+a quiet fix cannot make the artifacts already run against it unreproducible.
+
+Nine arms run against it, in `results/dag_patching/v3_distinct/`. **Zero
+ill-posed items**, so these counts are whole-batch rather than filtered:
+
+| | n | -> implied | -> raw | -> clean | median mass implied / raw |
+|:---|---:|---:|---:|---:|:---|
+| ancestor, depth-1 arms | 15 | **14** | 1 | 0 | 0.586 / 0.389 |
+| cross-item, seeds 0-3 | 20 | **12** | 6 | 1 | 0.487 / 0.365 |
+
+> **Corrected 2026-08-15.** The cross-item row was counted at each seed's own
+> joint layer, which differs by seed; at a fixed layer 13 it is 16 implied / 4
+> raw, and at layer 20 it weakens to 10 / 5 / 2 clean / 3 other. The ancestor
+> row is layer 13. `n=15` is five spines at three gap positions, not 15
+> independent items. Layer table in the corrections entry above.
+
+And the ladder, scored under the floor from the start, reproduces on a fresh
+family what the rescore showed on the old one: `depth1_gap{0,1,2}` positive at
+5/5 items moved, `depth2_gap0` and `depth3_gap0` scientific negatives at 0/5
+with clean shares of 0.961 and 0.991.
+
+So the depth-1 result survives every check applied to it: a paired family, a
+foreign donor, a well-posed batch, and an absolute floor. It remains a
+**mixture** -- roughly 0.59 propagation against 0.39 copying in the ancestor
+arm -- and the collapse after depth 1 is now what the verdict says rather than
+something only the detail block knew.
+
+## 2026-08-14: The rows now store the digit distribution, and the first question asked of it says the depth ladder collapses after depth 1
+
+`measure_item` computed the ten-way readout and stored three projections of it
+(TV, `delta_toward`, `delta_toward_raw`), so every new question about *where*
+the mass went cost a GPU rerun. The project separates measurement from scoring
+precisely so a gate revision costs no GPU; the row schema quietly broke that,
+because the gates were a policy over the rows but the rows were themselves a
+policy over the logits. Rows now carry `probs_patched`, items carry
+`clean_probs`, and rows name the digits their deltas point at (`implied_value`,
+`raw_value`) — a delta without its referent being the same half-measurement one
+level down. A test derives all four stored scalars back out of the two
+distributions, which is what makes the row sufficient rather than merely bigger.
+
+All nine non-archived arms were rerun (five paired-ladder, four cross-item).
+**Every pre-existing scalar reproduced exactly** — 0 changed values across 9
+files — and every verdict and gate is unchanged. The eight archived artifacts
+were not touched, and rescore output for them is byte-identical before and
+after. Cost: 792K + 692K on disk, about 30 s of GPU per arm.
+
+### At matched token distance, depth 1 replaces the answer and depth 2 does not
+
+| Arm | dist | median TV | `median_delta_toward` | clean mass | implied mass |
+|:---|---:|---:|---:|---:|---:|
+| `depth1_gap0` | 24 | 0.973 | 6.86 | 0.001 | 0.651 |
+| `depth1_gap1` | 37 | 0.989 | 7.62 | 0.001 | 0.526 |
+| `depth1_gap2` | 50 | 0.978 | 6.82 | 0.002 | 0.618 |
+| `depth2_gap0` | 36 | 0.026 | 1.84 | **0.970** | 0.002 |
+| `depth3_gap0` | 48 | 0.006 | 1.31 | **0.992** | 0.000 |
+
+The distance-matched pairs still say depth rather than token distance, as
+logged before. What is new is the magnitude. `median_delta_toward` of 1.84 nats
+reads as a real effect; the distribution it summarises has not moved, the clean
+answer keeping 0.970 of the readout. **`depth2_gap0` and `depth3_gap0` are
+scored `positive` on arms where the answer does not change.**
+
+Every gate is a ratio or a one-sided comparison, and none asks whether the
+readout moved in absolute terms. At `depth2_gap0`, layer 6: `ancestor_gap`
+passes on `tv_ancestor` 0.026 against `tv_null_max` 0.0025 — a clean 10x
+between two numbers that are both approximately zero — and
+`directional_control` passes 5/5 on log-ratio movement from about 1e-5 to about
+1e-4.
+
+**This did not need the distributions.** `tv_ancestor` sits in the `detail`
+block of the archived reports and always did: 0.089 at depth 2 and 0.016 at
+depth 3, against 0.99 at depth 1. The collapse was measured, stored, and
+reported in the summary as its log-ratio, which pointed the other way. The
+distributions confirmed it and made the mechanism legible; they were not what
+made it findable. The missing piece is a gate, not a measurement, and it is now
+a rescore.
+
+### Where the mass goes at depth 1: propagation, not copying, but mixed
+
+At the joint layer, well-posed items only (implied, raw and clean answer all
+distinct), argmax of the patched readout:
+
+| Arm | n | -> implied | -> raw | -> clean | median mass implied / raw |
+|:---|---:|---:|---:|---:|:---|
+| ancestor, `depth1_gap0` | 4 | 4 | 0 | 0 | 0.618 / 0.375 |
+| ancestor, `depth1_gap{1,2}` | 8 | 6 | 2 | 0 | ~0.53 / ~0.46 |
+| cross-item, seeds 0-3 | 19 | 12 | 7 | 0 | 0.540 / 0.434 |
+
+The prediction registered before the distributions were stored — *patched
+argmax is the raw written digit, in both arms* — is **falsified**. The implied
+digit wins on argmax and on mass. The previous entry's `delta_toward -
+delta_toward_raw` margin, which read as a coin flip and appeared to track digit
+adjacency, was measuring log-ratios against a clean baseline that varies by
+digit; the mass comparison does not have that dependence and is the statistic
+that should have been used.
+
+This also changes how the cross-item control reads. Its implied digit is the
+donor's value carried through the *recipient's* chain, so a foreign donor
+landing there 12/19 is the model reading a value out of the patched state and
+applying the recipient's delta — not the generic position-sensitivity the
+control was built to rule out. On mass the control supports the mechanism at
+depth 1. Its specificity leg still fails on the log-ratio statistic, and that
+gate has not been rewritten; both readings are now on the record and the
+statistic is the open question, not the data.
+
+Both arms put roughly 0.43-0.46 on the raw digit as well. Depth 1 is a genuine
+mixture of propagation and copying, not one or the other.
+
+### What this does not say
+
+Nothing here rescues depth 2 or 3, and nothing here makes depth 1's mixture
+selective. Two claims logged earlier are now known to be softer than they read:
+"the ladder is positive at every depth" is true only of the current gates, and
+the depth-ladder magnitudes were reported in a unit that overstates arms whose
+answer does not move.
+
+Open, and deliberately not decided here: whether an absolute-effect floor joins
+the active gate policy. It would change archived verdicts, which is a scoring
+decision reserved to the user, and it is now free to evaluate either way.
+
+## 2026-08-14: The cross-item donor control fails its specificity leg, and the directional gate turns out not to separate copying from propagation
+
+The strong donor control, built and run: another item's residual state written
+at the recipient's *own* ancestor positions — same span, token width and
+formatting — under a derangement, so no item donates to itself. Four seeds
+(0-3), depth 1, gap 0, five items each. Artifacts in
+`results/dag_patching/cross_item/`. This is the control that was supposed to
+close selectivity. It does not close it; it reopens something larger.
+
+### The arm is matched in everything but where the state came from
+
+The cross-item edit lands on exactly the positions the within-item ancestor
+edit uses — `(97, 100)`, distance 11 to the read position, two tokens, all five
+items 127 tokens wide with the read position at 111. The batch is selected for
+mutual donatability, twice and for different reasons: by ancestor line position
+(formatting, and nothing measured depends on it) and by value compatibility
+(the ten-way readout has to be able to express the counterfactual). The second
+means this arm is **not** the ladder's value distribution.
+
+The chain is affine, so donor value `v_j` through recipient `i`'s chain implies
+`v_j + delta_i` — neither the clean answer nor the donor's own digit. Selection
+keeps all three distinct, which is what makes "propagated" and "copied"
+separable predictions. Eligibility is decided by the spine alone; walking the
+chain would range-check intermediates, which is depth-dependent and would
+desynchronise the arm exactly as `v1_unpaired` did.
+
+### The control's direction leg passes and its specificity leg fails, on every seed
+
+| Seed | toward (per layer, L6/L13/L20) | specific | median TV |
+|:---|:---|:---|:---|
+| 0 | 5/5, 5/5, 5/5 | 1/5 | 0.99 |
+| 1 | 5/5, 5/5, 5/5 | 2/5 | 0.96 |
+| 2 | 5/5, 5/5, 5/5 | 2/5 | 0.97 |
+| 3 | 5/5, 5/5, 5/5 | 2/5 | 0.98 |
+
+Quorum is 4/5. No seed comes close on specificity, and no layer clears both
+legs together on any seed. Digit mass ratio stays at ~1.00 throughout, so this
+is not a collapsed readout — the intervention is clean and the answer moves a
+long way. It moves toward the digit that was *written*, not toward the value
+that digit implies once carried through the recipient's chain.
+
+Note the magnitude: median TV 0.971 for a foreign item's state against 0.984
+for the native ancestor edit. A state lifted out of an entirely different trace
+perturbs the readout about as much as the matched within-item edit does. Those
+positions are highly sensitive to whatever is written there.
+
+### What that forced us to check, and the answer is uncomfortable
+
+The ancestor edit's `implied_target_value` is the donor's stated value carried
+*through* the chain. Its `directional_control` gate — 5/5 in every arm ever run
+— asks only whether the readout moved toward that value. It never asked whether
+the readout moved toward the plain digit the donor writes at the patched
+position even more. At depth 1 those are different digits, so the question is
+well-posed and was simply never put.
+
+`delta_toward_raw` is now recorded for every value edit, at no extra forward
+pass. Pooling the four seeds, 20 items, median margin over L6/L13/L20:
+
+| Arm | Well-posed | Propagated | Copied |
+|:---|:---|:---|:---|
+| ancestor (within-item) | 18/20 | 10 | 8 |
+| cross-item donor | 19/20 | 6 | 13 |
+
+The within-item ancestor edit is **a coin flip**. The cross-item donor leans
+toward copying. So the headline "the patch moves the answer toward the value
+the donor implies" survives as a statement about direction, and does not
+survive as a statement about mechanism: on the one contrast that can tell them
+apart, propagation and digit-copying are about equally often the better
+description of the within-item edit.
+
+This does not say the value channel is unreal — the movement is large,
+directional, fluent, and it separates ancestors from non-ancestors. It says the
+mechanism behind it is not established to be computation over the written
+graph, and the arm that was supposed to demonstrate selectivity instead
+demonstrated that the sharpest available reading of the effect is unsupported.
+
+### No verdict moved, deliberately
+
+`cross_item_donor` is registered with the joint-layer rule applied from the
+start — it has no archived verdict to protect, so there was no reason to repeat
+the `any(layer)` mistake — and it is reported without binding any verdict.
+Rescoring all eight archived artifacts leaves every verdict and every joint
+layer exactly as before, with the control marked unmeasured. Changing verdicts
+on the strength of a statistic whose null is not yet characterised is the
+post-hoc move the previous two checkpoints were spent undoing.
+
+### A generator defect this exposed
+
+Nothing stops the donor's stated digit from equalling the clean answer. When it
+does, "moved toward the written digit" and "did not move" are the same
+prediction and the contrast is ill-posed — 2 of 20 ancestor edits and 1 of 20
+cross-item edits here. The cross-item batch selection rejects it by
+construction; `_reroll_root` does not. Fixing it changes the random stream and
+therefore the item family, so it is a `v3` generator and a rerun, not an edit
+to `v2_paired`. Not done here: the paired ladder above was run under `v2_paired`
+and a silent family change would strand it.
+
+### Limits
+
+Five items per seed, four seeds, one checkpoint, depth 1 only. The
+propagated/copied split is a per-item median over three layers with no
+significance test and no correction; 10-vs-8 and 6-vs-13 are patterns, not
+estimates. Depth > 1 is not reported: for an arbitrary donor value the chain's
+intermediate values are unconstrained, so the prediction there assumes the model
+carries a value the written trace never states.
+
+## 2026-08-14: The paired depth ladder is rerun — prospective confirmation, and depth separates from token distance
+
+Five arms, `dag_patching.py --generator v2_paired`, same settings as the
+archived ladder (model, seed 0, `n_items 5`, `condition both`, `n_decoys 6`):
+`depth{1,2,3}_gap0`, `depth1_gap{1,2}`. Output in
+`results/dag_patching/paired_ladder/`; the archived package was not touched.
+Scored under `v2_one_sided`, with `joint_layer` frozen and reported from the
+start — not amended after the fact, so this is the prospective confirmation the
+gate amendment below needed. `joint_layer` is reported beside the verdict and
+carries `applied_to_verdict: False`; it decides nothing. (Corrected 2026-08-15;
+it previously read "scored under `v2_one_sided` and `joint_layer`", which
+overstates its role.)
+
+### Verdicts unchanged, joint layers shift by one arm each way
+
+| Arm | Ancestor dist | Archived joint layers | Paired joint layers | Verdict (both) |
+|:---|:---|:---|:---|:---|
+| `depth1_gap0` | 11 (paired) / 24 (archived) | 6, 13, 20 | 13, 20 | positive |
+| `depth2_gap0` | 23 / — | 6, 13, 20 | 6, 13, 20 | positive |
+| `depth3_gap0` | 35 / — | 6, 13 | 6, 13, 20 | positive |
+| `depth1_gap1` | 24 / — | 6, 13, 20 | 6, 13, 20 | positive |
+| `depth1_gap2` | 37 / — | 6, 13, 20 | 6, 13, 20 | positive |
+
+Every arm stays positive under `v1_two_sided`, `v2_one_sided`, and
+`joint_layer` alike. `depth1_gap0` loses layer 6 as a joint layer under
+pairing; `depth3_gap0` gains layer 20. No arm loses joint-layer coverage
+entirely. The amendment's prospective test passes.
+
+### The depth/token-distance confound resolves
+
+Pairing lets the ladder do what it was built for: compare a depth step
+against a token-distance-matched gap step on the *same* items. It separates
+cleanly.
+
+| Arm | Dist | L6 | L13 | L20 |
+|:---|:---|:---|:---|:---|
+| `depth1_gap0` | 11 | 6.82 | 6.86 | 6.66 |
+| `depth2_gap0` | 23 | 1.84 | 1.59 | 1.47 |
+| `depth1_gap1` (dist-matched to depth2) | 24 | 7.62 | 7.67 | 7.59 |
+| `depth3_gap0` | 35 | 1.31 | 1.06 | 0.93 |
+| `depth1_gap2` (dist-matched to depth3) | 37 | 6.82 | 6.94 | 6.90 |
+
+(`median_delta_toward`, directional-control gate, TV log-odds.) `depth2_gap0`
+and `depth1_gap1` sit one token apart (23 vs 24) and differ four- to fivefold
+in effect size; `depth3_gap0` and `depth1_gap2` sit two tokens apart (35 vs
+37) and differ five- to sevenfold. Token distance alone does not produce this
+gap — graph depth does. This replaces the archived ladder's "suggestive"
+depth-1-to-depth-2 collapse (never paired, so confounded with both family and
+distance) with a paired, distance-controlled one: the collapse is real and is
+a depth effect, not a token-distance artifact.
+
+Descriptive only — five items, one seed, no significance test, and
+`median_delta_toward` is not itself a gate metric. Worth a registered
+contrast before it is a claim rather than a pattern.
+
+### What this does and does not change
+
+The archived eight runs and their verdicts are untouched; this is a new,
+better-controlled ladder, not a correction to them. It supersedes the
+"suggestive" framing in "Still open" below for the depth-vs-distance
+question specifically. It does not touch selectivity: the tag edit is still
+a floor check, and the cross-item donor experiment is still the next thing to
+build.
+
+## 2026-08-14: The surface gate is amended and enforced; the pilot runs are archived
+
+External review of `5cbb176` found that the registered surface gate was computed
+but never consulted by `verdict()`. Acting on it surfaced a second, independent
+scoring defect. No GPU was used: the rows are the measurement, and the gates are
+a policy over them.
+
+### The gate policy, and what passing it does not establish
+
+The registered v1 gate required the surface perturbation to fall inside the range
+spanned by the per-item null edits — six of them per item, one per irrelevant
+node. That rule tests distributional matching, while the surface control was
+intended to test one-sided non-interference. We therefore introduce a post-hoc v2
+policy requiring surface effect ≤ maximum null effect. We report both policies.
+Passing v2 establishes only that the tag edit is quiet; it does not establish
+selectivity.
+
+State the operational effect plainly: v2 rescues `result_only` from invalid under
+v1 to positive, and it was chosen after seeing that outcome. What argues it is
+not fitted to the outcome is the *direction* of the v1 failures — in that run
+every v1 failure but one is *below* the null minimum, which is the side the
+control wants, and the exception is L6 item 1 at 0.0153 against a null max of
+0.0152. No epsilon was added for it; it stays a failure, and the 4/5 aggregation
+rule absorbs it. The construct change is justified on its own terms, but it
+remains post-hoc and needs prospective confirmation on a run scored under v2 from
+the start.
+
+Directional control, fluency, and the active surface gate are now validity
+requirements, and ancestor separation is consulted only once all three hold. A
+loud surface edit is an invalid test, recorded with reason `surface_above_null`,
+not a positive. The verdict space is unchanged.
+
+### The final decoder layer was scoring, and rescued the v1 gate
+
+Patching the last decoder layer upstream of the read position cannot reach that
+position, so every TV at layer 27 is exactly 0. A containment gate passes
+trivially there at `0 <= 0 <= 0`, and under the `any(layer)` rule that inert bin
+was carrying the v1 surface gate at 5/5 while it failed 2/5, 3/5, 1/5 at every
+informative layer. The prose summary below already excluded layer 27; the scorer
+now agrees. Directional control and the ancestor gap were unaffected — both
+evaluate to false at an all-zero layer.
+
+### Verdicts under both policies
+
+Archived verdicts are unchanged by the amendment. The two policies disagree on
+exactly one arm, which is the arm the question was about.
+
+| Artifact | Schema | Archived | v1 two-sided | v2 one-sided (active) |
+|:---|:---|:---|:---|:---|
+| `feasibility` | v0 | positive | positive | positive |
+| `result_only` | v0 | positive | **invalid test** | positive |
+| `operand_only` | v0 | scientific negative | scientific negative | scientific negative |
+| `depth{1,2,3}_gap0` | v1 | positive | positive | positive |
+| `depth1_gap{1,2}` | v1 | positive | positive | positive |
+
+Surface items passing per scoring layer, `result_only`, L6/L13/L20: 2/3/1 under
+v1, 4/5/5 under v2.
+
+### A joint-layer rule, frozen prospectively
+
+Every gate aggregates with `any(layer)` independently, so each may clear at a
+different bin. That admits an arm-level positive with no single layer at which
+the patch was directional, quiet, and selective at once — which is what an
+arm-level positive is meant to assert. `joint_layer` requires one such layer.
+
+It is reported for the archived runs and does **not** decide their verdicts;
+applying it retroactively would be a third post-hoc policy move. It is frozen
+here for the next paired run, while adopting it is still free: every active
+positive already has a joint layer, and only `depth3_gap0` loses one.
+
+| Artifact | Joint layers | Verdict if applied |
+|:---|:---|:---|
+| `feasibility`, `result_only`, `depth1_gap{0,1,2}`, `depth2_gap0` | 6, 13, 20 | positive |
+| `depth3_gap0` | 6, 13 | positive |
+| `operand_only` | none | scientific negative |
+
+### Evidence package
+
+`results/dag_patching/` is now in git — not DVC; it is not a stage and never was,
+and with no DVC remote here `.dvc/cache` would be the only copy. The eight runs
+are committed byte-for-byte and are immutable.
+
+`MANIFEST.json` carries sha256, model and tokenizer revision, schema version, and
+per artifact a `run_commit`, a `replay_command`, and an `inferred_fields` list.
+The names are deliberate. `replay_command` is reconstructed from the recorded
+settings — it reproduces the run, it is not a transcript of what was typed. The
+manifest's own `manifest_generation_commit` is when the manifest was built, which
+is not when any run was produced. `tokenizer_alignment.json` is the report noted
+below as missing; the three checkpoints agree.
+
+No report records which commit produced it. It is recovered from each artifact's
+mtime, bracketed against the commit timeline, and corroborated by a second,
+mtime-independent signal: a report carrying a schema field cannot predate the
+commit that added the field, and a report missing it cannot postdate that commit.
+Both signals agree for all eight, and the values are frozen in `RUN_COMMITS`
+because git does not preserve mtimes — after a clone that evidence is gone.
+
+| Artifact | Run commit | Why it is bounded |
+|:---|:---|:---|
+| `feasibility` | `015a0f4` | no `condition` field, which `e8117b5` added |
+| `result_only`, `operand_only` | `e8117b5` | has `condition`, no `depth`, which `60efa8d` added |
+| `depth*` | `60efa8d` | has `depth` and `gap` |
+
+The three v0 artifacts predate `depth`/`gap`/`ancestor_distance`, and
+`feasibility.json` predates `condition`. The originals were not backfilled. The
+missing values were recovered by regenerating the items and verified against the
+archived measurements — item count, token count, target value, and the kind,
+node, and `distance_to_read` of every edit in recorded order. All three verify:
+depth 1, gap `[1, 3, 6, 1, 1]`, ancestor distance `[24, 50, 89, 24, 37]`.
+
+Note what that reveals: the donor-split arms ran at ancestor distances of 24-89
+tokens, while `depth1_gap0` in the ladder sits at 11-24. The three donor arms
+share one item family, so the mechanism split is internally paired; it is not
+distance-matched to the ladder's depth-1 baseline.
+
+`inferred_fields` is built per artifact from what that report omits, not asserted
+for a whole schema version. Only `feasibility` lacks `condition`; `result_only`
+and `operand_only` state theirs outright, and marking those inferred would
+understate the provenance. Where it *is* inferred it cannot be checked: the
+condition changes only the donor text — positions, token count, target value, and
+every distance are identical across conditions — so no archived field can confirm
+it. `n_decoys` is unrecorded in all eight, v1 included, so it is flagged
+everywhere; a wrong value would change the token count and be rejected.
+
+### The depth ladder was never paired; the generator is now versioned
+
+The chain's steps drew from the main random stream, one draw per step. Every
+draw after them therefore landed at a different stream position, so changing
+depth re-rolled the whole item: `depth1_gap0`, `depth2_gap0` and `depth3_gap0`
+are three different item families. The depth contrast in those arms is a
+between-family difference, and no amount of extra GPU turns it into a paired
+estimate.
+
+`v2_paired` fixes it and is now the default. One chain seed is drawn from the
+main stream per item whatever the depth, and the chain is built from a separate
+stream. Everything the chain could otherwise perturb — the target value, the
+ancestor's donor line, the tag assignment, which lines the surface edit rewrites
+— is drawn before the chain exists, with a count that does not depend on depth.
+Depth-dependent *rejections* are gone for the same reason: they would
+desynchronise the family just as surely as a depth-dependent draw.
+
+What makes this possible is that every step is `value ± rhs`, so the chain is the
+affine map `v -> v + delta`. The net delta is fixed by the spine, which means the
+ancestor edit implies the *same* target value at every depth — the same
+counterfactual, reached through more steps.
+
+`v1_unpaired` stays reachable, unchanged, because the three v0 artifacts are
+re-derived by regenerating their items. `dag_evidence` pins it for any report
+that does not name a generator, which is all eight. New runs record
+`generator` and `n_decoys` in the report, so neither has to be inferred again.
+
+Item-family audit, five items, seed 0, real tokenizer, depths 1/2/3 — spine,
+target value and implied value identical for every item; only chain lines added.
+Six arms checked for checkpoint alignment (the archived family plus the five
+paired arms), all aligned. The paired family is also more regular than the old
+one: token counts are equal across items, a depth step costs exactly 12 tokens
+and a decoy line 13, so the matched pairs are close.
+
+| Arm | Ancestor distance to read (tokens) |
+|:---|:---|
+| depth 1, gap 0 | 24, 11, 11, 11, 11 |
+| depth 2, gap 0 | 36, 23, 23, 23, 23 |
+| depth 3, gap 0 | 48, 35, 35, 35, 35 |
+| depth 1, gap 1 | 37, 24, 24, 24, 24 |
+| depth 1, gap 2 | 50, 37, 37, 37, 37 |
+
+So depth 2 pairs with gap 1 at 23 vs 24 tokens, and depth 3 with gap 2 at 35 vs
+37. (Item 0 sits a line further out in every arm because the ancestor and the
+non-ancestor swap order at random; that is by design and is matched across arms.)
+
+No GPU was used. The archived arms are unaffected and were not rerun.
+
+### Still open
+
+Unchanged by any of this: the tag edit is a floor check, not a matched control,
+so selectivity remains open until the cross-item donor experiment — the next
+thing to build. It is a prerequisite for node-by-node graph recovery. (Built and
+run; see the cross-item entry above, which reopens the mechanism question rather
+than closing selectivity.)
+
+The *archived* depth arms remain unpaired and always will be; the generator that
+produced them is frozen. The depth-1 to depth-2 collapse they report stayed
+suggestive rather than an estimate; the paired ladder rerun above replaces it
+and doubles as the prospective confirmation the v2 surface gate needed.
+
 ## 2026-08-13: Arithmetic DAG patching pilot finds a shallow stated-value channel
 
 North star: can residual-stream patching recover a known dependency edge before
@@ -77,6 +1530,11 @@ surface-tag diagnostic falls inside the itemwise null range for only 2/5, 3/5,
 and 1/5 items at layers 6/13/20. The positive verdict does not depend on that
 diagnostic, so surface selectivity remains unresolved for this five-item run.
 
+*Superseded 2026-08-14.* The verdict now does depend on a surface gate, and those
+failures are almost all in the benign direction — see the entry above. The
+conclusion that selectivity is unresolved still stands, for a different reason:
+the tag edit is a floor check rather than a matched control.
+
 ### Depth ladder and token-distance control
 
 All runs below use the consistent `both` edit. Values report median ancestor TV
@@ -114,6 +1572,10 @@ provenance, and the first three use the older schema. A causal-DAG fidelity scor
 needs a larger fixed item set, a non-degenerate surface control, and replication
 on the Base/Instruct/Distill checkpoints with the tokenizer-alignment gate. No
 saved tokenizer-alignment report exists for these runs.
+
+*Superseded 2026-08-14.* The artifacts are archived in git with a manifest, and
+the tokenizer-alignment report is saved and passing. The larger fixed item set
+and the non-degenerate surface control remain outstanding.
 
 ## 2026-08-10: Two breadth collects queued — second prompt set, second non-distilled model
 

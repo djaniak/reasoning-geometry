@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from trace_caps import collection_budget, resolve_cap
+from data.trace_caps import collection_budget, resolve_cap
 
 
 @contextmanager

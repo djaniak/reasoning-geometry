@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from collect_data import (
+from data.collect_data import (
     extract_math_answer,
     normalize_math_answer,
     normalize_olympiadbench_answer,

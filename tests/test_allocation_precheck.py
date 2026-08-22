@@ -14,7 +14,7 @@ from itertools import combinations
 import numpy as np
 import pytest
 
-from allocation_precheck import (
+from applications.allocation_precheck import (
     DIFFICULTY_NOT_GAIN_NEAR_ZERO,
     DIFFICULTY_NOT_GAIN_STRONG,
     FEATURE_SETS,
@@ -34,7 +34,7 @@ from allocation_precheck import (
     stage1_rows,
     subset_accuracy,
 )
-from incremental_abstention import _plurality_outcome
+from applications.incremental_abstention import _plurality_outcome
 
 
 def make_row(prompt_id, sample_id, answer, gold="7", **extra):

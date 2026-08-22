@@ -16,6 +16,9 @@ by walking up to the repo root, so `archive/` needs no path changes.
 
 | Notebook | Regime | Bottom line |
 |:---|:---|:---|
+| [16_dag_workshop_story](16_dag_workshop_story.ipynb) | Causal (synthetic) | **Start here for the DAG paper.** Three figures and three tables: the clean/implied/raw assay, the E3 semantic cliff with distributional decay and same-trace control, the pre-registered matched confirmation, the stated-result ablation, and the controls that limit the claim. Notebook 15 remains the full experiment ledger. |
+| [14_rmd_paper_story](14_rmd_paper_story.ipynb) | Between-prompt | **Start here.** The narrative spine of the selective-prediction half: the object of study, what collapsed under control, the increment on three models, the four controls it survives, and the four things geometry does not do. Reads every number out of a committed artifact. |
+| [15_dag_paper_story](15_dag_paper_story.ipynb) | Causal (synthetic) | **Full DAG experiment ledger.** The intervention, pilot ladder, control failures, E2 matching, E3 campaign, gap/confidence analysis, quorum defect, and artifact provenance. Use 16 for the workshop story and 15 to check how the result was established. |
 | [13_deepconf_null_and_label_efficiency](13_deepconf_null_and_label_efficiency.ipynb) | Between-prompt | **Most recent.** DeepConf is at chance on both models in all three framings, so no external baseline is left to beat. Against a supervised probe on the same states, one-class geometry leads below a crossing at 60–226 labels — but because the LDA collapses there, not because the Gaussian excels. ~2× label saving, confined to 25–100 labels. |
 | [11_prompt_geometry_core_experiments](11_prompt_geometry_core_experiments.ipynb) | Within-prompt | **Primary analysis.** Entropy-localized RMD beats full-trace RMD at every layer (+0.052/+0.055/+0.058, p ≤ 0.006) and is entropy-specific, but only *ties* free output baselines. Sample selection is negative with a structural ceiling. |
 | [12_wave1_abstention](12_wave1_abstention.ipynb) | Between-prompt | **Headline positive.** `rmd_tail_q20` hits 0.852 acc@50% coverage vs length 0.748 / entropy 0.692; beats the length confound baseline by +0.069 AURC (p < 0.001). Mechanism follow-ups E4–E7 all negative. |
@@ -40,12 +43,48 @@ kept for provenance only.
 
 ## Reading order
 
-Start at 12 (where geometry wins), then 11 (where it does not), then 13 for what
+Start at 14 for the selective-prediction argument end to end, then follow it into
+the detail: 12 (where geometry wins), 11 (where it does not), 13 for what
 survives once the baselines and the supervised probe have both had their turn,
 then 02 for the layer story. 01 is the historical headline and should be read
-with its caveat.
+with its caveat. The DAG thread is independent: read 16 for the short paper
+story and 15 for its full evidence trail.
+
+14, 15, and 16 load committed result JSON and format it, so they stay honest by
+breaking when an artifact moves; the aggregation they do do (medians over stored
+per-item gate diagnostics, the arm inventory, Fisher on the stage-B 2×2 beside
+the exact paired test the artifact carries) is stated in the cell that does it. 15 also regenerates two item traces for its
+first figure with `dag/dag_tasks.py`, from the identity each arm stored for the
+item, and checks them against the digits that arm recorded before drawing them.
 Skim `archive/` before proposing any follow-up in those directions — the
 questions are answered.
+
+## 15 and 16 are generated, not hand-edited
+
+`15_dag_paper_story.ipynb` is written by
+[`build_15_dag_paper_story.py`](build_15_dag_paper_story.py) and then executed in
+place by [`execute_notebook.py`](execute_notebook.py), which drives a kernel
+through `jupyter_client` because `nbconvert` and `nbclient` are not in this
+environment. Edit the generator and rebuild; a hand-patch of the `.ipynb` is
+overwritten by the next build.
+
+`16_dag_workshop_story.ipynb` is the shorter paper storyboard. Its generator
+reuses the maintained loading, styling, and intervention figure from 15, then
+builds the paper-specific figures and prose around the same committed artifacts.
+
+```
+uv run python notebooks/build_15_dag_paper_story.py
+uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
+  python notebooks/execute_notebook.py notebooks/15_dag_paper_story.ipynb notebooks
+
+uv run python notebooks/build_16_dag_workshop_story.py
+uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
+  python notebooks/execute_notebook.py notebooks/16_dag_workshop_story.ipynb notebooks
+```
+
+Then **look at the figures**. A layout collision renders silently and does not
+raise, so a build that reports zero failed cells can still have produced an
+unreadable panel.
 
 Retirement rationale for every removed DVC stage, with the evidence behind each
 verdict, is in [`EXPERIMENT_LOG.md`](../EXPERIMENT_LOG.md) under

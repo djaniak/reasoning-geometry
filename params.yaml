@@ -100,7 +100,8 @@ bestofn_matrix:
   - *bestofn_llama
 
 # ── Second prompt set: olympiadbench ──────────────────────────────────────────
-# Single-dataset scope is the binding constraint on breadth (PAPER_STRATEGY §7e).
+# Single-dataset scope is the binding constraint on breadth
+# (PAPER_STRATEGY_RMD.md §7e; split out of PAPER_STRATEGY.md on 2026-08-15).
 # Kept in its own matrices rather than folded into bestofn_*: those stages
 # hardcode math500 in their paths, and rewriting their cmds would re-run three
 # finished decompositions to reproduce byte-identical output.

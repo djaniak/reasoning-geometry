@@ -7,7 +7,7 @@ stages:
     foreach: ${collect_qwen_arch_matrix}
     do:
       cmd: >-
-        uv run python collect_data.py
+        uv run python -m data.collect_data
         --dataset ${item.dataset}
         --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens}
@@ -15,7 +15,7 @@ stages:
         --output_dir data/${item.model}/${item.dataset}
       frozen: true
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - datasets.${item.dataset}
         - collect.batch_save_size
@@ -26,7 +26,7 @@ stages:
     foreach: ${collect_arch_matrix}
     do:
       cmd: >-
-        uv run python collect_data.py
+        uv run python -m data.collect_data
         --dataset ${item.dataset}
         --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens}
@@ -36,7 +36,7 @@ stages:
         --output_dir data/${item.model}/${item.dataset}
       frozen: true
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - datasets.${item.dataset}
         - collect.batch_save_size
@@ -48,7 +48,7 @@ stages:
     foreach: ${analyze_matrix}
     do:
       cmd: >-
-        uv run python analyze.py
+        uv run python -m analysis.analyze
         --analysis_family base
         --data_dir data/${item.model}/${item.dataset}
         --output_dir results/${item.model}/${item.dataset}
@@ -60,7 +60,7 @@ stages:
         --difficulty --subject
       frozen: true
       deps:
-        - analyze.py
+        - analysis/analyze.py
         - data/${item.model}/${item.dataset}
       params:
         - analyze.pca_dim
@@ -73,7 +73,7 @@ stages:
     foreach: ${analyze_matrix}
     do:
       cmd: >-
-        uv run python analyze.py
+        uv run python -m analysis.analyze
         --analysis_family controls
         --data_dir data/${item.model}/${item.dataset}
         --output_dir results/${item.model}/${item.dataset}
@@ -84,7 +84,7 @@ stages:
         --n_bootstrap ${item.n_bootstrap}
       frozen: true
       deps:
-        - analyze.py
+        - analysis/analyze.py
         - data/${item.model}/${item.dataset}
       params:
         - analyze.pca_dim
@@ -98,14 +98,14 @@ stages:
       model: [qwen, deepseek, deepseek_llama]
       dataset: [gsm8k]
     cmd: >-
-      uv run python merge_results.py
+      uv run python -m analysis.merge_results
       --output_path results/${item.model}/${item.dataset}/${item.dataset}_results.json
       --inputs
       results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
       results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json
     frozen: true
     deps:
-      - merge_results.py
+      - analysis/merge_results.py
       - results/${item.model}/${item.dataset}/${item.dataset}_base_results.json
       - results/${item.model}/${item.dataset}/${item.dataset}_controls_results.json
     metrics:
@@ -118,14 +118,14 @@ stages:
   # `dvc repro` re-runs GPU collection and overwrites finished results.
   collect_qwen_dense_math500:
     cmd: >-
-      uv run python collect_data.py --dataset math500
+      uv run python -m data.collect_data --dataset math500
       --model_name ${models.qwen_dense.name}
       --max_new_tokens ${models.qwen_dense.max_new_tokens}
       --layers 0,2,4,6,8,10,12,14,16,18,20,22,24,26
       --output_dir data/qwen_dense/math500
     frozen: true
     deps:
-      - collect_data.py
+      - data/collect_data.py
     params:
       - models.qwen_dense.name
       - models.qwen_dense.max_new_tokens
@@ -136,14 +136,14 @@ stages:
 
   analyze_qwen_dense_math500:
     cmd: >-
-      uv run python analyze.py --analysis_family base
+      uv run python -m analysis.analyze --analysis_family base
       --data_dir data/qwen_dense/math500 --output_dir results/qwen_dense/math500
       --dataset_label math500 --output_name math500_base_results.json
       --pca_dim ${analyze.pca_dim} --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
     frozen: true
     deps:
-      - analyze.py
+      - analysis/analyze.py
       - data/qwen_dense/math500
     params:
       - analyze.pca_dim
@@ -154,14 +154,14 @@ stages:
 
   analyze_controls_qwen_dense_math500:
     cmd: >-
-      uv run python analyze.py --analysis_family controls
+      uv run python -m analysis.analyze --analysis_family controls
       --data_dir data/qwen_dense/math500 --output_dir results/qwen_dense/math500
       --dataset_label math500 --output_name math500_controls_results.json
       --pca_dim ${analyze.pca_dim} --cv_random_state ${analyze.cv_random_state}
       --n_bootstrap 0
     frozen: true
     deps:
-      - analyze.py
+      - analysis/analyze.py
       - data/qwen_dense/math500
     params:
       - analyze.pca_dim
@@ -172,12 +172,12 @@ stages:
 
   merge_analyze_qwen_dense_math500:
     cmd: >-
-      uv run python merge_results.py --output_path results/qwen_dense/math500/math500_results.json
+      uv run python -m analysis.merge_results --output_path results/qwen_dense/math500/math500_results.json
       --inputs results/qwen_dense/math500/math500_base_results.json
       results/qwen_dense/math500/math500_controls_results.json
     frozen: true
     deps:
-      - merge_results.py
+      - analysis/merge_results.py
       - results/qwen_dense/math500/math500_base_results.json
       - results/qwen_dense/math500/math500_controls_results.json
     metrics:
@@ -189,13 +189,13 @@ stages:
     foreach: ${truncation_probe_matrix}
     do:
       cmd: >-
-        uv run python truncation_probe.py --model_name ${item.model_name}
+        uv run python -m data.truncation_probe --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens} --limit ${item.limit}
         --num_samples ${item.num_samples} --batch_size ${item.batch_size}
         --output results/truncation_probe/${item.name}_${item.max_new_tokens}.json
       frozen: true
       deps:
-        - truncation_probe.py
+        - data/truncation_probe.py
       outs:
         - results/truncation_probe/${item.name}_${item.max_new_tokens}.json:
             cache: false
@@ -212,14 +212,14 @@ stages:
     foreach: ${bestofn_collected}
     do:
       cmd: >-
-        uv run python collect_data.py --dataset math500
+        uv run python -m data.collect_data --dataset math500
         --model_name ${item.model_name} --max_new_tokens ${item.max_new_tokens}
         --layers ${item.layers} --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples} --limit ${item.limit}
         --output_dir data/${item.model}_bestofn_${item.scale}/math500
       frozen: true
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - best_of_n.temperature
         - best_of_n.num_samples
@@ -233,13 +233,13 @@ stages:
     foreach: ${bestofn_pending}
     do:
       cmd: >-
-        uv run python collect_data.py --dataset math500
+        uv run python -m data.collect_data --dataset math500
         --model_name ${item.model_name} --max_new_tokens ${item.max_new_tokens}
         --layers ${item.layers} --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples} --limit ${item.limit}
         --output_dir data/${item.model}_bestofn_${item.scale}/math500
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - best_of_n.temperature
         - best_of_n.num_samples
@@ -258,7 +258,7 @@ stages:
     foreach: ${probe_matrix}
     do:
       cmd: >-
-        uv run python collect_data.py
+        uv run python -m data.collect_data
         --dataset ${item.dataset}
         --model_name ${item.model_name}
         --max_new_tokens ${item.max_new_tokens}
@@ -267,7 +267,7 @@ stages:
         --output_dir data/probe/${item.model}_${item.dataset}
         --summary_path results/probe/${item.model}_${item.dataset}.json
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - datasets.${item.dataset}
         - collect.batch_save_size
@@ -286,7 +286,7 @@ stages:
     foreach: ${bestofn_olympiad_pending}
     do:
       cmd: >-
-        uv run python collect_data.py --dataset ${item.dataset}
+        uv run python -m data.collect_data --dataset ${item.dataset}
         --model_name ${item.model_name} --max_new_tokens ${item.max_new_tokens}
         --layers ${item.layers} --temperature ${best_of_n.temperature}
         --num_samples ${best_of_n.num_samples} --limit ${item.limit}
@@ -294,7 +294,7 @@ stages:
         --summary_path
         results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_collect_summary.json
       deps:
-        - collect_data.py
+        - data/collect_data.py
       params:
         - best_of_n.temperature
         - best_of_n.num_samples
@@ -312,7 +312,7 @@ stages:
     foreach: ${bestofn_olympiad_matrix}
     do:
       cmd: >-
-        CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py
+        CUDA_VISIBLE_DEVICES="" uv run python -u -m applications.prompt_decomposition
         --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
         --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
         --dataset_label ${item.dataset} --model_label ${item.model}
@@ -330,9 +330,9 @@ stages:
         --max_reference_tokens ${prompt_decomposition.max_reference_tokens}
         --max_new_tokens ${item.max_new_tokens}
       deps:
-        - prompt_decomposition.py
-        - best_of_n.py
-        - analyze.py
+        - applications/prompt_decomposition.py
+        - baselines/best_of_n.py
+        - analysis/analyze.py
         - data/${item.model}_bestofn_${item.scale}/${item.dataset}
       params:
         - prompt_decomposition
@@ -350,7 +350,7 @@ stages:
     foreach: ${bestofn_matrix}
     do:
       cmd: >-
-        CUDA_VISIBLE_DEVICES="" uv run python -u prompt_decomposition.py
+        CUDA_VISIBLE_DEVICES="" uv run python -u -m applications.prompt_decomposition
         --data_dir data/${item.model}_bestofn_${item.scale}/math500
         --output_dir results/${item.model}_bestofn_${item.scale}/math500
         --dataset_label math500 --model_label ${item.model}
@@ -368,9 +368,9 @@ stages:
         --max_reference_tokens ${prompt_decomposition.max_reference_tokens}
         --max_new_tokens ${item.max_new_tokens}
       deps:
-        - prompt_decomposition.py
-        - best_of_n.py
-        - analyze.py
+        - applications/prompt_decomposition.py
+        - baselines/best_of_n.py
+        - analysis/analyze.py
         - data/${item.model}_bestofn_${item.scale}/math500
       params:
         - prompt_decomposition
@@ -388,7 +388,7 @@ stages:
     foreach: ${wave1_matrix}
     do:
       cmd: >-
-        CUDA_VISIBLE_DEVICES="" uv run python wave1_experiments.py
+        CUDA_VISIBLE_DEVICES="" uv run python -m applications.wave1_experiments
         --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
         --oof_csv results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
         --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
@@ -401,10 +401,10 @@ stages:
         --compute_dtype ${wave1_experiments.compute_dtype}
         --max_reference_tokens ${wave1_experiments.max_reference_tokens}
       deps:
-        - wave1_experiments.py
-        - prompt_decomposition.py
-        - analyze.py
-        - best_of_n.py
+        - applications/wave1_experiments.py
+        - applications/prompt_decomposition.py
+        - analysis/analyze.py
+        - baselines/best_of_n.py
         - data/${item.model}_bestofn_${item.scale}/${item.dataset}
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
       params:
@@ -426,7 +426,7 @@ stages:
     foreach: ${wave1_matrix}
     do:
       cmd: >-
-        CUDA_VISIBLE_DEVICES="" uv run python abstention_baselines.py
+        CUDA_VISIBLE_DEVICES="" uv run python -m baselines.abstention_baselines
         --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
         --oof_csv results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
         --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
@@ -437,11 +437,11 @@ stages:
         --load_workers ${abstention_baselines.load_workers}
         --n_splits ${abstention_baselines.n_splits}
       deps:
-        - abstention_baselines.py
-        - trace_caps.py
-        - wave1_experiments.py
-        - prompt_decomposition.py
-        - analyze.py
+        - baselines/abstention_baselines.py
+        - data/trace_caps.py
+        - applications/wave1_experiments.py
+        - applications/prompt_decomposition.py
+        - analysis/analyze.py
         - data/${item.model}_bestofn_${item.scale}/${item.dataset}
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
       params:
@@ -462,7 +462,7 @@ stages:
     foreach: ${wave1_matrix}
     do:
       cmd: >-
-        CUDA_VISIBLE_DEVICES="" uv run python incremental_abstention.py
+        CUDA_VISIBLE_DEVICES="" uv run python -m applications.incremental_abstention
         --oof_csv results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
         --output_dir results/${item.model}_bestofn_${item.scale}/${item.dataset}
         --data_dir data/${item.model}_bestofn_${item.scale}/${item.dataset}
@@ -472,8 +472,8 @@ stages:
         --n_bootstrap ${incremental_abstention.n_bootstrap}
         --seed ${incremental_abstention.seed}
       deps:
-        - incremental_abstention.py
-        - trace_caps.py
+        - applications/incremental_abstention.py
+        - data/trace_caps.py
         - data/${item.model}_bestofn_${item.scale}/${item.dataset}
         - results/${item.model}_bestofn_${item.scale}/${item.dataset}/${item.dataset}_prompt_decomposition_oof.csv
       params:
@@ -488,10 +488,10 @@ stages:
   # ── Current summary only ──────────────────────────────────────────────────
   summarize:
     cmd: >-
-      uv run python summarize.py --results_dir results --output_dir results
+      uv run python -m analysis.summarize --results_dir results --output_dir results
       --profile ${summary.profile}
     deps:
-      - summarize.py
+      - analysis/summarize.py
       - results/qwen/gsm8k/gsm8k_results.json
       - results/qwen_dense/math500/math500_results.json
       - results/qwen_bestofn_full/math500/math500_prompt_decomposition_results.json

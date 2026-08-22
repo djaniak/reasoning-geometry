@@ -1,0 +1,136 @@
+{
+  "checkpoints": [
+    "Qwen/Qwen2.5-Math-1.5B",
+    "Qwen/Qwen2.5-Math-1.5B-Instruct",
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+  ],
+  "aligned": true,
+  "checks": [
+    {
+      "generator": "v1_unpaired",
+      "depth": 1,
+      "gap": null,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        127,
+        127,
+        127,
+        127,
+        127
+      ],
+      "mismatches": [],
+      "aligned": true
+    },
+    {
+      "generator": "v2_paired",
+      "depth": 1,
+      "gap": 0,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        127,
+        127,
+        127,
+        127,
+        127
+      ],
+      "mismatches": [],
+      "aligned": true
+    },
+    {
+      "generator": "v2_paired",
+      "depth": 2,
+      "gap": 0,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        139,
+        139,
+        139,
+        139,
+        139
+      ],
+      "mismatches": [],
+      "aligned": true
+    },
+    {
+      "generator": "v2_paired",
+      "depth": 3,
+      "gap": 0,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        151,
+        151,
+        151,
+        151,
+        151
+      ],
+      "mismatches": [],
+      "aligned": true
+    },
+    {
+      "generator": "v2_paired",
+      "depth": 1,
+      "gap": 1,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        127,
+        127,
+        127,
+        127,
+        127
+      ],
+      "mismatches": [],
+      "aligned": true
+    },
+    {
+      "generator": "v2_paired",
+      "depth": 1,
+      "gap": 2,
+      "checkpoints": [
+        "Qwen/Qwen2.5-Math-1.5B",
+        "Qwen/Qwen2.5-Math-1.5B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+      ],
+      "n_items": 5,
+      "reference": "Qwen/Qwen2.5-Math-1.5B",
+      "n_tokens": [
+        127,
+        127,
+        127,
+        127,
+        127
+      ],
+      "mismatches": [],
+      "aligned": true
+    }
+  ]
+}

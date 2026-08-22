@@ -7,7 +7,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from wave1_experiments import (
+from applications.wave1_experiments import (
     length_residualized_abstention,
     rank_residualize,
 )

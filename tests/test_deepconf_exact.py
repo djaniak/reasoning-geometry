@@ -6,8 +6,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deepconf_exact import reconstruct_token_ids, summarize_exact_confidence, topk_token_confidence
-from prompt_states import gather_last_valid_hidden
+from baselines.deepconf_exact import reconstruct_token_ids, summarize_exact_confidence, topk_token_confidence
+from data.prompt_states import gather_last_valid_hidden
 
 
 def test_topk_token_confidence_is_negative_mean_log_probability_of_top_k():
