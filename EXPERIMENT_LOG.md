@@ -5,6 +5,355 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-22: Refit stability — registered before the sweep runs
+
+Written before any refit exists, for the same reason `6f1e9a7` registered E2
+before its code did: the decision rule below is worthless if it is chosen after
+seeing which way the numbers moved.
+
+### The gap being closed
+
+Every interval in this project — the abstention deltas, the peer ladder, the
+probe decomposition, the `C_B` tables — bootstraps *prompts* with the fitted
+pipeline held fixed: folds, layer, penalty and coefficients all frozen at
+`seed=42`. That answers "different prompts to score on". It does not answer
+"different partition to fit on", and no number of draws converts one into the
+other. The 2026-08-21 review calls this the outer-refit blocker and makes it a
+precondition on the draft.
+
+### Parameterization
+
+No DVC stage. `controls/refit_stability.py` orchestrates the real modules —
+it reimplements nothing, because "the complete pipeline survives refitting" is
+only answered by re-running the pipeline.
+
+```
+uv run python -m controls.refit_stability \
+  --seed 42 --seed 101 --seed 202 --seed 303
+```
+
+One integer threads through all four fitting stages, per seed, per model:
+
+1. `prompt_decomposition` — the seed drives `make_prompt_folds`, so each fold's
+   reference manifold is fitted on different correct-training traces and
+   `rmd_tail_q20` is a genuinely different score per refit, not a stored column
+   re-read;
+2. `incremental_abstention` — refits the prompt-level readouts, giving `B1 - B0`;
+3. `last_token_probe` — refits including in-fold layer and penalty selection,
+   giving `pooled - macro`;
+4. `peer_cost_ladder` — refits across all three models at that seed.
+
+Seed-major: all three models complete at one seed before the next begins. Forced
+by stage 4, which is only a control if target and peers share a partition; the
+useful side effect is that a killed run leaves *complete* refits behind. Models
+run strictly one at a time — one-layer `prompt_decomposition` peaks near 140 GB
+resident on the long-trace models against ~241 GB available.
+
+Trimmed where the trim cannot move the measurement: one layer (21/21/24, the
+headline) instead of the three-layer sweep, one contrastive region
+(`tail_q20`), and `n_bootstrap=200`. The last is deliberate — bootstrap draws
+set the *within*-refit interval, and the quantity here is the spread of point
+estimates *across* refits, which within-refit intervals cannot see. Point
+estimates do not depend on it.
+
+Not varied: `region_seed` (it selects the `random_q20` control region nothing
+here reads) and `alignment_seed` (shuffles disabled). Varying them would broaden
+the question from "does a different partition change the answer" to "does any
+randomness change the answer", which is a different experiment.
+
+### The decision rule, fixed now
+
+For `B1 - B0` AURC on `full_population`, the probe's `pooled - macro`, and the
+peer residual, per model:
+
+- **sign flip across refits → the claim is demoted**, however tight its
+  within-refit interval was;
+- sign stable with spread comparable to the frozen bootstrap width → the claim
+  stands and the paper reports both spreads;
+- sign stable with spread materially wider than the bootstrap width → the claim
+  stands and the reported interval becomes the refit spread, not the bootstrap.
+
+Seed 42 runs first and always. It is the frozen partition, so it is the sweep's
+own control: a refit sweep that cannot reproduce the committed tables is
+measuring its own bugs.
+
+### Cost, and what a partial run is worth
+
+~2–2.5 h per refit (qwen ~15 min, each distill model ~50 min, ~10 min
+downstream); four seeds ≈ 9 h. Every step writes a marker holding the exact
+command and is skipped on re-entry; a marker without its artifact re-runs, and a
+failure leaves no marker. `--collect_only` summarises whatever finished. So an
+interrupted sweep is a smaller sweep, not a lost one — three seeds still answer
+the sign question, which is the part the draft is blocked on.
+
+### Status
+
+Harness written, 18 unit tests passing, dry run verified. **No refit results
+exist yet.** `tests/test_refit_stability.py` pins the property this entry is
+about: every stage carries the refit seed, because a stage left at 42 while the
+others move is not a refit.
+
+
+## 2026-08-22: A last-token probe, reproduced at its strength and then decomposed
+
+The review's fourth blocker. The between/within decomposition had only ever been
+applied to this project's own scores, never to the object whose claim shape it
+corrects — a supervised probe on the **last token** hidden state, of the kind a
+high pooled trace AUROC is reported for in the probe literature. Until that was
+done the paper was a self-audit, not a correction of a published claim shape.
+
+### Why the repository's own probe could not answer it
+
+`probe_hidden_tail_q20` is a different object in three ways that all matter: its
+feature is the mean of PCA-projected states over the final 20% of tokens, not
+the final token's raw state; its readout is shrinkage LDA on `pca_dim=128`, not
+L2 logistic on the full model width; and its layer is scored at every probed
+depth and chosen downstream, not chosen inside each training split. The frozen
+numbers were therefore not usable as a reproduction.
+
+### Parameterization
+
+No DVC stage, and it invalidates none — it reads the same trace batches
+independently.
+
+```
+uv run python -m controls.last_token_probe \
+  --model qwen:data/qwen_bestofn_full/math500:7,14,21 \
+  --oof qwen:results/qwen_bestofn_full/math500/math500_prompt_decomposition_oof.csv:21 \
+  --output_dir results/last_token_probe_qwen
+# deepseek (7,14,21) and deepseek_llama (8,16,24) likewise, then --merge
+```
+
+Prompt-disjoint 5-fold via the frozen pipeline's own `make_prompt_folds`
+(`random_state=42`). Layer *and* penalty chosen together inside each outer
+training split by prompt-disjoint inner 5-fold CV — neither is ever chosen on
+the split it is scored on. `parseable` is primary and matches the frozen probe's
+training rule; `all_traces` is reported beside it so truncation-detection
+inflation is visible rather than assumed away.
+
+The penalty is selected rather than fixed because it is not a detail: on Qwen
+layer 21 held-out pooled AUROC runs 0.828 at `C=1` and 0.895 at `C=1e-3`.
+Reproducing a published claim means reproducing it at its strength; a fixed
+loose penalty would have understated the very number this exists to decompose.
+
+Artifacts in `results/last_token_probe/` — every score, readout, fold, selection
+grid and interval in the JSON; the extraction cache is gitignored and one pass
+over the trace batches rebuilds it (~66 MB per model). One vector per
+(trace, layer) rather than the whole sequence, so this stays far from the frozen
+pipeline's ~140 GB peak.
+
+### Result — the published claim shape reproduces, and then collapses
+
+`parseable`:
+
+| Model | Pooled | Macro prompt | Pooled - macro | 95% CI | Mixed prompts | Pairs |
+|:--|---:|---:|---:|:--|---:|---:|
+| qwen | 0.9013 | 0.6444 | 0.2569 | [0.1980, 0.3148] | 117 | 1104 |
+| deepseek | 0.9139 | 0.5823 | 0.3316 | [0.2260, 0.4499] | 49 | 409 |
+| deepseek_llama | 0.9032 | 0.7177 | 0.1855 | [0.1410, 0.2325] | 158 | 1636 |
+
+Every interval excludes zero. DeepSeek is both the extreme case and the least
+certain — only 49 of its 493 prompts carry both outcomes, and that count, not
+the bootstrap, is what bounds the within-prompt evidence. It is printed beside
+every readout for that reason.
+
+**The collapse is specific to hidden-state scores.** `probe_hidden_tail_q20`
+drops 0.30/0.21/0.15 and `rmd_tail_q20` drops 0.21/0.21/0.14, while
+`mean_entropy` and `mean_logprob` drop around 0.06 or go *negative* on Qwen,
+where they pool near 0.60 and score 0.65–0.67 within prompt. So this is not a
+generic artifact of the decomposition: the output-side scores keep their signal
+under it and the geometry-based ones do not.
+
+**The probe that wins pooled does not win the within-prompt task.** On Qwen the
+last-token probe leads `mean_entropy` by 30 points pooled (0.9013 vs 0.5951) and
+*trails* it within prompt (0.6444 vs 0.6602).
+
+### Continuity, and a defect the check caught
+
+The reference scores reproduce the frozen Qwen layer-21 report on all four
+columns: `entropy` 0.5708/0.5588/0.5992/0.5948 (frozen 0.571/0.559/0.599/0.595);
+`logprob` 0.5747/0.5594/0.5947/0.5892 (0.575/0.559/0.595/0.589); `length`
+0.7367/0.5629/0.5807/0.5820 (0.737/0.563/0.581/0.582); `rmd_tail_q20`
+0.8393/0.6396/0.6584/0.6527 (0.839/0.640/0.658/0.653).
+
+It did not, first time. `length` reproduced on pooled, micro and macro and
+missed prompt-centered by 0.023 — the exact signature of a monotone mismatch,
+because the first three are rank statistics that cannot see a monotone transform
+and prompt-centering subtracts a per-prompt mean from the *raw* score and can.
+The frozen definition is `-log1p(token count)`; the implementation used
+`-n_tokens`. Fixed, and pinned by a test that asserts the frozen
+`SCORE_DESCRIPTIONS` string itself. Only the six `length` centered cells moved
+on the re-run, exactly as rank-invariance predicts.
+
+### Claims ruled in and out
+
+**In.** A published-shape pooled trace AUROC in the low 0.90s coexists with a
+within-prompt AUROC of 0.58–0.72 on all three models, at intervals excluding
+zero. The decomposition is a correction of a published claim shape, not only of
+ours.
+
+**Out.** The early-layer reading is *not* a general result. Qwen picks the
+earliest offered layer (L7) in 4 of 5 parseable folds, which is what
+prompt-difficulty encoding would look like — but Llama picks its middle layer in
+10 of 10 folds and DeepSeek picks L14 in most. That observation is Qwen's alone
+and is not evidence for the difficulty reading on its own.
+
+### Limitations and next stage
+
+Intervals resample prompts with folds, layer, penalty and coefficients frozen,
+like every other interval here; they do not carry the uncertainty of the fitting
+path. **Next dependent stage:** the outer-refit sweep registered above.
+
+
+## 2026-08-22: The peer control on a cost axis — the graded readout was carrying it
+
+The review's second rung. `peer_difficulty_control` called `B0 + peer` "a
+control, never a baseline the headline has to beat"; the review rejected that,
+because a scale-matched peer ensemble is a deployable uncertainty method in the
+literature and a reviewer may read it as one. This puts both on a cost axis
+instead of arguing about the label.
+
+### Parameterization
+
+No DVC stage; three CPU minutes. Re-reads cached OOF rows and imports the frozen
+aggregation, folds, populations, readout, bootstrap and seed convention.
+
+```
+uv run python -m controls.peer_cost_ladder \
+  --model {qwen,deepseek,deepseek_llama}:results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/{model}_bestofn_full/math500
+```
+
+Artifacts in `results/peer_cost_ladder/` — every rung, cost, delta and flag in
+the JSON; the report carries five tables (floors, the ladder in cost order,
+deltas against `B1`, the one-extra-generation question, saturation).
+
+**Cost model.** Every rung pays the target's eight generations. `B1` adds
+`rmd_tail_q20` read from the hidden states of *those same* generations: zero
+extra calls, zero extra tokens. A peer rung at `m` samples from `k` peers adds
+`k*m` calls. So no peer rung is cost matched to `B1` — the cheapest purchasable
+thing is one extra generation, and `B1` is free at the margin.
+
+**The distinction the frozen control was missing.** Its peer feature is the
+fraction of a peer's siblings that were *correct*, which needs the gold answer
+and so cannot be computed at decision time. It bounds the peer family from
+above; it is not a baseline anyone could deploy. Each purchase is therefore read
+two ways at identical price: `graded` (fraction correct — not deployable) and
+`agree` (fraction returning the target's own answer — deployable).
+
+**Continuity check.** At `k=2, m=8` the graded rung *is*
+`peer_difficulty_control`'s `B0_plus_peer`. On `cap_free_valid_plurality` the
+ladder reproduces the frozen `B0`, `B1` and `B0_plus_peer` AURCs to six decimals
+on all three models.
+
+### Result
+
+1. **The peer control's dominance was substantially a graded-readout artifact.**
+   At the frozen control's own cost (16 extra generations, both peers) the
+   graded rung beats `B1` by 0.0561/0.0946/0.0295 AURC; the deployable agreement
+   rung at identical cost gives 0.0409/0.0169/0.0569 — it beats `B1` on Qwen and
+   Llama and ties on DeepSeek-Qwen. A different pattern, with a different model
+   flipping.
+2. **At one extra generation, deployable peers do not establish a win.** Six
+   target/peer pairs: four ties, one `B1` win (DeepSeek-Qwen against a
+   DeepSeek-Llama peer, −0.0341 [−0.0576, −0.0108]), one peer win (Llama against
+   a Qwen peer, +0.0544 [+0.0240, +0.0838]).
+3. **Agreement with a weak peer can be worse than nothing.** On DeepSeek-Qwen the
+   DeepSeek-Llama agreement feature raises AURC above `B0` at every sample count.
+   Buying a peer is not monotonically good.
+4. **The DeepSeek-Qwen graded comparison is saturated.** `B0_graded_both_m{2,4,8}`
+   remove 90–95% of `B0`'s headroom, sitting on the oracle floor. There, "the
+   peer wins" and "there was nothing left to remove" are not distinguishable —
+   the review's own caution, now localised to the graded family rather than
+   applied to the whole control.
+
+### Two uncertainty sources, kept apart
+
+The interval is the frozen prompt bootstrap with the pipeline held fixed, taken
+on the median draw. The spread across 25 independent re-draws of *which* siblings
+were bought is reported separately as `sign stable`. Folding them together would
+make these intervals incomparable with every other interval in the paper.
+
+### Limitations and next stage
+
+Three models is three peers; the ladder cannot say what a fourth would add, and
+saturation on DeepSeek-Qwen means its graded rungs are uninformative about
+ranking. `graded` rungs are not charged for the gold answer they consume,
+because it cannot be bought at decision time at any price. **Next dependent
+stage:** combining sampling and fitting uncertainty, which is the outer-refit
+rung's job, not this one's.
+
+
+## 2026-08-22: Budget-indexed outcomes — the increment survives `C_B`, and the headline population overstates it
+
+`C_B` is correctness available by the generation budget under the fixed decoding
+and extraction rule, on all 500 prompts: a prompt with no parseable answer by
+`B` is an observed failure, not a missing value. The headline population in
+`incremental_abstention` is `cap_free_valid_plurality`, which drops any prompt
+with a capped sibling — a filter that conditions on an event correlated with
+difficulty, so it estimates correctness *given the cap was avoided*.
+
+### Parameterization
+
+No DVC stage, nothing fitted, no bootstrap of its own.
+
+```
+uv run python -m analysis.budget_outcomes
+```
+
+`analysis/budget_outcomes.py` reads the committed `incremental_abstention`,
+`continue_capped` and OOF artifacts, re-indexes them by population and writes
+four tables to `results/budget_outcomes/`. The paired deltas are the ones already
+stored in the locked artifact, so any disagreement between this report and that
+artifact is a bug here, not a new result.
+
+### Result
+
+Paired bootstrap `B1 - B0` on AURC, negative favouring `B1`. Every interval on
+`full_population` excludes zero:
+
+| Model | `full_population` | 95% CI | vs headline |
+|:--|---:|:--|---:|
+| qwen | −0.0520 | [−0.0845, −0.0218] | 89% |
+| deepseek | −0.0284 | [−0.0526, −0.0048] | 80% |
+| deepseek_llama | −0.0469 | [−0.0743, −0.0162] | 84% |
+
+The headline population overstates the increment by 11% / 20% / 16%. Retained
+fractions there are 78.4% / 78.6% / 81.6% of prompts, and base accuracy rises
+from 0.620/0.750/0.634 to 0.691/0.796/0.674 — the filter keeps easier prompts.
+
+**Capping tracks difficulty, measurably.** Traces that hit the budget but still
+carried an answer are far less accurate than traces that finished: Qwen 0.000 vs
+0.608 (on 11 capped-parseable), DeepSeek 0.553 vs 0.771, Llama 0.286 vs 0.587.
+That is the mechanism the complete-case filter was silently exploiting.
+
+### Claims ruled in and out
+
+**In.** The increment survives the unconditional outcome definition on all three
+models. **A composition rule follows:** deltas computed under peer control or
+any other attenuation must be taken against the `full_population` base, or two
+corrections get applied to different denominators and will not compose.
+
+**Out.** `C_{B->B'}` is not a result about the dataset. 50 resumed DeepSeek
+traces (32% completed correct, 36% completed incorrect, 26% still unfinished, 6%
+degenerate loop) — a one-model sensitivity case, never a label for the other
+models, the unsampled capped traces, or the dataset.
+
+### One denominator to state explicitly
+
+`continue_capped` reports `accuracy_of_completions` over traces that
+*terminated*, which puts a degenerate loop that ran to a stop in the denominator
+while it can never be correct: 16/35 = 0.4571. Over traces labelled completed it
+is 16/34 = 0.471. Both are defensible; the report carries both and names which is
+which. Quoting either without saying so is the error.
+
+### Limitations and next stage
+
+The intervals hold the fitted pipeline fixed and so understate uncertainty.
+**Next dependent stage:** the outer-refit sweep. **Reporting rule adopted:**
+report `full_population` as primary, report cap-free numbers as conditional with
+the retained fraction beside them, and report the continuation study separately
+as DeepSeek-only evidence about what capped prefixes do next.
+
 ## 2026-08-16: E3 at N, and the chain-node arm — the collapse is a step cliff, and the scoring policy does not scale
 
 Two things in one campaign of 15 arms: E3's registered N for the paired ladder,
