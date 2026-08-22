@@ -17,7 +17,7 @@ by walking up to the repo root, so `archive/` needs no path changes.
 | Notebook | Regime | Bottom line |
 |:---|:---|:---|
 | [16_dag_workshop_story](16_dag_workshop_story.ipynb) | Causal (synthetic) | **Start here for the DAG paper.** Three figures and three tables: the clean/implied/raw assay, the E3 semantic cliff with distributional decay and same-trace control, the pre-registered matched confirmation, the stated-result ablation, and the controls that limit the claim. Notebook 15 remains the full experiment ledger. |
-| [14_rmd_paper_story](14_rmd_paper_story.ipynb) | Between-prompt | **Start here.** The narrative spine of the selective-prediction half: the object of study, what collapsed under control, the increment on three models, the four controls it survives, and the four things geometry does not do. Reads every number out of a committed artifact. |
+| [14_rmd_workshop_story](14_rmd_workshop_story.ipynb) | Between-prompt | **Start here for the RMD paper.** The narrative spine of the selective-prediction half: the two estimands one pooled AUROC gets asked to answer, the outcome protocol, the decomposition, the increment that survives it, why the feature is measured on the trace tail (§4a), and the peer cost ladder. Reads every number out of a committed artifact; the full-refit gate in §4 is still open. Notebooks 11–13 remain the long-form record. |
 | [15_dag_paper_story](15_dag_paper_story.ipynb) | Causal (synthetic) | **Full DAG experiment ledger.** The intervention, pilot ladder, control failures, E2 matching, E3 campaign, gap/confidence analysis, quorum defect, and artifact provenance. Use 16 for the workshop story and 15 to check how the result was established. |
 | [13_deepconf_null_and_label_efficiency](13_deepconf_null_and_label_efficiency.ipynb) | Between-prompt | **Most recent.** DeepConf is at chance on both models in all three framings, so no external baseline is left to beat. Against a supervised probe on the same states, one-class geometry leads below a crossing at 60–226 labels — but because the LDA collapses there, not because the Gaussian excels. ~2× label saving, confined to 25–100 labels. |
 | [11_prompt_geometry_core_experiments](11_prompt_geometry_core_experiments.ipynb) | Within-prompt | **Primary analysis.** Entropy-localized RMD beats full-trace RMD at every layer (+0.052/+0.055/+0.058, p ≤ 0.006) and is entropy-specific, but only *ties* free output baselines. Sample selection is negative with a structural ceiling. |
@@ -59,7 +59,7 @@ item, and checks them against the digits that arm recorded before drawing them.
 Skim `archive/` before proposing any follow-up in those directions — the
 questions are answered.
 
-## 15 and 16 are generated, not hand-edited
+## 14, 15 and 16 are generated, not hand-edited
 
 `15_dag_paper_story.ipynb` is written by
 [`build_15_dag_paper_story.py`](build_15_dag_paper_story.py) and then executed in
@@ -72,7 +72,29 @@ overwritten by the next build.
 reuses the maintained loading, styling, and intervention figure from 15, then
 builds the paper-specific figures and prose around the same committed artifacts.
 
+`14_rmd_workshop_story.ipynb` is the RMD-side storyboard and is built the same
+way from [`build_14_rmd_workshop_story.py`](build_14_rmd_workshop_story.py). It
+has no ledger generator behind it yet — 11, 12 and 13 are the long-form record
+for their own eras, and the closure experiments (`budget_outcomes`,
+`peer_cost_ladder`, `last_token_probe`) plus the controls that appear in no
+notebook at all (`closest_baselines`, `orgad_agreement_control`,
+`peer_difficulty_control`, `application_alignment`, `allocation_precheck`,
+`label_efficiency_supervision_ladder`, `label_efficiency_token_pooling`) are
+currently documented only in `EXPERIMENT_LOG.md`.
+
+Two kinds of guard sit on it. At **build** time the generator asserts, over the
+assembled prose, that five claims withdrawn in the 2026-08-22 rewrite appear
+only in cells that retract them, and that the code-cell count has not drifted —
+so a rebuild that reintroduces a withdrawn claim fails rather than publishing
+it. At **execution** time §3 asserts that the reference scores still reproduce
+the frozen Qwen layer-21 `prompt_decomposition` report on all four of its
+columns, to 1e-3, so a silent monotone change of scale cannot pass.
+
 ```
+uv run python notebooks/build_14_rmd_workshop_story.py
+uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
+  python notebooks/execute_notebook.py notebooks/14_rmd_workshop_story.ipynb notebooks
+
 uv run python notebooks/build_15_dag_paper_story.py
 uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
   python notebooks/execute_notebook.py notebooks/15_dag_paper_story.ipynb notebooks

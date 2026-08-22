@@ -1,11 +1,11 @@
-"""Build notebooks/14_rmd_paper_story.ipynb. Edit this, never the .ipynb.
+"""Build notebooks/14_rmd_workshop_story.ipynb. Edit this, never the .ipynb.
 
 The notebook is a document rather than something a reader re-runs, so it is
 committed with its outputs stored. Two steps, from the repo root:
 
-    uv run python notebooks/build_14_rmd_paper_story.py
+    uv run python notebooks/build_14_rmd_workshop_story.py
     uv run python notebooks/execute_notebook.py \
-        notebooks/14_rmd_paper_story.ipynb notebooks
+        notebooks/14_rmd_workshop_story.ipynb notebooks
 
 The second step exists because `nbconvert` and `nbclient` are not in this
 environment; `execute_notebook.py` drives a kernel through `jupyter_client` and
@@ -571,11 +571,108 @@ red row is `C_B` on all 500 prompts, and it is the smallest of the four on every
 model -- which is the honest direction for a headline to move when the
 conditioning is removed.
 
-These are **fixed-pipeline intervals**. They resample prompts with the folds,
-the layer and the fitted coefficients all held at `seed=42`. That answers "a
-different set of prompts to score", not "a different partition to fit on", and
-no number of bootstrap draws converts one into the other. The gate below is the
-missing piece.
+""")
+
+
+# ------------------------------------------------- 5b. why this feature region
+md(r"""
+### 4a. Why the final 20% of tokens
+
+`B1` adds one score, and *where in the trace* it is measured is not a detail:
+the two localizations of the same Mahalanobis distance are separated by more
+than the increment `B1` buys over `B0`. The comparison below is why the feature
+is `rmd_tail_q20` and not `rmd_high_entropy_q20`.
+
+It also runs the other way from the within-prompt result. Notebook
+[11](11_prompt_geometry_core_experiments.ipynb) finds that restricting RMD to
+the highest-entropy 20% of tokens **beats** full-trace RMD *inside* a prompt
+(+0.052 / +0.055 / +0.058 centered AUC at L7/14/21, all p <= 0.006, Qwen).
+*Between* prompts the same localization **loses** to the tail. The two regimes
+do not want the same tokens -- this notebook's thesis showing up a second time,
+in the feature design rather than in the readout.
+""")
+
+code(r'''
+# The E1 artifact behind notebook 12. Two things about it have to be said before
+# any number is read out of it, and the note under the table says both.
+#
+#   SIGN. E1 reports area under the *accuracy*-coverage curve, so HIGHER IS
+#   BETTER. Sections 2-4 report area under the *risk*-coverage curve, where
+#   lower is better -- which is why the increment there is a negative number.
+#   Both are called "aurc" in their artifacts. They are different curves and
+#   nothing converts one into the other.
+#
+#   POPULATION. E1 excludes unparsed and cap-hit traces from its correctness
+#   comparisons -- the complete-case filter section 2 argues against as a
+#   headline. It is admissible here only because both arms are the same score
+#   over different token regions, measured under the identical filter, so the
+#   filter cannot favour one region over the other. It is not comparable to the
+#   C_B numbers above and is not combined with them.
+REGION_DELTA = "rmd_high_entropy_q20_minus_rmd_tail_q20"
+REGION = {}
+for label in MODELS:
+    path = ROOT / f"results/{label}_bestofn_full/math500/math500_wave1_results.json"
+    if not path.exists():
+        continue
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    settings = payload["settings"]
+    # Same decoding budget, layer and seed as everything else here, or the
+    # contrast is not about the region.
+    assert settings["max_new_tokens"] == CAP[label]["max_new_tokens"], label
+    assert settings["deepest_layer"] == CAP[label]["layer"], label
+    assert settings["seed"] == 42, label
+    REGION[label] = payload["e1_prompt_abstention"]
+
+assert REGION, "no wave1 artifact found; section 4a has nothing to show"
+
+
+def interval(entry):
+    return (f"{entry['point_estimate']:+.4f} "
+            f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]")
+
+
+R = pd.DataFrame([
+    {
+        "model": NICE[label],
+        "prompts": e["n_prompts"],
+        "tail_q20": e["point"]["rmd_tail_q20"]["aurc"],
+        "high_entropy_q20": e["point"]["rmd_high_entropy_q20"]["aurc"],
+        "high_entropy - tail": interval(e["deltas"][REGION_DELTA]["aurc"]),
+        "same, at 50% coverage": interval(e["deltas"][REGION_DELTA]["0.5"]),
+    }
+    for label, e in REGION.items()
+])
+missing = [NICE[label] for label in MODELS if label not in REGION]
+table(
+    R, "Table 5 &middot; where in the trace the score is measured, prompt level",
+    note=("<b>Higher is better in this table only.</b> E1 integrates accuracy "
+          "against coverage; sections 2-4 integrate risk against coverage, so "
+          "the increment there is negative and the loss here is negative for "
+          "the opposite reason. Both are stored under the key <code>aurc</code> "
+          "in their own artifacts.<br><br>"
+          "The high-entropy region is worse on both models and both AURC "
+          "intervals exclude zero. At the single 50% operating point the gap "
+          "survives on Qwen and does not on DeepSeek-7B "
+          f"(p = {REGION['deepseek']['deltas'][REGION_DELTA]['0.5']['p_two_sided']:.2f}), "
+          "so the ranking is a statement about the curve, not about any one "
+          "coverage.<br><br>"
+          "E1 ran before the third model was collected, so this is "
+          f"{len(REGION)} of the 3 models" + (f" -- {', '.join(missing)} has no "
+          "wave1 artifact" if missing else "") + ". Traces are filtered "
+          "complete-case here, identically for both regions; see the cell "
+          "source. These numbers are not on the C_B scale used above."),
+    **{"tail_q20": "{:.4f}", "high_entropy_q20": "{:.4f}"},
+)
+''')
+
+
+md(r"""
+These are **fixed-pipeline intervals** -- every interval in this notebook, the
+table above included. They resample prompts with the folds, the layer and the
+fitted coefficients all held at `seed=42`. That answers "a different set of
+prompts to score", not "a different partition to fit on", and no number of
+bootstrap draws converts one into the other. The gate below is the missing
+piece.
 """)
 
 code(r'''
@@ -615,7 +712,7 @@ else:
         if summary.get("n")
     ])
     table(
-        G, f"Table 5 · full-refit stability over seeds {REFIT['seeds']}",
+        G, f"Table 6 · full-refit stability over seeds {REFIT['seeds']}",
         note=("Each refit re-runs the pipeline end to end on a different prompt "
               "partition: OOF scores regenerated, prompt-level readouts "
               "refitted, the probe refitted including its in-fold layer and "
@@ -760,7 +857,7 @@ T6 = pd.DataFrame([
 counts = T6["verdict"].value_counts()
 table(
     T6,
-    "Table 6 · the deployable comparison at one extra generation",
+    "Table 7 · the deployable comparison at one extra generation",
     note=(f"{counts.get('tie', 0)} ties, {counts.get('RMD wins', 0)} RMD win, "
           f"{counts.get('peer wins', 0)} peer win over {len(T6)} target-peer "
           "pairs. Negative favours <code>B1</code>. This is the cheapest rung a "
@@ -785,7 +882,7 @@ T7 = pd.DataFrame([
 ])
 table(
     T7,
-    "Table 7 · diagnostic only: the gold-aware graded peer",
+    "Table 8 · diagnostic only: the gold-aware graded peer",
     note=("<b>Not a baseline.</b> The graded readout scores a peer's siblings "
           "against the gold answer, so no deployment can compute it. It is "
           "reported to bound what peer information could contribute if it were "
@@ -870,7 +967,7 @@ for phrase in WITHDRAWN[:4]:
     assert any(phrase in source for source in retracting), \
         f"stopped retracting {phrase!r}"
 
-assert sum(cell["cell_type"] == "code" for cell in CELLS) == 9
+assert sum(cell["cell_type"] == "code" for cell in CELLS) == 10
 
 NOTEBOOK = {
     "cells": CELLS,
@@ -884,7 +981,7 @@ NOTEBOOK = {
 }
 
 if __name__ == "__main__":
-    target = REPO / "notebooks" / "14_rmd_paper_story.ipynb"
+    target = REPO / "notebooks" / "14_rmd_workshop_story.ipynb"
     for index, cell in enumerate(CELLS):
         cell["id"] = f"cell-{index:02d}"
     target.write_text(json.dumps(NOTEBOOK, indent=1, ensure_ascii=False) + "\n",

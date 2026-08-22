@@ -1308,7 +1308,7 @@ of the project measures — the family is synthetic, the values are single digit
 the traces are teacher-forced and the model is a 1.5B distill. It does not show
 that the model represents a causal graph; it recovers one known edge under one
 intervention. And it does not connect to the selective-prediction half of the
-project ([14](14_rmd_paper_story.ipynb)): the two share a question, not an
+project ([14](14_rmd_workshop_story.ipynb)): the two share a question, not an
 experiment.
 
 **Untouched.** Depth 3 under matching; the cross-item row kind on matched items,
