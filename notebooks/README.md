@@ -17,7 +17,8 @@ by walking up to the repo root, so `archive/` needs no path changes.
 | Notebook | Regime | Bottom line |
 |:---|:---|:---|
 | [16_dag_workshop_story](16_dag_workshop_story.ipynb) | Causal (synthetic) | **Start here for the DAG paper.** Three figures and three tables: the clean/implied/raw assay, the E3 semantic cliff with distributional decay and same-trace control, the pre-registered matched confirmation, the stated-result ablation, and the controls that limit the claim. Notebook 15 remains the full experiment ledger. |
-| [14_rmd_workshop_story](14_rmd_workshop_story.ipynb) | Between-prompt | **Start here for the RMD paper.** The narrative spine of the selective-prediction half: the two estimands one pooled AUROC gets asked to answer, the outcome protocol, the decomposition, the increment that survives it, why the feature is measured on the trace tail (§4a), and the peer cost ladder. Reads every number out of a committed artifact; the full-refit gate in §4 is still open. Notebooks 11–13 remain the long-form record. |
+| [14_rmd_workshop_story](14_rmd_workshop_story.ipynb) | Between-prompt | **Start here for the RMD paper.** The narrative spine of the selective-prediction half: the two estimands one pooled AUROC gets asked to answer, the outcome protocol, the decomposition, the increment that survives it, why the feature is measured on the trace tail (§4a), and the peer cost ladder. Reads every number out of a committed artifact; the full-refit gate in §4 is still open. Notebook 17 is its evidence trail. |
+| [17_rmd_experiment_ledger](17_rmd_experiment_ledger.ipynb) | Between-prompt | **Full RMD experiment ledger, and the notebook to work in.** Every closure-era artifact loaded and named, including the seven controls that appear nowhere else: closest baselines (1a/1b), Orgad agreement, peer difficulty, allocation precheck, application alignment, and the two label-efficiency follow-ups. Opens with the population map and the `aurc` sign registry, because both silently change what a number means. Ends with a working surface — `REPLICATES`, an `OOF(label, layer)` loader, and every frame still in scope. |
 | [15_dag_paper_story](15_dag_paper_story.ipynb) | Causal (synthetic) | **Full DAG experiment ledger.** The intervention, pilot ladder, control failures, E2 matching, E3 campaign, gap/confidence analysis, quorum defect, and artifact provenance. Use 16 for the workshop story and 15 to check how the result was established. |
 | [13_deepconf_null_and_label_efficiency](13_deepconf_null_and_label_efficiency.ipynb) | Between-prompt | **Most recent.** DeepConf is at chance on both models in all three framings, so no external baseline is left to beat. Against a supervised probe on the same states, one-class geometry leads below a crossing at 60–226 labels — but because the LDA collapses there, not because the Gaussian excels. ~2× label saving, confined to 25–100 labels. |
 | [11_prompt_geometry_core_experiments](11_prompt_geometry_core_experiments.ipynb) | Within-prompt | **Primary analysis.** Entropy-localized RMD beats full-trace RMD at every layer (+0.052/+0.055/+0.058, p ≤ 0.006) and is entropy-specific, but only *ties* free output baselines. Sample selection is negative with a structural ceiling. |
@@ -49,14 +50,15 @@ kept for provenance only.
 
 ## Reading order
 
-Start at 14 for the selective-prediction argument end to end, then follow it into
-the detail: 12 (where geometry wins), 11 (where it does not), 13 for what
+Start at 14 for the selective-prediction argument end to end, then 17 for the
+evidence behind it and for anything you want to compute yourself. After that the
+pre-closure detail: 12 (where geometry wins), 11 (where it does not), 13 for what
 survives once the baselines and the supervised probe have both had their turn,
 then into `archive/` only to check how something used to be stated. The DAG
 thread is independent: read 16 for the short paper
 story and 15 for its full evidence trail.
 
-14, 15, and 16 load committed result JSON and format it, so they stay honest by
+14, 15, 16 and 17 load committed result JSON and format it, so they stay honest by
 breaking when an artifact moves; the aggregation they do do (medians over stored
 per-item gate diagnostics, the arm inventory, Fisher on the stage-B 2×2 beside
 the exact paired test the artifact carries) is stated in the cell that does it. 15 also regenerates two item traces for its
@@ -65,7 +67,7 @@ item, and checks them against the digits that arm recorded before drawing them.
 Skim `archive/` before proposing any follow-up in those directions — the
 questions are answered.
 
-## 14, 15 and 16 are generated, not hand-edited
+## 14, 15, 16 and 17 are generated, not hand-edited
 
 `15_dag_paper_story.ipynb` is written by
 [`build_15_dag_paper_story.py`](build_15_dag_paper_story.py) and then executed in
@@ -79,14 +81,18 @@ reuses the maintained loading, styling, and intervention figure from 15, then
 builds the paper-specific figures and prose around the same committed artifacts.
 
 `14_rmd_workshop_story.ipynb` is the RMD-side storyboard and is built the same
-way from [`build_14_rmd_workshop_story.py`](build_14_rmd_workshop_story.py). It
-has no ledger generator behind it yet — 11, 12 and 13 are the long-form record
-for their own eras, and the closure experiments (`budget_outcomes`,
-`peer_cost_ladder`, `last_token_probe`) plus the controls that appear in no
-notebook at all (`closest_baselines`, `orgad_agreement_control`,
-`peer_difficulty_control`, `application_alignment`, `allocation_precheck`,
-`label_efficiency_supervision_ladder`, `label_efficiency_token_pooling`) are
-currently documented only in `EXPERIMENT_LOG.md`.
+way from [`build_14_rmd_workshop_story.py`](build_14_rmd_workshop_story.py).
+`17_rmd_experiment_ledger.ipynb` is its ledger, from
+[`build_17_rmd_experiment_ledger.py`](build_17_rmd_experiment_ledger.py). The
+dependency runs the opposite way from the DAG pair: 17 imports 14's cells and
+lifts the table-styling block out of them at build time, asserting the markers
+it slices on, so the two notebooks cannot drift into different presentation and
+a restructure of 14's setup cell fails 17's build rather than silently
+publishing stale styling. 17 lifts styling only — it loads its own artifacts and
+shares no number with 14 except by reading the same files.
+
+11, 12 and 13 remain the long-form record for the pre-closure eras and have not
+been rewritten against the current estimand definitions.
 
 Two kinds of guard sit on it. At **build** time the generator asserts, over the
 assembled prose, that five claims withdrawn in the 2026-08-22 rewrite appear
@@ -108,6 +114,10 @@ uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
 uv run python notebooks/build_16_dag_workshop_story.py
 uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
   python notebooks/execute_notebook.py notebooks/16_dag_workshop_story.ipynb notebooks
+
+uv run python notebooks/build_17_rmd_experiment_ledger.py
+uv run --with pandas --with jinja2 --with jupyter_client --with ipykernel \
+  python notebooks/execute_notebook.py notebooks/17_rmd_experiment_ledger.ipynb notebooks
 ```
 
 Then **look at the figures**. A layout collision renders silently and does not

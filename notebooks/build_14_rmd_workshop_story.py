@@ -47,11 +47,14 @@ md(r"""
 *Status: rewritten 2026-08-22 from the three closure experiments committed that
 day. Fixed eight-sample Best-of-N on all 500 MATH-500 prompts, three distilled
 reasoning models. Every number below is read out of a committed artifact under
-`results/`; the notebook runs no model and fits nothing. The full experiment
-ledger is `EXPERIMENT_LOG.md`; notebooks
+`results/`; the notebook runs no model and fits nothing. The long-form record is
+notebook [17](17_rmd_experiment_ledger.ipynb), which loads every closure-era
+artifact -- including the seven controls that appear in no other notebook -- and
+states the population and sign hazards this storyboard only has room to mention;
+`EXPERIMENT_LOG.md` is the protocol record. Notebooks
 [12](12_wave1_abstention.ipynb) and
-[13](13_deepconf_null_and_label_efficiency.ipynb) keep the long-form abstention,
-DeepConf and label-efficiency material that this storyboard only points at.*
+[13](13_deepconf_null_and_label_efficiency.ipynb) keep the pre-closure
+abstention, DeepConf and label-efficiency material.*
 
 ---
 
@@ -948,6 +951,7 @@ conditioning; nothing in the design forbids one existing.
 - Peer cost ladder: [`results/peer_cost_ladder/`](../results/peer_cost_ladder/README.md)
 - Last-token probe: [`results/last_token_probe/`](../results/last_token_probe/README.md)
 - Refit stability (registered, pending): `controls/refit_stability.py`
+- Every closure artifact, loaded: [notebook 17](17_rmd_experiment_ledger.ipynb)
 - Long-form abstention detail: [notebook 12](12_wave1_abstention.ipynb)
 - DeepConf null and label efficiency: [notebook 13](13_deepconf_null_and_label_efficiency.ipynb)
 """)
