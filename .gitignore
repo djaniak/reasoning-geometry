@@ -145,3 +145,12 @@ docs/superpowers
 /results/peer_cost_ladder/*
 !/results/peer_cost_ladder/*.json
 !/results/peer_cost_ladder/*.md
+
+# Step 4 of the RMD closure path: the published-style last-token probe,
+# reproduced and then decomposed. JSON and report only. `cache/` holds the
+# extracted last-token hidden states -- derived data, rebuildable from the
+# trace batches in one pass, and far too large to track here.
+!/results/last_token_probe/
+/results/last_token_probe/*
+!/results/last_token_probe/*.json
+!/results/last_token_probe/*.md
