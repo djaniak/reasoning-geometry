@@ -62,9 +62,10 @@ run explicit controls against copying. Their two eight-state transition systems
 (Q₈, D₈) split each state into a visible coordinate and an order-sensitive phase
 bit; the edit is a rank-16 projection into a phase-bit subspace applied to
 `resid_pre` at layer 12 of the current-state token, so the printed token and the
-visible coordinate are unchanged by construction. Three conditions — pretrained
-base, final-answer-only LoRA, running-state LoRA — differ only in whether
-intermediate states appear in the training targets.
+visible coordinate are unchanged by construction. They compare an unmodified
+pretrained base with two matched LoRA conditions. The final-answer-only and
+running-state models use identical move sequences and final states; only the
+running-state targets include intermediate states.
 
 Two of their controls are the ones that bear on us:
 

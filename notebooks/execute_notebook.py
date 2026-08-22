@@ -11,6 +11,7 @@ from jupyter_client.manager import KernelManager
 def run(path: Path, cwd: Path) -> int:
     nb = json.loads(path.read_text(encoding="utf-8"))
     km = KernelManager(kernel_name="python3")
+    km.kernel_spec.argv[0] = sys.executable
     km.start_kernel(cwd=str(cwd))
     kc = km.client()
     kc.start_channels()
