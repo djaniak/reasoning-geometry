@@ -74,14 +74,16 @@ folds, layer and coefficients frozen at `seed=42`.*
 
 ## Two things to settle before reading any number
 
-**1. There is more than one population, and the difference is not small.** The
-closure experiments in sections 3--5 report on `cap_free_valid_plurality`, which
-drops every prompt with a capped sibling -- 22%, 21% and 18% of prompts. The
-paper's primary estimand is `full_population`: correctness at budget `B` over
-all 500 prompts, with unparsed scored 0. Section 1 puts the two side by side.
-The headline population is the more favourable one on all three models, so a
-control that clears its bar on `cap_free_valid_plurality` has cleared a
-slightly easier bar than the claim it is defending.
+**1. There is more than one population, and the difference is not small.** Most
+closure controls -- sections 4 and 5, and the two negatives in 6 and 7 -- report
+on `cap_free_valid_plurality`, which drops every prompt with a capped sibling:
+22%, 21% and 18% of prompts. The paper's primary estimand is `full_population`:
+correctness at budget `B` over all 500 prompts, with unparsed scored 0. Section
+1 puts the two side by side. The headline population is the more favourable one
+on all three models, so a control that clears its bar there has cleared a
+slightly easier bar than the claim it is defending. **Section 3 is the
+exception** -- the two pre-declared stop rules were rerun on `full_population`
+on 2026-08-22 for exactly this reason, and land the same way.
 
 **2. `aurc` means opposite things in different files.** Some artifacts integrate
 *risk* against coverage (lower is better, a negative delta is a gain); the
@@ -154,7 +156,7 @@ REGISTRY = {
         sign="auroc: higher is better", home="notebook 14"),
     "closest_baselines": dict(
         path="closest_baselines/closest_baselines_results.json",
-        estimand="prompt abstention", population="cap_free_valid_plurality",
+        estimand="prompt abstention", population="full_population",
         sign="aurc: lower is better", home="here, section 3"),
     "orgad_agreement_control": dict(
         path="orgad_agreement_control/orgad_agreement_control_results.json",
@@ -332,17 +334,31 @@ Both were registered with a stop rule before the run. `H` is
 histogram over parseable siblings. `rmd_full` is the whole-trace mean of the
 same per-token distance.
 
-**1a passed and 1b did not, and 1b is the more interesting one.** The tail beats
-the full trace on Qwen and ties or loses on the other two. So the localization
-that section 4a of notebook 14 defends -- tail over high-entropy region -- is a
-real ordering, but "tail over full trace" is not established on three models.
-The honest statement is that the tail is never *worse* than the whole trace, not
-that it is better.
+`rmd_full` is not a strawman: it is **Vazhentsev et al.'s ATRMD**, i.e. the
+published version of this feature. That is what makes 1b the interesting one.
+
+**1a does not trigger, on either population.** Read 1b the useful way round --
+not "does the tail beat the whole trace" but "what does the *published* score
+already buy" -- and it splits by architecture. On both distilled models ATRMD
+over `B0` collects essentially the whole increment and the tail adds nothing
+measurable; on Qwen ATRMD does not clear zero and the tail collects all of it.
+The two correlate at Pearson 0.93-0.96, so this is one signal wanting a
+different region on a different architecture, not two signals.
+
+The consequence, carried into notebook 14 §6: **the increment replicates across
+models, the localization does not.** `rmd_tail_q20` is a cheap choice that
+works everywhere rather than an established contribution.
+
+*Population note.* Until 2026-08-22 this artifact held only the two `cap_free_*`
+filters, so both stop rules had been evaluated one filter away from the
+population the claim is stated on. It now carries `full_population` first, which
+is what the table below reads and what `stop_rules` is computed on; the
+`cap_free_*` rows reproduce the earlier artifact to 1e-12.
 """)
 
 code(r'''
 CB = A["closest_baselines"]
-POP = "cap_free_valid_plurality"
+POP_1AB = "full_population"   # the primary estimand; see the population note above
 
 
 def ci(entry, digits=4):
@@ -352,7 +368,7 @@ def ci(entry, digits=4):
 
 rows = []
 for model in CB["models"]:
-    pop = model["populations"][POP]
+    pop = model["populations"][POP_1AB]
     deltas, readouts = pop["paired_deltas_aurc"], pop["readouts"]
     rows.append({
         "model": nice(model["label"]),
@@ -362,7 +378,9 @@ for model in CB["models"]:
         "B0+H": readouts["B0_plus_H"]["aurc"],
         "B0+rmd_full": readouts["B0_plus_rmd_full"]["aurc"],
         "1a: tail over B0+H": ci(deltas["rmd_tail_over_B0_plus_H"]),
-        "1b: tail over full": ci(deltas["rmd_tail_over_rmd_full"]),
+        "ATRMD over B0": ci(deltas["rmd_full_over_B0"]),
+        "1b: tail over ATRMD": ci(deltas["rmd_tail_over_rmd_full"]),
+        "corr": pop["redundancy"]["rmd_full_vs_rmd_tail_q20"]["pearson"],
     })
 CLOSEST = pd.DataFrame(rows)
 
@@ -372,18 +390,24 @@ verdict = (f"1a triggered: {rules['1a']['triggered']}  |  "
            f"({', '.join(f'{k}={v}' for k, v in rules['1b']['branch_by_model'].items())})")
 
 table(CLOSEST, "Table 3 &middot; against the answer histogram, and against the whole trace",
-      note=("AURC, lower is better; a negative delta favours the tail. "
-            f"<b>{verdict}</b>. 1a's stop rule was to withdraw the "
+      note=("AURC, lower is better; a negative delta favours the left-hand "
+            f"readout. <b>{verdict}</b>. 1a's stop rule was to withdraw the "
             "&ldquo;beyond self-consistency&rdquo; claim if two or more models had an "
             "interval overlapping zero &mdash; none did. 1b was pre-registered as "
-            "terminal either way: no region or percentile sweep follows it. "
-            f"Population <code>{POP}</code>; see Table 1 for what that costs."),
-      **{c: "{:.4f}" for c in ("B0", "B1", "B0+H", "B0+rmd_full")})
+            "terminal either way: no region or percentile sweep follows it, and "
+            "none has.<br><br>"
+            "Read the last three columns together. Where ATRMD works the tail "
+            "adds nothing; where the tail works ATRMD does nothing; and "
+            "<code>corr</code> says the two are near-collinear throughout. "
+            f"Population <code>{POP_1AB}</code> &mdash; the primary estimand, so "
+            "unlike most rows in Table 2 these numbers need no discount."),
+      **{c: "{:.4f}" for c in ("B0", "B1", "B0+H", "B0+rmd_full")},
+      **{"corr": "{:.2f}"})
 
 print(verdict)
 print("\nRedundancy of H with the vote it is computed from (Pearson / Spearman):")
 for model in CB["models"]:
-    red = model["populations"][POP]["redundancy"]["neg_answer_entropy_vs_vote_agreement"]
+    red = model["populations"][POP_1AB]["redundancy"]["neg_answer_entropy_vs_vote_agreement"]
     print(f"  {nice(model['label']):14s} {red['pearson']:.3f} / {red['spearman']:.3f}")
 print("H is nearly the same feature as vote_agreement, which is already in B0 --"
       "\nso 1a is a sharper test of redundancy than of an unseen baseline.")
@@ -457,20 +481,32 @@ features. Those pass rates reach AUROC 0.80--0.96 against the target's own
 outcome -- a near-oracle. If `rmd_tail_q20` is difficulty in disguise, this is
 where it should disappear.
 
-`B0 + peer` is a **control, not a baseline**. Two other models' pass rates are
-not available at decision time, so nothing here competes with the headline.
+**This rung is superseded, and the reason matters more than the result.** Its
+peer feature is the fraction of a peer's siblings that were *correct*, which
+needs the gold answer -- so *this* readout is a **control, not a baseline**:
+nothing computed from it competes with the headline. But the 2026-08-21 review
+rejected generalizing that to peer models as such, because a peer ensemble read
+for *agreement* needs no gold answer and is a deployable uncertainty method in
+the literature. `peer_cost_ladder` (section 6, and notebook 14 §5) replaces this
+control with both readouts on a cost axis, and notebook 14 §6 withdraws two
+claims that rested on the graded readout alone. Read the table below as a
+diagnostic on a retired instrument; do not quote it as the peer comparison.
 
-It survives, but not uniformly: under Holm correction across the three models,
-only Llama-8B is significant at 0.05. The pre-registered stop rule asked
-whether two or more models lost their interval, and one did.
+Within its own terms it survives, but not uniformly: under Holm correction
+across the three models, only Llama-8B is significant at 0.05. The pre-registered
+stop rule asked whether two or more models lost their interval, and one did.
 """)
 
 code(r'''
 PEER = A["peer_difficulty_control"]
+# Named locally, not inherited. This control was never run on the primary
+# population, and section 3 now reads full_population -- a shared POP would
+# have made one section quietly change the other's numbers.
+POP_PEER = "cap_free_valid_plurality"
 rows = []
 for model in PEER["models"]:
     label = model["label"]
-    pop = model["populations"][POP]
+    pop = model["populations"][POP_PEER]
     deltas, holm = pop["paired_deltas"], PEER["holm"]["tests"][label]
     peers = model["peer_columns"]
     rows.append({
@@ -628,6 +664,17 @@ unconditional background swapped for an incorrect-trace Gaussian, so
 positive at 25--50 labels and gone by 100. That is the honest version of the
 label-efficiency claim: it is a small-sample effect of the one-class fit, not a
 property of the geometry.
+
+**Scope decision, 2026-08-22: this does not go in the paper.** Three things
+have to be said at once for the result to be stated correctly -- the effect is
+confined to 25--100 labels, the attribution belongs to the quadratic decision
+function rather than to the geometry (`EXPERIMENT_LOG.md` 2026-08-08;
+`PAPER_STRATEGY_RMD.md` §7f), and the crossing points do not transfer across
+the three runs because the eval sets differ. A short paper cannot carry all
+three, and dropping any one of them over-claims. It stays here as the record.
+The defensible sentence, if one is ever wanted, is *a positive-only fit is a
+cheap route to a quadratic decision boundary in the scarce-label regime* --
+never that geometry is label-efficient.
 """)
 
 code(r'''
@@ -775,7 +822,13 @@ the closure-era definitions.
 **Mechanism.** Nothing here isolates *why* hidden-state scores encode prompt
 difficulty. Section 5 shows the increment is attenuated but not eliminated by a
 near-oracle difficulty control; that is a bound on the confound, not an account
-of it.
+of it -- and it is a bound measured with a retired instrument, since the cost
+ladder replaced that control's gold-aware readout.
+
+**Localization.** Section 3's split between architectures falls along the
+distilled/non-distilled axis, and there is one non-distilled model here. "The
+distilled models do not need the tail" describes these three checkpoints; it is
+not a finding about distillation, and nothing here says why a region would move.
 
 ### Provenance
 

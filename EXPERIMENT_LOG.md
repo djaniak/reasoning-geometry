@@ -5,6 +5,35 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-22: Scope — the label-efficiency claim is cut from the paper
+
+No new run. A decision recorded so it is not silently relitigated.
+
+Notebook 17 §8 loaded all three label-efficiency runs together for the first
+time, and stating the result correctly turns out to need three qualifications
+at once:
+
+1. The effect is confined to 25--100 labels. Both rungs of the 2026-08-08
+   ladder are +0.000 by 100.
+2. The attribution is not the geometry. That entry splits the 50-label gap into
+   roughly -0.011 supervision and -0.018 decision-function form: what buys the
+   scarce-label advantage is the quadratic boundary, which a positive-only fit
+   happens to be a cheap way to obtain.
+3. The three runs do not share an evaluation set. Each scores the complement of
+   *its own largest* budget -- 400 for the original, 100 for the follow-ups --
+   so the original scores about 80 prompts and the follow-ups about 320.
+   Crossing points are not transferable between them, which is why Qwen reads
+   "crossed @226" in one run and "no" in the others.
+
+A short paper cannot carry all three, and dropping any one of them over-claims.
+So it comes out of the claim list. `PAPER_STRATEGY_RMD.md` §5 claim 3 is struck
+and claim 1 loses its "ahead of it below ~100" clause; notebook 17 §8 keeps the
+full record and the three tables.
+
+The sentence that remains defensible, if one is ever wanted: *a positive-only
+fit is a cheap route to a quadratic decision boundary in the scarce-label
+regime.* Not that geometry is label-efficient.
+
 ## 2026-08-22: 1a and 1b on the primary population — and the localization is model-dependent
 
 Notebook 17 surfaced that both pre-declared stop rules had only ever been

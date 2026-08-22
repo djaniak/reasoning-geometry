@@ -128,6 +128,7 @@ def artifact(relpath):
 BUDGET = artifact("budget_outcomes/budget_outcomes.json")
 LADDER = artifact("peer_cost_ladder/peer_cost_ladder_results.json")
 PROBE = artifact("last_token_probe/last_token_probe_results.json")
+CLOSEST = artifact("closest_baselines/closest_baselines_results.json")
 
 # The refit sweep is registered and pending; the gate in section 4 reads this.
 REFIT_PATH = ROOT / "results/refit_stability/refit_stability_results.json"
@@ -139,6 +140,12 @@ assert [r["label"] for r in LADDER["models"]] == MODELS
 assert set(PROBE["models"]) == set(MODELS)
 assert {row["population"] for row in BUDGET["populations"]} >= {
     PRIMARY, "cap_free_valid_plurality"}
+# Section 4a reads 1a/1b off the primary population. Before 2026-08-22 this
+# artifact held only the cap-free filters, and the assert is what would have
+# caught the storyboard quoting a permissive number as the result.
+assert [m["label"] for m in CLOSEST["models"]] == MODELS
+for _m in CLOSEST["models"]:
+    assert PRIMARY in _m["populations"], (_m["label"], "rerun closest_baselines")
 
 # ---------------------------------------------------------------------------
 # Presentation only. Nothing below this line touches a number.
@@ -579,14 +586,36 @@ conditioning is removed.
 
 # ------------------------------------------------- 5b. why this feature region
 md(r"""
-### 4a. Why the final 20% of tokens
+### 4a. Where in the trace, and how much of that is the localization
 
-`B1` adds one score, and *where in the trace* it is measured is not a detail:
-the two localizations of the same Mahalanobis distance are separated by more
-than the increment `B1` buys over `B0`. The comparison below is why the feature
-is `rmd_tail_q20` and not `rmd_high_entropy_q20`.
+`B1` adds one score, and *where in the trace* it is measured is not a detail.
+There are three candidate regions, not two, and the third is the one that
+decides what this paper is claiming:
 
-It also runs the other way from the within-prompt result. Notebook
+| Region | Score |
+|:--|:--|
+| the whole trace | `rmd_full` -- **this is Vazhentsev et al.'s ATRMD, published prior art** |
+| the highest-entropy 20% of tokens | `rmd_high_entropy_q20` |
+| the final 20% of tokens | `rmd_tail_q20`, the feature `B1` uses |
+
+Table 5a puts the tail against the published whole-trace score on the primary
+population, and the answer is a **split, not a ranking**. On both distilled
+models the untailed ATRMD collects essentially the entire increment and the
+tail adds nothing measurable. On Qwen it is the reverse: ATRMD alone does not
+clear zero over `B0`, and the tail collects all of it. The two scores correlate
+at Pearson 0.89-0.95, so this is not two different signals -- it is the same
+signal, needing a different region on a different architecture.
+
+**So the claim is the increment, not the feature.** "A hidden-state Mahalanobis
+score adds a prompt-level gain over target-only output features" replicates on
+all three models. "The *tail* is where it has to be measured" does not: it is a
+Qwen-specific refinement of an already-published score, it costs nothing, and
+presenting it as the contribution would be claiming across models something
+established on one. Stop rule `1b` pre-declared that no region or percentile
+sweep follows whichever way this landed, and none has.
+
+Table 5b then separates the two *localized* regions, and that comparison does
+run one way. It also runs opposite to the within-prompt result: notebook
 [11](11_prompt_geometry_core_experiments.ipynb) finds that restricting RMD to
 the highest-entropy 20% of tokens **beats** full-trace RMD *inside* a prompt
 (+0.052 / +0.055 / +0.058 centered AUC at L7/14/21, all p <= 0.006, Qwen).
@@ -596,6 +625,58 @@ in the feature design rather than in the readout.
 """)
 
 code(r'''
+def interval(entry):
+    return (f"{entry['point_estimate']:+.4f} "
+            f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]")
+
+
+# Table 5a is on the SAME scale and the SAME population as sections 2-4: risk
+# against coverage, lower is better, C_B over all 500 prompts. So unlike Table
+# 5b below, these numbers are directly comparable to the increment table.
+L = pd.DataFrame([
+    {
+        "model": NICE[m["label"]],
+        "layer": m["layer"],
+        "B1 - B0": interval(P["paired_deltas_aurc"]["B1_minus_B0"]),
+        "ATRMD over B0": interval(P["paired_deltas_aurc"]["rmd_full_over_B0"]),
+        "tail over ATRMD": interval(P["paired_deltas_aurc"]["rmd_tail_over_rmd_full"]),
+        "corr(ATRMD, tail)": P["redundancy"]["rmd_full_vs_rmd_tail_q20"]["pearson"],
+    }
+    for m in CLOSEST["models"]
+    for P in [m["populations"][PRIMARY]]
+])
+_clears = lambda d: d["ci_high"] < 0
+table(
+    L, "Table 5a &middot; the tail against the published whole-trace score, "
+       f"{PRIMARY}",
+    note=("<b>Lower is better; a negative delta favours the left-hand readout.</b> "
+          "<code>rmd_full</code> is Vazhentsev et al.'s ATRMD, so the middle "
+          "column asks what an already-published feature buys and the right one "
+          "asks what the tail adds on top of it.<br><br>"
+          "<b>The split.</b> ATRMD clears zero over <code>B0</code> on "
+          + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
+                      if _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
+                                 ["rmd_full_over_B0"]))
+          + " and not on "
+          + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
+                      if not _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
+                                     ["rmd_full_over_B0"]))
+          + "; the tail clears zero over ATRMD on "
+          + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
+                      if _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
+                                 ["rmd_tail_over_rmd_full"]))
+          + " only. Exactly the models where one works are the models where the "
+          "other does not, and the last column shows the two are near-collinear "
+          "throughout. The increment is what replicates across models; the "
+          "region it has to be read from is not.<br><br>"
+          "Stop rule <code>1a</code> lives in the same artifact and does not "
+          "trigger here either: the tail over <code>B0 + neg_answer_entropy</code> "
+          "clears zero on "
+          f"{sum(_clears(m['populations'][PRIMARY]['paired_deltas_aurc']['rmd_tail_over_B0_plus_H']) for m in CLOSEST['models'])}"
+          " of 3 models, and the rule stops the claim at two failures."),
+    **{"corr(ATRMD, tail)": "{:.2f}"},
+)
+
 # The E1 artifact behind notebook 12. Two things about it have to be said before
 # any number is read out of it, and the note under the table says both.
 #
@@ -628,12 +709,6 @@ for label in MODELS:
 
 assert REGION, "no wave1 artifact found; section 4a has nothing to show"
 
-
-def interval(entry):
-    return (f"{entry['point_estimate']:+.4f} "
-            f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]")
-
-
 R = pd.DataFrame([
     {
         "model": NICE[label],
@@ -647,12 +722,14 @@ R = pd.DataFrame([
 ])
 missing = [NICE[label] for label in MODELS if label not in REGION]
 table(
-    R, "Table 5 &middot; where in the trace the score is measured, prompt level",
+    R, "Table 5b &middot; the two localized regions against each other, prompt level",
     note=("<b>Higher is better in this table only.</b> E1 integrates accuracy "
-          "against coverage; sections 2-4 integrate risk against coverage, so "
-          "the increment there is negative and the loss here is negative for "
-          "the opposite reason. Both are stored under the key <code>aurc</code> "
-          "in their own artifacts.<br><br>"
+          "against coverage; sections 2-4 and Table 5a integrate risk against "
+          "coverage, so the increment there is negative and the loss here is "
+          "negative for the opposite reason. Both are stored under the key "
+          "<code>aurc</code> in their own artifacts, on different scales and "
+          "over differently filtered traces. Do not read a delta across the "
+          "two tables.<br><br>"
           "The high-entropy region is worse on both models and both AURC "
           "intervals exclude zero. At the single 50% operating point the gap "
           "survives on Qwen and does not on DeepSeek-7B "
@@ -904,7 +981,12 @@ md(r"""
 **The claim.** On MATH-500 under a fixed eight-sample protocol, a hidden-state
 Mahalanobis score adds a small prompt-level selective-prediction gain over
 target-only output features, at zero additional generations, on three distilled
-reasoning models. Its pooled trace AUROC -- and that of a last-token probe
+reasoning models. **The increment is the claim; the localization is not.**
+Which region of the trace supplies it splits by architecture -- on the two
+distilled models the published whole-trace ATRMD supplies essentially all of
+it, on Qwen only the tail does (section 4a, Table 5a) -- so `rmd_tail_q20` is a
+cheap choice that works everywhere, not an established contribution. Its pooled
+trace AUROC -- and that of a last-token probe
 reproduced at full strength -- substantially conflates prompt difficulty with
 trace correctness, so neither is established as a trace verifier. A deployable
 peer-agreement baseline is a genuine competitor rather than a control: it is
@@ -923,6 +1005,7 @@ committed artifact rather than merely softened:
 | peer pass rates *absorb roughly four fifths* of the increment | that used the **graded** peer score, which consults the gold answer; the deployable `agree` score does not reproduce it |
 | *most of the increment is prompt difficulty* | same source, same defect; the deployable comparison at one extra generation is 4 ties, 1 win, 1 loss |
 | peer models are only a non-deployable control | `agree` rungs are deployable and are now the primary comparison; `graded` is the diagnostic |
+| *tail localization is what replicates* | it replicates in the weak sense of never losing, but the untailed ATRMD -- published prior art -- collects the whole increment on both distilled models, and the tail is load-bearing on Qwen alone (section 4a) |
 
 **Open.** The full outer refit (section 4's gate) is registered and pending;
 until it lands, every interval here is conditional on one prompt partition. The
@@ -935,7 +1018,11 @@ samples both peaks and the trough rather than the last layer alone
 ([archived notebook 02](archive/02_layer_dynamics.ipynb); Qwen MATH-500 only,
 and whether the bimodality replicates on the distill models is untested). Nothing here isolates *why* the hidden-state
 scores encode difficulty, and the Qwen early-layer selection is a single-model
-observation, not evidence for a mechanism.
+observation, not evidence for a mechanism. The same n=1 problem applies to
+section 4a's localization split: it falls along the distilled/non-distilled
+axis, and there is one non-distilled model in the set, so "distilled models do
+not need the tail" is a description of these three checkpoints and not a
+finding about distillation.
 
 **How to falsify it.** Run the decomposition on a benchmark where most prompts
 produce mixed outcomes -- the within-prompt readouts here rest on 117, 49 and
@@ -949,6 +1036,7 @@ conditioning; nothing in the design forbids one existing.
 - Paper strategy: [`PAPER_STRATEGY_RMD.md`](../PAPER_STRATEGY_RMD.md)
 - Budget-indexed outcomes: [`results/budget_outcomes/`](../results/budget_outcomes/README.md)
 - Peer cost ladder: [`results/peer_cost_ladder/`](../results/peer_cost_ladder/README.md)
+- Closest baselines, stop rules 1a and 1b: [`results/closest_baselines/`](../results/closest_baselines/README.md)
 - Last-token probe: [`results/last_token_probe/`](../results/last_token_probe/README.md)
 - Refit stability (registered, pending): `controls/refit_stability.py`
 - Every closure artifact, loaded: [notebook 17](17_rmd_experiment_ledger.ipynb)
@@ -969,11 +1057,12 @@ WITHDRAWN = (
     "absorb",
     "most of the increment is prompt difficulty",
     "censored observations, not failures",
+    "tail localization is what replicates",
     "Reading D honestly",
 )
 for phrase in WITHDRAWN:
     assert phrase not in elsewhere, f"reintroduced a withdrawn claim: {phrase!r}"
-for phrase in WITHDRAWN[:4]:
+for phrase in WITHDRAWN[:5]:
     assert any(phrase in source for source in retracting), \
         f"stopped retracting {phrase!r}"
 

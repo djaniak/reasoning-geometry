@@ -138,15 +138,24 @@ continuation study is the answer. Ledger: `EXPERIMENT_LOG.md` (2026-08-03).
 1. **Measurement-and-reframe paper (recommended):** "What does hidden-state geometry
    actually measure in reasoning models? A length-controlled re-examination." Length
    confound + truncation artifact + between/within decomposition + between-prompt
-   solvability application beating length, competitive with a trained probe at full
-   labels and ahead of it below ~100 (§7f). Every claim we can support; avoids the
-   fight (beating trained probes at raw correctness) we'd lose.
+   solvability application beating length, and competitive with a trained probe at
+   full labels. ~~and ahead of it below ~100 (§7f)~~ **[Dropped 2026-08-22 with
+   claim 3 below — same reason.]** Every claim we can support; avoids the fight
+   (beating trained probes at raw correctness) we'd lose.
 2. **Between-prompt difficulty for ~~test-time compute allocation~~ / routing** (constructive).
    **[Narrowed 2026-08-10.]** The allocation half is closed — see the amendment in §1.
    What survives is routing/abstention by predicted difficulty, which the same
    precheck supports at one trace (AUROC 0.790 / 0.674 / 0.688).
-3. **Single-trace label-efficient RMD beating length+entropy** (riskiest — primitive
-   precedented, and §7f bounds the label-efficiency edge to ≤50 labelled prompts).
+3. ~~**Single-trace label-efficient RMD beating length+entropy**~~ **[Cut from the
+   paper 2026-08-22.]** Stating it correctly needs three qualifications at once —
+   the effect is confined to 25–100 labels, §7f moves the attribution off the
+   geometry and onto the quadratic decision function, and the three
+   label-efficiency runs score different eval sets (the complement of each run's
+   *largest* budget, 400 vs 100), so crossing points do not transfer between
+   them. A short paper cannot carry all three, and dropping any one over-claims.
+   Kept as the record in notebook 17 §8. If a sentence is ever wanted: *a
+   positive-only fit is a cheap route to a quadratic decision boundary in the
+   scarce-label regime* — never that geometry is label-efficient.
 
 ## 6. Baselines / experiments a top venue will demand
 
@@ -352,6 +361,16 @@ output baselines do.**
   aggregator: between prompts, the untailed `rmd_full` recovers the whole increment
   on both distilled models, and the tail is load-bearing only on Qwen. See
   `EXPERIMENT_LOG.md` (2026-08-09, both entries).
+  **[Sharpened 2026-08-22, on `full_population`.]** Experiment 1b now says this
+  with intervals, and the missing half changes the framing. `rmd_full` — which
+  *is* Vazhentsev's ATRMD, published prior art — over `B0`: −0.0287 [−0.0534,
+  −0.0055] DeepSeek-Qwen and −0.0445 [−0.0739, −0.0151] Llama, essentially the
+  whole increment; but −0.0178 [−0.0435, **+0.0105**] on Qwen, where it does not
+  clear zero at all. So it is not that the tail is redundant on two models — it
+  is that each architecture needs a different region, and the two scores
+  correlate at Pearson 0.93–0.96. **Write the increment as the claim and the
+  localization as a scope note.** `rmd_tail_q20` is the region that works
+  everywhere, not an established contribution. Notebook 14 §4a Table 5a.
 - **Breadth is now the binding constraint, not rigor.** ~~n=2 models, both
   Qwen-lineage. Every claim in this section needs the Llama-architecture replication
   (`deepseek_llama`, cancelled by the §7d gate)~~ **[Stale — corrected
