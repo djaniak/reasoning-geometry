@@ -5,6 +5,89 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-22: 1a and 1b on the primary population — and the localization is model-dependent
+
+Notebook 17 surfaced that both pre-declared stop rules had only ever been
+evaluated on `cap_free_valid_plurality`, the permissive filter the same day's
+budget-indexed entry argues against as a headline. The claim they gate is
+stated on `full_population`. Rerunning them there costs four CPU minutes, so
+there was no reason for the gap to stand.
+
+### Parameterization
+
+No DVC stage. Re-reads cached OOF rows and imports the frozen folds,
+populations, readout, bootstrap and seed convention from
+`incremental_abstention`.
+
+```
+uv run python -m baselines.closest_baselines \
+  --model {qwen,deepseek,deepseek_llama}:results/{model}_bestofn_full/math500/math500_prompt_decomposition_oof.csv:data/{model}_bestofn_full/math500 \
+  --population full_population --population cap_free_valid_plurality \
+  --population cap_free_all_eight_parseable
+```
+
+`full_population` is now the first population, so it is what
+`stop_rule_verdicts` and the report headline read. **Continuity check:** both
+`cap_free_*` populations reproduce the 2026-08-10 artifact to 1e-12 on every
+field, checked field by field against a copy taken before the overwrite. The
+rerun is a strict superset.
+
+The directory is now whitelisted into git (`results/closest_baselines/`, JSON
+and markdown only, with a README). It is not a DVC stage and it was the only
+copy on this disk, which is the same argument the `dag_patching` block makes.
+
+### Result
+
+1. **1a does not trigger on the primary population either.** `rmd_tail_q20`
+   over `B0 + neg_answer_entropy`, `full_population`: −0.0519 [−0.0829,
+   −0.0216] Qwen, −0.0281 [−0.0524, −0.0057] DeepSeek-Qwen, −0.0462 [−0.0773,
+   −0.0157] Llama. Zero of three intervals span zero; the rule stops the claim
+   at two. The increment is not the answer histogram in disguise, and that is
+   now established where the claim lives rather than one filter away from it.
+
+2. **Every delta is smaller on the primary population, in the direction the
+   budget-indexed entry predicted.** `B1 − B0` goes −0.0585 → −0.0520 (Qwen),
+   −0.0355 → −0.0284 (DeepSeek-Qwen), −0.0560 → −0.0469 (Llama). Nothing
+   changes sign or loses its interval. The permissive filter was overstating,
+   not manufacturing.
+
+3. **The localization is model-dependent, and this is the finding.** Read 1b
+   the useful way round — `rmd_full` (Vazhentsev's ATRMD, published) over `B0`
+   on `full_population`: −0.0287 [−0.0534, −0.0055] DeepSeek-Qwen and −0.0445
+   [−0.0739, −0.0151] Llama, i.e. essentially the whole increment; but −0.0178
+   [−0.0435, +0.0105] on Qwen, which does not clear zero. Symmetrically, the
+   tail over ATRMD is −0.0464 [−0.0724, −0.0224] on Qwen and ties on both
+   distilled models (−0.0030, −0.0041). The two scores correlate at Pearson
+   0.89–0.95.
+
+   So: **the increment over self-consistency replicates on all three models;
+   which localization delivers it does not.** On the distilled pair the work is
+   done by an already-published feature and the tail adds nothing measurable;
+   on Qwen the published feature does nothing measurable and the tail does all
+   of it. `PAPER_STRATEGY_RMD.md` §7e recorded half of this on 2026-08-09 ("the
+   untailed `rmd_full` recovers the whole increment on both distilled models");
+   the half it did not record is that ATRMD *fails* on Qwen, which is what
+   makes the split a split rather than the tail being redundant.
+
+   The consequence for the paper is a narrowing, not a loss: the contribution
+   is the increment, not the feature, and the tail is a Qwen-specific
+   refinement that costs nothing and must not be presented as established
+   across models. Notebook 14 §4a compared the tail only against the
+   entropy-localized region and so read as though the tail were the
+   contribution; corrected in the same commit.
+
+1b's registered consequence — *no region or percentile sweep follows, whichever
+way this lands* — is unchanged and still honoured. No sweep.
+
+### Limitations
+
+Same frozen-partition caveat as everything else here: folds, layer and
+coefficients are fixed at `seed=42` and the bootstrap resamples prompts only.
+The outer-refit sweep registered below is the gate on that, and it is still
+pending. Nothing above isolates *why* the two architectures split on
+localization; with one non-distilled model in the set, "distilled models do not
+need the tail" rests on n=1 for the contrast.
+
 ## 2026-08-22: Refit stability — registered before the sweep runs
 
 Written before any refit exists, for the same reason `6f1e9a7` registered E2

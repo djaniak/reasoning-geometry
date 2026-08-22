@@ -154,3 +154,13 @@ docs/superpowers
 /results/last_token_probe/*
 !/results/last_token_probe/*.json
 !/results/last_token_probe/*.md
+
+# Experiments 1a and 1b: the two closest cheap baselines. Same reasoning as
+# peer_cost_ladder -- derived from cached OOF rows, rebuilds in four CPU
+# minutes -- but with one difference that decides it. This is the artifact the
+# two pre-declared stop rules are read out of, it is not a DVC stage, and it
+# was the only copy on this disk until now. Seventy kilobytes.
+!/results/closest_baselines/
+/results/closest_baselines/*
+!/results/closest_baselines/*.json
+!/results/closest_baselines/*.md
