@@ -137,3 +137,11 @@ docs/superpowers
 /results/budget_outcomes/*
 !/results/budget_outcomes/*.json
 !/results/budget_outcomes/*.md
+
+# The peer baseline and cost ladder. Same reasoning as budget_outcomes: derived
+# from cached OOF rows, rebuilds in three CPU minutes, and it is the record of
+# what the peer comparison costs -- which is the whole content of the rung.
+!/results/peer_cost_ladder/
+/results/peer_cost_ladder/*
+!/results/peer_cost_ladder/*.json
+!/results/peer_cost_ladder/*.md
