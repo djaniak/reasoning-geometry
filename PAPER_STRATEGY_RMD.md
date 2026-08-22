@@ -15,16 +15,18 @@ second literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit
 
 ---
 
-## 1. Current thesis (2026-08-10)
+## 1. Current thesis (2026-08-22)
 
-> **On MATH-500, after eight sampled reasoning traces, trace-mean relative
-> Mahalanobis distance improves prompt-level selective prediction beyond mean trace
-> length, token entropy, token log probability, and plurality agreement. The AURC
-> increment holds on three 7B/8B models from two architecture families and survives
-> the full exact-answer histogram. Most of the signal measures prompt difficulty:
-> pass rates from two peer models absorb 78–99% of the increment. A smaller residual
-> remains on Qwen2.5-7B-Instruct and DeepSeek-R1-Distill-Llama-8B, but only the Llama
-> residual survives correction across models.**
+> **On all 500 MATH-500 prompts under a fixed eight-sample budget, adding a
+> relative-Mahalanobis tail score to mean length, token entropy, token log
+> probability and plurality agreement improves prompt-level selective prediction
+> on three 7B/8B checkpoints. The fixed-pipeline AURC increments are −0.0520,
+> −0.0284 and −0.0469. A high pooled trace AUROC does not establish sibling-level
+> verification: a reproduced last-token probe falls from 0.901/0.914/0.903 pooled
+> to 0.644/0.582/0.718 macro within prompt. A deployable peer-agreement baseline
+> is a genuine paid competitor, not a mechanism control; at one extra generation
+> the six model-pair comparisons yield four ties, one RMD win and one peer win
+> after Holm correction.**
 
 The contribution of this work is the evaluation rather than a new geometry
 statistic. Token-level RMD and whole-trace ATRMD are already defined by Vazhentsev
@@ -34,24 +36,11 @@ The paper should therefore present the tail as a model-dependent localization, a
 should foreground the controlled increment over a strong self-consistency baseline.
 
 The current evidence supports post-generation abstention and risk ranking after
-eight traces. It does not yet support single-trace verification, pre-generation
-routing, adaptive compute allocation, or within-prompt reranking. The next test asks
-whether geometry available after the first `k` traces predicts the marginal value of
-another sample and improves accuracy at matched compute.
-
-**[Amendment, 2026-08-10. The test was run at k = 1 and did not pass.]** The
-allocation precheck (`allocation_precheck.py`; `EXPERIMENT_LOG.md`, 2026-08-10)
-asked the question stated in the paragraph above, and the answer was negative.
-Against `g(p) = a(p,8) − a(p,1)`, computed exhaustively over all `C(8,k)` sibling
-subsets, single-trace geometry ranks the gain in the wrong order on all three models
-(Spearman −0.042 / −0.057 / −0.074), while correlating +0.51 / +0.24 / +0.37 with
-the pass rate. The gate passed on 1 of 3 models, at R² = +0.0005. Geometry therefore
-reads difficulty but not marginal gain, and no policy was written. Adaptive compute
-allocation should be listed as closed rather than as a pending direction. No other
-predictor tested here explains `g` either, so this is not a defeat relative to the
-cheap baselines: the target is mostly zero (79% / 90% / 68% of prompts) and is only
-weakly ordered by difficulty (ρ −0.09 / −0.16 / −0.04). Prior work on this direction,
-recorded before the run, is listed in `RELATED_WORK.md` §6.
+eight traces. It does not establish single-trace verification, pre-generation
+routing, adaptive compute allocation, or within-prompt reranking. The allocation
+precheck failed: single-trace geometry ranks the gain from another sample in the
+wrong order on all three models. The remaining evidence gate is the registered
+full-refit stability sweep; no new score or application experiment precedes it.
 
 The label-efficiency result is limited to a small budget. At 50 labelled prompts,
 geometry leads a pooling-matched linear probe by −0.033 AURC. The gap disappears at

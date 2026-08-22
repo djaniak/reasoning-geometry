@@ -164,3 +164,39 @@ docs/superpowers
 /results/closest_baselines/*
 !/results/closest_baselines/*.json
 !/results/closest_baselines/*.md
+
+# The RMD closure ledger inputs. These small derived JSON/CSV artifacts are the
+# evidence behind notebook 17; without them the committed notebook only looks
+# complete because its old outputs are cached. Reports are admitted beside the
+# machine-readable inputs so each table keeps its provenance.
+!/results/orgad_agreement_control/
+/results/orgad_agreement_control/*
+!/results/orgad_agreement_control/*.json
+!/results/orgad_agreement_control/*.md
+!/results/peer_difficulty_control/
+/results/peer_difficulty_control/*
+!/results/peer_difficulty_control/*.json
+!/results/peer_difficulty_control/*.md
+!/results/allocation_precheck/
+/results/allocation_precheck/*
+!/results/allocation_precheck/*.json
+!/results/allocation_precheck/*.md
+!/results/application_alignment/
+/results/application_alignment/*
+!/results/application_alignment/*.json
+!/results/application_alignment/*.md
+!/results/label_efficiency/
+/results/label_efficiency/*
+!/results/label_efficiency/*.json
+!/results/label_efficiency/*.csv
+!/results/label_efficiency/*.md
+!/results/label_efficiency_supervision_ladder/
+/results/label_efficiency_supervision_ladder/*
+!/results/label_efficiency_supervision_ladder/*.json
+!/results/label_efficiency_supervision_ladder/*.csv
+!/results/label_efficiency_supervision_ladder/*.md
+!/results/label_efficiency_token_pooling/
+/results/label_efficiency_token_pooling/*
+!/results/label_efficiency_token_pooling/*.json
+!/results/label_efficiency_token_pooling/*.csv
+!/results/label_efficiency_token_pooling/*.md

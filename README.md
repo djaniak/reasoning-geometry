@@ -49,14 +49,15 @@ trace tokens** (`prompt_decomposition.py::score_localized_rmd`; the `q20` in
 the name is the size of the tail window, not a quantile of the distances).
 Out-of-fold logistic readouts, prompt-clustered paired bootstrap, 1000 draws.
 
-On the cap-free valid-plurality population, in **AURC** (area under the
+On the primary `full_population` estimand -- correctness available at the stated
+generation budget over all 500 prompts -- in **AURC** (area under the
 risk-coverage curve, lower is better):
 
 | Model | n | `B1 − B0` |
 |---|---:|---|
-| Qwen2.5-7B-Instruct | 392 | −0.0585 [−0.1026, −0.0182] |
-| DeepSeek-R1-Distill-Qwen-7B | 393 | −0.0355 [−0.0642, −0.0097] |
-| DeepSeek-R1-Distill-Llama-8B | 408 | −0.0560 [−0.0910, −0.0232] |
+| Qwen2.5-7B-Instruct | 500 | −0.0520 [−0.0845, −0.0218] |
+| DeepSeek-R1-Distill-Qwen-7B | 500 | −0.0284 [−0.0526, −0.0048] |
+| DeepSeek-R1-Distill-Llama-8B | 500 | −0.0469 [−0.0743, −0.0162] |
 
 Controls it survives: three difficulty controls, one of them MATH-500's exogenous
 human-annotated level; a length residualization; DeepConf (arXiv:2508.15260) as
@@ -77,18 +78,15 @@ answer-distribution statistic is constant by construction on most of the data.
 That is a limit on self-consistency baselines at this sample count, not a
 property of this feature.
 
-**Most of the increment is prompt difficulty (2026-08-10).** All three collects
-share MATH-500 prompt ids, so each model's `B0` can be handed the *other two
-models'* eight-sibling pass rates — an empirical difficulty signal the target
-model did not produce. It is the first difficulty control here that beats `B0`,
-cutting AURC by 28–82% where the earlier two were worth zero or less. Against
-it the increment shrinks about fivefold and clears zero on two of three models
-(−0.0108 / −0.0004 / −0.0125). DeepSeek-R1-Distill-Qwen-7B's null is a ceiling
-rather than redundancy: with that control its readout lands 0.0045 above a
-perfect ranker's AURC, leaving nothing for any feature to remove. Holm over the
-pre-declared family of three passes DeepSeek-R1-Distill-Llama-8B alone (0.012;
-Qwen 0.072). Note that peer pass rates do not exist at decision time, so this is
-a control on the mechanism, not a baseline the method has to beat.
+**A deployable peer is a genuine competitor, not a mechanism control.** A peer's
+agreement with the target answer needs no gold label, but it costs extra
+generations; `B1` uses states from the target's existing eight traces. At the
+cheapest deployable rung, the six target-peer comparisons give four ties, one
+RMD win and one peer win after Holm correction over the six tests. No peer rung
+is exactly cost-matched to `B1`, so the supported advantage is zero additional
+generations, not superiority to peer uncertainty. The older conclusion that
+peer pass rates absorb most of the increment used a gold-aware diagnostic and
+is withdrawn.
 
 **It does not extend to sample allocation (2026-08-10).** A pre-declared gate
 asked whether single-trace geometry predicts the *gain from buying more samples*,
@@ -114,15 +112,13 @@ shows no tail effect. The split follows reasoning distillation, on one
 non-distilled model, with trace style, budget and base accuracy still collinear
 with it. A third non-distilled model is the test that would settle it.
 
-**This is a between-prompt result, and the within-prompt one is Qwen-specific.**
-A pre-registered cross-model gate on DeepSeek-R1-Distill-Qwen-7B failed
-(2026-07-29): the localization effect is +0.004 [−0.016, +0.027], excluding
-Qwen's +0.058, and *every* within-prompt AUC on that model — geometry and output
-baselines alike — sits at or below chance.
-
-The cross-model claim is therefore: **hidden-state geometry indicates which
-problems are hard, not which attempt is right.** See
-[EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+**Pooled trace discrimination is not sibling verification.** A nested
+last-token probe reaches pooled AUROC 0.901 / 0.914 / 0.903, but macro
+within-prompt AUROC is 0.644 / 0.582 / 0.718. RMD shows the same qualitative
+gap. Length also loses substantial pooled discrimination, while entropy and
+log-probability lose less. The supported claim is that the prompt-level
+increment survives; a high pooled trace AUROC alone does not establish which
+sibling trace is correct. See [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 *Metric note: AURC and AUACC are affinely related at fixed n and both inherit the
 base accuracy, so levels are not comparable across models — only deltas are.

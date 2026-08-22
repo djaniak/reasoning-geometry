@@ -1,0 +1,1535 @@
+{
+  "target": "g(p) = a(p,8) - a(p,1), where a(p,k) is the expected plurality-vote correctness over all C(8,k) sibling subsets",
+  "subset_sizes": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "feature_sets": {
+    "geometry": [
+      "rmd_tail_q20"
+    ],
+    "output": [
+      "length",
+      "entropy",
+      "logprob"
+    ],
+    "both": [
+      "length",
+      "entropy",
+      "logprob",
+      "rmd_tail_q20"
+    ]
+  },
+  "readout": "cross-fitted ridge (alpha=1) on the frozen prompt folds",
+  "constant_baseline": "cross-fitted training-fold mean",
+  "n_bootstrap": 1000,
+  "seed": 42,
+  "gate": {
+    "rule": "geometry alone beats the cross-fitted constant (R^2 > 0) and adds over output-alone in out-of-fold Spearman, on at least 2 of the models; medians over the stage-1 draws",
+    "n_models": 3,
+    "models_passing": [
+      "deepseek_llama"
+    ],
+    "per_model": {
+      "qwen": {
+        "geometry_r2_median": -0.0037185234363925623,
+        "geometry_beats_constant": false,
+        "spearman_gain_from_geometry_median": 0.03310063762250186,
+        "geometry_adds_over_output": true,
+        "passes": false
+      },
+      "deepseek": {
+        "geometry_r2_median": -0.006499231690151097,
+        "geometry_beats_constant": false,
+        "spearman_gain_from_geometry_median": -0.006992734961558569,
+        "geometry_adds_over_output": false,
+        "passes": false
+      },
+      "deepseek_llama": {
+        "geometry_r2_median": 0.0005168196100399092,
+        "geometry_beats_constant": true,
+        "spearman_gain_from_geometry_median": 0.02563840320120713,
+        "geometry_adds_over_output": true,
+        "passes": true
+      }
+    },
+    "passes": false,
+    "consequence": "step 3 is not run; geometry contributes nothing to allocation and that is the finding"
+  },
+  "difficulty_not_gain": {
+    "qwen": true,
+    "deepseek": true,
+    "deepseek_llama": true
+  },
+  "models": [
+    {
+      "label": "qwen",
+      "layer": 21,
+      "population": "cap_free_valid_plurality",
+      "n_prompts": 392,
+      "n_prompts_dropped_incomplete": 0,
+      "base_accuracy": 0.6913265306122449,
+      "harness_checks": {
+        "a8_equals_frozen_outcome": true,
+        "a1_vs_cached_is_correct": {
+          "max_abs_difference": 0.0,
+          "n_prompts_differing": 0,
+          "n_prompts": 392
+        }
+      },
+      "gain_summary": {
+        "mean": 0.03443877551020408,
+        "sd": 0.13276952305240028,
+        "min": -0.5,
+        "max": 0.625,
+        "share_exactly_zero": 0.7908163265306123,
+        "share_negative": 0.04591836734693878,
+        "spearman_pass_rate_vs_gain": -0.08964840883324318
+      },
+      "accuracy_curve_mean": {
+        "1": 0.6568877551020408,
+        "2": 0.670280612244898,
+        "4": 0.6846574344023324,
+        "8": 0.6913265306122449
+      },
+      "draws": [
+        {
+          "stage1_position": 0,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.00909895740972813,
+              "r2_vs_constant": -0.003899668873279305
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.07478694016402207,
+              "r2_vs_constant": 0.012156487163206386
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.07266915309626296,
+              "r2_vs_constant": 0.008666552030956565
+            }
+          },
+          "spearman_gain_from_geometry": -0.0021177870677591137,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.783538165960172,
+              "ci_low": 0.7335074868229101,
+              "ci_high": 0.8337145600200561,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7676255903821383,
+              "ci_low": 0.7196196707168433,
+              "ci_high": 0.8151048390656882,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5119652312507925,
+            "spearman_vs_gain": -0.042733071607773766
+          }
+        },
+        {
+          "stage1_position": 1,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.06403302796515951,
+              "r2_vs_constant": -0.004788278961573855
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.04788842327579812,
+              "r2_vs_constant": -0.0039238994486747725
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.0677286778313675,
+              "r2_vs_constant": -0.0027764164289567628
+            }
+          },
+          "spearman_gain_from_geometry": 0.019840254555569384,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7898508737153487,
+              "ci_low": 0.7406002079928689,
+              "ci_high": 0.8355115693498247,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7795745920745921,
+              "ci_low": 0.7278189331718358,
+              "ci_high": 0.8244358349213157,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5087562513938874,
+            "spearman_vs_gain": -0.013423818087185749
+          }
+        },
+        {
+          "stage1_position": 2,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.03926379185966962,
+              "r2_vs_constant": -0.005001860486630205
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.08856426007031487,
+              "r2_vs_constant": 0.005817035333984477
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.10483515545714474,
+              "r2_vs_constant": 0.00914885507846075
+            }
+          },
+          "spearman_gain_from_geometry": 0.016270895386829867,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7815254185599707,
+              "ci_low": 0.7291815523311864,
+              "ci_high": 0.8297967347832159,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7633272058823529,
+              "ci_low": 0.7100817322853477,
+              "ci_high": 0.8111437172020537,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5014420370422287,
+            "spearman_vs_gain": -0.02565859734348921
+          }
+        },
+        {
+          "stage1_position": 3,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.044041112438823346,
+              "r2_vs_constant": -0.002257795351424674
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.03141835021848803,
+              "r2_vs_constant": -0.0065406743093319175
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.09106456357912994,
+              "r2_vs_constant": 0.0007150309218694195
+            }
+          },
+          "spearman_gain_from_geometry": 0.05964621336064191,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7990912140526364,
+              "ci_low": 0.7495214064762937,
+              "ci_high": 0.8449554934289765,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7835134745640582,
+              "ci_low": 0.7351457448924912,
+              "ci_high": 0.8324793738580111,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5129084907254519,
+            "spearman_vs_gain": 0.014636965686064237
+          }
+        },
+        {
+          "stage1_position": 4,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.03901163096650008,
+              "r2_vs_constant": -0.004396047312677398
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.07046376149363394,
+              "r2_vs_constant": 0.001840909438774574
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.12141848365713463,
+              "r2_vs_constant": 0.009734264026334705
+            }
+          },
+          "spearman_gain_from_geometry": 0.05095472216350069,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7871062181696197,
+              "ci_low": 0.7379811510619646,
+              "ci_high": 0.8329608675769118,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7879997702205882,
+              "ci_low": 0.7392448670702817,
+              "ci_high": 0.8338484105585184,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5131964089834122,
+            "spearman_vs_gain": -0.030582112370433834
+          }
+        },
+        {
+          "stage1_position": 5,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.05201312511198497,
+              "r2_vs_constant": -0.0034244267231273717
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.05991897884041285,
+              "r2_vs_constant": 0.0031962404191306915
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.09942918473576455,
+              "r2_vs_constant": 0.01612695935894448
+            }
+          },
+          "spearman_gain_from_geometry": 0.0395102058953517,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7926565216065384,
+              "ci_low": 0.7439719450533907,
+              "ci_high": 0.8398278193523142,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.8165296535525544,
+              "ci_low": 0.7736466096174706,
+              "ci_high": 0.8602006658922965,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5206468392078711,
+            "spearman_vs_gain": -0.015675324716970283
+          }
+        },
+        {
+          "stage1_position": 6,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.010709339011520727,
+              "r2_vs_constant": -0.0029671043904122563
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.0940432579319626,
+              "r2_vs_constant": 0.011692983211440966
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.12073432728161461,
+              "r2_vs_constant": 0.011709365058698351
+            }
+          },
+          "spearman_gain_from_geometry": 0.026691069349652013,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7910707206245616,
+              "ci_low": 0.7401548114431136,
+              "ci_high": 0.8393186021846863,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.784654686910326,
+              "ci_low": 0.7367362027464592,
+              "ci_high": 0.8317339709943827,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5255672968004483,
+            "spearman_vs_gain": -0.03862280699893347
+          }
+        },
+        {
+          "stage1_position": 7,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.06126766817564207,
+              "r2_vs_constant": -0.0035373779995058197
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.10187566401835554,
+              "r2_vs_constant": 0.008949865237567245
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.17182697402481448,
+              "r2_vs_constant": 0.024128042389069404
+            }
+          },
+          "spearman_gain_from_geometry": 0.06995131000645893,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7918331249428197,
+              "ci_low": 0.7428559769766758,
+              "ci_high": 0.8381538877084966,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.8174323744096179,
+              "ci_low": 0.7712916570151933,
+              "ci_high": 0.8599241952914711,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.5093420123649123,
+            "spearman_vs_gain": -0.0023514458831641236
+          }
+        }
+      ],
+      "across_draws": {
+        "spearman": {
+          "geometry": {
+            "median": -0.04165245214924648,
+            "min": -0.06403302796515951,
+            "max": 0.010709339011520727,
+            "n": 8
+          },
+          "output": {
+            "median": 0.07262535082882801,
+            "min": 0.03141835021848803,
+            "max": 0.10187566401835554,
+            "n": 8
+          },
+          "both": {
+            "median": 0.10213217009645464,
+            "min": 0.0677286778313675,
+            "max": 0.17182697402481448,
+            "n": 8
+          }
+        },
+        "r2_vs_constant": {
+          "geometry": {
+            "median": -0.0037185234363925623,
+            "min": -0.005001860486630205,
+            "max": -0.002257795351424674,
+            "n": 8
+          },
+          "output": {
+            "median": 0.004506637876557584,
+            "min": -0.0065406743093319175,
+            "max": 0.012156487163206386,
+            "n": 8
+          },
+          "both": {
+            "median": 0.009441559552397727,
+            "min": -0.0027764164289567628,
+            "max": 0.024128042389069404,
+            "n": 8
+          }
+        },
+        "spearman_gain_from_geometry": {
+          "median": 0.03310063762250186,
+          "min": -0.0021177870677591137,
+          "max": 0.06995131000645893,
+          "n": 8
+        },
+        "auroc_vs_prompt_outcome": {
+          "median": 0.7904607971699551,
+          "min": 0.7815254185599707,
+          "max": 0.7990912140526364,
+          "n": 8
+        },
+        "auroc_vs_own_trace_correct": {
+          "median": 0.784084080737192,
+          "min": 0.7633272058823529,
+          "max": 0.8174323744096179,
+          "n": 8
+        },
+        "spearman_vs_pass_rate": {
+          "median": 0.5124368609881222,
+          "min": 0.5014420370422287,
+          "max": 0.5255672968004483,
+          "n": 8
+        },
+        "spearman_vs_gain": {
+          "median": -0.020666961030229747,
+          "min": -0.042733071607773766,
+          "max": 0.014636965686064237,
+          "n": 8
+        }
+      }
+    },
+    {
+      "label": "deepseek",
+      "layer": 21,
+      "population": "cap_free_valid_plurality",
+      "n_prompts": 393,
+      "n_prompts_dropped_incomplete": 0,
+      "base_accuracy": 0.7964376590330788,
+      "harness_checks": {
+        "a8_equals_frozen_outcome": true,
+        "a1_vs_cached_is_correct": {
+          "max_abs_difference": 0.0,
+          "n_prompts_differing": 0,
+          "n_prompts": 393
+        }
+      },
+      "gain_summary": {
+        "mean": 0.011768447837150127,
+        "sd": 0.0776146599691067,
+        "min": -0.375,
+        "max": 0.625,
+        "share_exactly_zero": 0.8956743002544529,
+        "share_negative": 0.027989821882951654,
+        "spearman_pass_rate_vs_gain": -0.16085885942179742
+      },
+      "accuracy_curve_mean": {
+        "1": 0.7846692111959288,
+        "2": 0.7864412940748818,
+        "4": 0.7937113776808433,
+        "8": 0.7964376590330788
+      },
+      "draws": [
+        {
+          "stage1_position": 0,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0682637926061163,
+              "r2_vs_constant": -0.017738428385114968
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.014567071964850516,
+              "r2_vs_constant": -0.010948631871187553
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.01259473104536762,
+              "r2_vs_constant": -0.012415873518077492
+            }
+          },
+          "spearman_gain_from_geometry": 0.0019723409194828956,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6749201277955271,
+              "ci_low": 0.6065771347297663,
+              "ci_high": 0.7370884726995156,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.65691993030831,
+              "ci_low": 0.5899665975558832,
+              "ci_high": 0.721748338725798,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.23083361398097355,
+            "spearman_vs_gain": 0.04077065719275752
+          }
+        },
+        {
+          "stage1_position": 1,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.03456031767247342,
+              "r2_vs_constant": -0.0004964162723339882
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.016565315698752168,
+              "r2_vs_constant": 0.0025828102723437496
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.013961989674075671,
+              "r2_vs_constant": 0.0009812350489736277
+            }
+          },
+          "spearman_gain_from_geometry": -0.0026033260246764965,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6291533546325878,
+              "ci_low": 0.5617063677380458,
+              "ci_high": 0.6997798245232483,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6261268143621085,
+              "ci_low": 0.5578415113420866,
+              "ci_high": 0.6979005293942449,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.16964074753050806,
+            "spearman_vs_gain": 0.030004217602515242
+          }
+        },
+        {
+          "stage1_position": 2,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.00887665224477024,
+              "r2_vs_constant": 0.0002594772548883961
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.0565939224813263,
+              "r2_vs_constant": 0.021324347047282033
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.05162803616023974,
+              "r2_vs_constant": 0.021067925668180165
+            }
+          },
+          "spearman_gain_from_geometry": -0.004965886321086563,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.668091054313099,
+              "ci_low": 0.6009068318954605,
+              "ci_high": 0.7385763784369916,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6660318694131364,
+              "ci_low": 0.600280053227752,
+              "ci_high": 0.731750423794113,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.2463725590011711,
+            "spearman_vs_gain": -0.020111578708744558
+          }
+        },
+        {
+          "stage1_position": 3,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0683472779360415,
+              "r2_vs_constant": -0.010012060630287367
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.036175237023214034,
+              "r2_vs_constant": -0.0008181043644259756
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0171901512149111,
+              "r2_vs_constant": -0.010287127661517736
+            }
+          },
+          "spearman_gain_from_geometry": -0.05336538823812513,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6966054313099042,
+              "ci_low": 0.633745694886806,
+              "ci_high": 0.7585367366400584,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7071582678378795,
+              "ci_low": 0.6430898213683857,
+              "ci_high": 0.7671419969870855,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.258148151075652,
+            "spearman_vs_gain": 0.04553733409935738
+          }
+        },
+        {
+          "stage1_position": 4,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.04642809275347003,
+              "r2_vs_constant": -0.0008320463189195326
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.07523668116669936,
+              "r2_vs_constant": 0.011986808778633229
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.03697375184180665,
+              "r2_vs_constant": 0.010033777219562223
+            }
+          },
+          "spearman_gain_from_geometry": -0.03826292932489271,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6637380191693291,
+              "ci_low": 0.5992626531286348,
+              "ci_high": 0.7268526597042498,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6601171212821698,
+              "ci_low": 0.5941634389043957,
+              "ci_high": 0.7219326328770188,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.2385985083554064,
+            "spearman_vs_gain": -0.009931027237441648
+          }
+        },
+        {
+          "stage1_position": 5,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0897247402300135,
+              "r2_vs_constant": -0.011530291118536873
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.03415910357575699,
+              "r2_vs_constant": -0.024683691722764634
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0006932264002717655,
+              "r2_vs_constant": -0.02079579700182066
+            }
+          },
+          "spearman_gain_from_geometry": 0.03346587717548522,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6731230031948882,
+              "ci_low": 0.6046855345911949,
+              "ci_high": 0.7379630709738592,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6766911597606242,
+              "ci_low": 0.60629213744315,
+              "ci_high": 0.7416910825632934,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.24175955424721932,
+            "spearman_vs_gain": 0.016723900555373476
+          }
+        },
+        {
+          "stage1_position": 6,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.0022021119279600682,
+              "r2_vs_constant": -0.002986402750014827
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.05555408288091866,
+              "r2_vs_constant": 0.006385921478952117
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.046534499278888086,
+              "r2_vs_constant": 0.0035878069719754713
+            }
+          },
+          "spearman_gain_from_geometry": -0.009019583602030576,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6910143769968051,
+              "ci_low": 0.6284336450858663,
+              "ci_high": 0.7521617092087894,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6590750097162845,
+              "ci_low": 0.5928780551792723,
+              "ci_high": 0.7221981702951716,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.23070642960932453,
+            "spearman_vs_gain": 0.08038742786119171
+          }
+        },
+        {
+          "stage1_position": 7,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.138066100577997,
+              "r2_vs_constant": -0.022921621575965778
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.027100866173420054,
+              "r2_vs_constant": -0.005419946989487334
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.015213151515856485,
+              "r2_vs_constant": -0.007110380196842403
+            }
+          },
+          "spearman_gain_from_geometry": -0.011887714657563568,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.680870607028754,
+              "ci_low": 0.6175071870853606,
+              "ci_high": 0.7464733679470865,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6660480266646466,
+              "ci_low": 0.5990882183553172,
+              "ci_high": 0.7309017992307538,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.22135135430415584,
+            "spearman_vs_gain": 0.062393916696933414
+          }
+        }
+      ],
+      "across_draws": {
+        "spearman": {
+          "geometry": {
+            "median": -0.05734594267979316,
+            "min": -0.138066100577997,
+            "max": 0.00887665224477024,
+            "n": 8
+          },
+          "output": {
+            "median": 0.03163805159831704,
+            "min": -0.03415910357575699,
+            "max": 0.07523668116669936,
+            "n": 8
+          },
+          "both": {
+            "median": 0.014587570594966077,
+            "min": -0.0171901512149111,
+            "max": 0.05162803616023974,
+            "n": 8
+          }
+        },
+        "r2_vs_constant": {
+          "geometry": {
+            "median": -0.006499231690151097,
+            "min": -0.022921621575965778,
+            "max": 0.0002594772548883961,
+            "n": 8
+          },
+          "output": {
+            "median": 0.000882352953958887,
+            "min": -0.024683691722764634,
+            "max": 0.021324347047282033,
+            "n": 8
+          },
+          "both": {
+            "median": -0.0030645725739343876,
+            "min": -0.02079579700182066,
+            "max": 0.021067925668180165,
+            "n": 8
+          }
+        },
+        "spearman_gain_from_geometry": {
+          "median": -0.006992734961558569,
+          "min": -0.05336538823812513,
+          "max": 0.03346587717548522,
+          "n": 8
+        },
+        "auroc_vs_prompt_outcome": {
+          "median": 0.6740215654952076,
+          "min": 0.6291533546325878,
+          "max": 0.6966054313099042,
+          "n": 8
+        },
+        "auroc_vs_own_trace_correct": {
+          "median": 0.6630744953476531,
+          "min": 0.6261268143621085,
+          "max": 0.7071582678378795,
+          "n": 8
+        },
+        "spearman_vs_pass_rate": {
+          "median": 0.23471606116819,
+          "min": 0.16964074753050806,
+          "max": 0.258148151075652,
+          "n": 8
+        },
+        "spearman_vs_gain": {
+          "median": 0.03538743739763638,
+          "min": -0.020111578708744558,
+          "max": 0.08038742786119171,
+          "n": 8
+        }
+      }
+    },
+    {
+      "label": "deepseek_llama",
+      "layer": 24,
+      "population": "cap_free_valid_plurality",
+      "n_prompts": 408,
+      "n_prompts_dropped_incomplete": 0,
+      "base_accuracy": 0.6740196078431373,
+      "harness_checks": {
+        "a8_equals_frozen_outcome": true,
+        "a1_vs_cached_is_correct": {
+          "max_abs_difference": 0.0,
+          "n_prompts_differing": 0,
+          "n_prompts": 408
+        }
+      },
+      "gain_summary": {
+        "mean": 0.06954656862745098,
+        "sd": 0.18260600678432207,
+        "min": -0.375,
+        "max": 0.75,
+        "share_exactly_zero": 0.678921568627451,
+        "share_negative": 0.06372549019607843,
+        "spearman_pass_rate_vs_gain": -0.0353987307147973
+      },
+      "accuracy_curve_mean": {
+        "1": 0.6044730392156863,
+        "2": 0.5943627450980392,
+        "4": 0.6407212885154061,
+        "8": 0.6740196078431373
+      },
+      "draws": [
+        {
+          "stage1_position": 0,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.1076294006449976,
+              "r2_vs_constant": -0.003925725353841614
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.011869318028467522,
+              "r2_vs_constant": -0.0003740191484522537
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.016607189341135753,
+              "r2_vs_constant": 0.0021933113028331785
+            }
+          },
+          "spearman_gain_from_geometry": -0.004737871312668231,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7181954887218045,
+              "ci_low": 0.6673652096652976,
+              "ci_high": 0.770154615266606,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7062327436343184,
+              "ci_low": 0.6538012696804412,
+              "ci_high": 0.7564292812870607,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.39284953979377135,
+            "spearman_vs_gain": 0.03393149131307588
+          }
+        },
+        {
+          "stage1_position": 1,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.12298508284687593,
+              "r2_vs_constant": -0.0017193217323234755
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.00542970420325237,
+              "r2_vs_constant": 0.004655804959459164
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.007984877945765936,
+              "r2_vs_constant": 0.009559539823192909
+            }
+          },
+          "spearman_gain_from_geometry": -0.013414582149018306,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7026930963773069,
+              "ci_low": 0.649928996826963,
+              "ci_high": 0.7554383230181939,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7180819030412526,
+              "ci_low": 0.6668524856949198,
+              "ci_high": 0.7650142779264334,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.373703850639854,
+            "spearman_vs_gain": 0.016414551320723336
+          }
+        },
+        {
+          "stage1_position": 2,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.08169388049702482,
+              "r2_vs_constant": 0.0019373723199650472
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.02870359836930319,
+              "r2_vs_constant": 0.006388624304508261
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.001981419638527739,
+              "r2_vs_constant": 0.016588957628635437
+            }
+          },
+          "spearman_gain_from_geometry": 0.02672217873077545,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6830348598769651,
+              "ci_low": 0.6253200673722512,
+              "ci_high": 0.7349705209710203,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6964810126582278,
+              "ci_low": 0.6370707890345554,
+              "ci_high": 0.7487781634125323,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.3525973885861176,
+            "spearman_vs_gain": -0.004842936899659504
+          }
+        },
+        {
+          "stage1_position": 3,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.05771780688004656,
+              "r2_vs_constant": 9.536427827050442e-05
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.13140142302551466,
+              "r2_vs_constant": -0.008119203351587334
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.039306476078636354,
+              "r2_vs_constant": -0.001723310058793448
+            }
+          },
+          "spearman_gain_from_geometry": 0.09209494694687831,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6844019138755981,
+              "ci_low": 0.6316296599024406,
+              "ci_high": 0.7356439153828995,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6720085470085471,
+              "ci_low": 0.6170199723098797,
+              "ci_high": 0.7263368244683934,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.35863597592698787,
+            "spearman_vs_gain": -0.016066608229590825
+          }
+        },
+        {
+          "stage1_position": 4,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.11445418384546706,
+              "r2_vs_constant": -0.0005185067251218811
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.034247221401902436,
+              "r2_vs_constant": -0.0027293041183840128
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.009692593730263625,
+              "r2_vs_constant": 0.006682294048478421
+            }
+          },
+          "spearman_gain_from_geometry": 0.02455462767163881,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6795898838004101,
+              "ci_low": 0.6217033648414033,
+              "ci_high": 0.7311953161050923,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6633164556962026,
+              "ci_low": 0.6103688461755931,
+              "ci_high": 0.712152462536732,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.3326267937924749,
+            "spearman_vs_gain": 0.016644522290828086
+          }
+        },
+        {
+          "stage1_position": 5,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.055401030687711156,
+              "r2_vs_constant": 0.0009382749418093139
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.034500765463098625,
+              "r2_vs_constant": -0.003933828318137156
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.008020504246329472,
+              "r2_vs_constant": 0.007640241325485353
+            }
+          },
+          "spearman_gain_from_geometry": 0.0425212697094281,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6925495557074505,
+              "ci_low": 0.6397609431898665,
+              "ci_high": 0.7393660440823179,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.7156253896994638,
+              "ci_low": 0.6650408038541558,
+              "ci_high": 0.7642156943263252,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.3812846407829029,
+            "spearman_vs_gain": -0.019658464652275102
+          }
+        },
+        {
+          "stage1_position": 6,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.06554951306650339,
+              "r2_vs_constant": 0.0028355233354535603
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": -0.11562217184298422,
+              "r2_vs_constant": -0.013162284115664002
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.019063377434179372,
+              "r2_vs_constant": 0.0012569712040726433
+            }
+          },
+          "spearman_gain_from_geometry": 0.09655879440880485,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.6843472317156528,
+              "ci_low": 0.6301257932714767,
+              "ci_high": 0.7386468035393114,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.6937188977742567,
+              "ci_low": 0.6424531021130846,
+              "ci_high": 0.7467024047002532,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.35396450748341524,
+            "spearman_vs_gain": -0.00744376350636826
+          }
+        },
+        {
+          "stage1_position": 7,
+          "readouts": {
+            "geometry": {
+              "features": [
+                "rmd_tail_q20"
+              ],
+              "spearman": -0.059962797143402136,
+              "r2_vs_constant": 0.0011968738457245331
+            },
+            "output": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob"
+              ],
+              "spearman": 0.00881910937303367,
+              "r2_vs_constant": 0.003584791837856871
+            },
+            "both": {
+              "features": [
+                "length",
+                "entropy",
+                "logprob",
+                "rmd_tail_q20"
+              ],
+              "spearman": 0.019475533198782688,
+              "r2_vs_constant": 0.015723518398537806
+            }
+          },
+          "spearman_gain_from_geometry": 0.010656423825749018,
+          "diagnostics": {
+            "auroc_vs_prompt_outcome": {
+              "point_estimate": 0.7057006151742994,
+              "ci_low": 0.6505851338166319,
+              "ci_high": 0.7557696184421997,
+              "n_valid": 1000
+            },
+            "auroc_vs_own_trace_correct": {
+              "point_estimate": 0.713252952390384,
+              "ci_low": 0.6622138760203495,
+              "ci_high": 0.7611907820810494,
+              "n_valid": 1000
+            },
+            "spearman_vs_pass_rate": 0.39695562347303787,
+            "spearman_vs_gain": -0.012689789597134371
+          }
+        }
+      ],
+      "across_draws": {
+        "spearman": {
+          "geometry": {
+            "median": -0.07362169678176411,
+            "min": -0.12298508284687593,
+            "max": -0.055401030687711156,
+            "n": 8
+          },
+          "output": {
+            "median": -0.03147540988560281,
+            "min": -0.13140142302551466,
+            "max": 0.00881910937303367,
+            "n": 8
+          },
+          "both": {
+            "median": -0.00883873583801478,
+            "min": -0.039306476078636354,
+            "max": 0.019475533198782688,
+            "n": 8
+          }
+        },
+        "r2_vs_constant": {
+          "geometry": {
+            "median": 0.0005168196100399092,
+            "min": -0.003925725353841614,
+            "max": 0.0028355233354535603,
+            "n": 8
+          },
+          "output": {
+            "median": -0.0015516616334181332,
+            "min": -0.013162284115664002,
+            "max": 0.006388624304508261,
+            "n": 8
+          },
+          "both": {
+            "median": 0.007161267686981887,
+            "min": -0.001723310058793448,
+            "max": 0.016588957628635437,
+            "n": 8
+          }
+        },
+        "spearman_gain_from_geometry": {
+          "median": 0.02563840320120713,
+          "min": -0.013414582149018306,
+          "max": 0.09655879440880485,
+          "n": 8
+        },
+        "auroc_vs_prompt_outcome": {
+          "median": 0.6884757347915242,
+          "min": 0.6795898838004101,
+          "max": 0.7181954887218045,
+          "n": 8
+        },
+        "auroc_vs_own_trace_correct": {
+          "median": 0.7013568781462731,
+          "min": 0.6633164556962026,
+          "max": 0.7180819030412526,
+          "n": 8
+        },
+        "spearman_vs_pass_rate": {
+          "median": 0.36616991328342097,
+          "min": 0.3326267937924749,
+          "max": 0.39695562347303787,
+          "n": 8
+        },
+        "spearman_vs_gain": {
+          "median": -0.006143350203013882,
+          "min": -0.019658464652275102,
+          "max": 0.03393149131307588,
+          "n": 8
+        }
+      }
+    }
+  ]
+}

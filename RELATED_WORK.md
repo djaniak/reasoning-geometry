@@ -15,12 +15,14 @@ Where a claim is my inference rather than something a paper states, it is labell
 
 ## What this means for the write-up
 
-- **The "increment over self-consistency" framing survives, and it is the single defensible
-  novelty claim here.** I found no paper that adds a hidden-state geometry feature *on top of*
-  a vote-agreement/self-consistency baseline and reports the increment. Probe papers either
-  report the probe alone (arXiv:2504.05419 reports ROC-AUC with no output-side baseline at
-  all), or benchmark geometry as a *replacement* for consistency methods (INSIDE,
-  arXiv:2402.03744; LM-Polygraph, TACL 2025). Say this explicitly and cite the absence.
+- **The contribution is the controlled evaluation, not a first augmentation of
+  self-consistency.** TrAC (arXiv:2608.00422) already augments eight-sample
+  consensus with a trace-conditioned answer probe and uncertainty profile.
+  Hidden Error Awareness (arXiv:2605.09502) also reports same-problem tests for
+  a hidden-state correctness probe. What remains distinctive here is the
+  feature-specific comparison of ATRMD against exact-answer agreement, a costed
+  peer baseline, fixed-budget outcomes, and pooled/micro/macro prompt-conditional
+  readouts. Do not turn that evaluation bundle into a priority claim.
 - **`rmd_tail_q20` is not a new statistic and should not be presented as one.** Ren et al.
   (arXiv:2106.09022) own RMD; Vazhentsev et al. (NAACL 2025, arXiv:2502.14427) already compute
   **token-level RMD over generated tokens** with foreground = tokens from correct responses and

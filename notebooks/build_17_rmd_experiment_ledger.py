@@ -85,11 +85,10 @@ slightly easier bar than the claim it is defending. **Section 3 is the
 exception** -- the two pre-declared stop rules were rerun on `full_population`
 on 2026-08-22 for exactly this reason, and land the same way.
 
-**2. `aurc` means opposite things in different files.** Some artifacts integrate
-*risk* against coverage (lower is better, a negative delta is a gain); the
-`wave1` E1 artifact integrates *accuracy* (higher is better). Both store the
-number under the key `"aurc"`. Section 2 is the registry; nothing in this
-notebook combines two conventions in one column.
+**2. Metrics and signs change across experiments.** Prompt abstention uses AURC
+(lower is better); trace verification and application alignment use AUROC/AUC
+(higher is better); allocation uses R² and rank correlation. Section 2 declares
+the estimand and sign convention before any table combines results.
 
 ## What this covers
 
@@ -125,7 +124,7 @@ import _viz_utils as vu
 
 ROOT = vu.repo_root()
 MODELS = ["qwen", "deepseek", "deepseek_llama"]
-NICE = {"qwen": "Qwen-1.5B", "deepseek": "DeepSeek-7B", "deepseek_llama": "Llama-8B"}
+NICE = {"qwen": "Qwen2.5-7B", "deepseek": "DeepSeek-7B", "deepseek_llama": "Llama-8B"}
 
 # Three generations of this harness wrote three label vocabularies for the same
 # three checkpoints -- `deepseek`, `deepseek_qwen` and `DeepSeek-Qwen` are one
@@ -186,14 +185,6 @@ REGISTRY = {
         path="label_efficiency_token_pooling/label_efficiency_results.json",
         estimand="prompt abstention", population="cap_free_valid_plurality",
         sign="aurc: lower is better", home="here, section 8"),
-    "wave1_qwen": dict(
-        path="qwen_bestofn_full/math500/math500_wave1_results.json",
-        estimand="prompt abstention", population="complete case (E1 censoring)",
-        sign="aurc: HIGHER is better", home="notebook 14 section 4a"),
-    "wave1_deepseek": dict(
-        path="deepseek_bestofn_full/math500/math500_wave1_results.json",
-        estimand="prompt abstention", population="complete case (E1 censoring)",
-        sign="aurc: HIGHER is better", home="notebook 14 section 4a"),
 }
 
 A = {}
@@ -279,19 +270,14 @@ table(POPS, "Table 1 &middot; the same contrast on four populations",
 ''')
 
 
-# ---------------------------------------------------------- 3. the sign map
+# ----------------------------------------------------- 3. the estimand/sign map
 md(r"""
-## 2. The sign map
+## 2. The estimand and sign map
 
-This exists because two artifacts in this repository store opposite quantities
-under the key `"aurc"`, and one of them is quoted in notebook 14. Getting it
-backwards inverts a conclusion without producing anything that looks wrong.
-
-The rule: **selective-risk** curves integrate the error rate against coverage,
-so lower is better and a negative paired delta is a gain. The `wave1` E1
-artifact integrates **accuracy** against coverage, so higher is better and
-`rmd_tail_q20` at 0.83 beats `entropy` at 0.66. Nothing in this notebook puts
-the two in one column, and any analysis you build on top should not either.
+Prompt-level selective risk integrates error against coverage, so lower AURC is
+better and a negative paired delta is a gain. Trace verification and application
+alignment use AUROC/AUC, while allocation uses R² and rank correlation, so higher
+is better there. The registry keeps those conventions attached to each artifact.
 """)
 
 code(r'''
@@ -305,17 +291,11 @@ SIGNS = pd.DataFrame([
     for name, meta in REGISTRY.items()
 ])
 
-inverted = SIGNS["convention"].str.contains("HIGHER")
-assert inverted.sum() == 2, "the sign registry no longer matches the artifacts"
-
 table(SIGNS, "Table 2 &middot; estimand, population and sign convention per artifact",
-      note=("The two highlighted rows integrate accuracy rather than risk, so for those "
-            "and only those a <b>larger</b> <code>aurc</code> is better. They also carry "
-            "E1's complete-case censoring -- unparsed and cap-hit traces excluded -- "
-            "which is the filter section 1 argues against as a headline. Notebook 14 "
-            "section 4a uses them for a region-vs-region contrast, where the filter "
-            "applies identically to both arms."),
-      highlight=inverted)
+      note=("Read the metric and sign with the population: lower is better for "
+            "prompt-abstention AURC; higher is better for AUROC/AUC, R² and rank "
+            "correlation. No row is comparable across estimands without an explicit "
+            "conversion."))
 ''')
 
 
@@ -849,7 +829,7 @@ PROSE = "\n".join("".join(cell["source"]) for cell in CELLS
 REQUIRED = (
     "full_population",              # the primary estimand is named
     "cap_free_valid_plurality",     # so is the one the controls actually ran on
-    "opposite quantities",          # the aurc sign collision is stated
+    "sign convention",              # metric direction is stated
     "control, not a baseline",      # the peer columns are not a competitor
     "refit",                        # the open gate is not quietly dropped
 )

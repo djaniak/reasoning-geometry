@@ -60,12 +60,31 @@ pre-registered cross-model gate.*
 > [0.56, 0.81] of the time, and 46% of those terminations are correct** — against the
 > 5.6% these same traces score when judged truncated. Only 6% degenerate into
 > repetition; the median finisher needed 2,846 further tokens. So `is_correct=False`
-> on a capped trace is a **censoring event**, not a wrong-reasoning example. Excluding
-> capped traces remains the right call — but as *missing data*, not as noise, and any
-> statement that geometry was "detecting non-termination" overstates what was there.
+> on a capped trace is a **censoring event for eventual correctness**, not evidence of
+> wrong reasoning. At a fixed generation budget, however, the unavailable answer is
+> the observed protocol failure and belongs in `full_population`; excluding it would
+> condition on the budget outcome. Exclusion is appropriate only for an explicitly
+> eventual-correctness estimand. Any statement that geometry was "detecting
+> non-termination" overstates what was there.
 > Full entry: `EXPERIMENT_LOG.md` (2026-08-03).
 
-## Current evidence (updated 2026-08-10)
+## Current evidence (updated 2026-08-22)
+
+> **Closure result.** On `full_population`, adding `rmd_tail_q20` to the
+> target-only `B0` improves prompt-level AURC by **−0.0520 / −0.0284 / −0.0469**
+> on the three checkpoints, with every fixed-pipeline interval excluding zero.
+> The full-refit sweep remains the open uncertainty gate. A reproduced
+> last-token probe reaches pooled trace AUROC **0.901 / 0.914 / 0.903** but macro
+> within-prompt AUROC **0.644 / 0.582 / 0.718**; pooled discrimination therefore
+> does not establish sibling verification. Length also loses substantial pooled
+> discrimination, so the collapse is not unique to hidden-state scores.
+>
+> **Peer correction.** The gold-aware peer pass rate below is a diagnostic, not
+> a deployable baseline, and it cannot support the mechanism claim that peer
+> difficulty "absorbs" the increment. The deployable peer-agreement ladder gives
+> four ties, one RMD win and one peer win at its cheapest rung after Holm
+> correction over the six target-peer tests. No rung is exactly cost-matched to
+> RMD's zero additional generations.
 
 > **Sample allocation is ruled out: geometry reads difficulty but not marginal
 > gain (2026-08-10).** Step 2 of the allocation direction, a pre-declared gate on
@@ -93,8 +112,8 @@ pre-registered cross-model gate.*
 > untouched and is what the AUROC row above measures. Wherever these documents say
 > "compute allocation", read the routing/abstention sense.
 
-> **Most of the increment is prompt difficulty; a smaller residual survives
-> (2026-08-10).** Experiment 2, pre-declared, on cached OOF columns. Full entry:
+> **Superseded diagnostic: gold-aware peer difficulty (2026-08-10).** Experiment
+> 2, pre-declared, on cached OOF columns. Full entry:
 > `EXPERIMENT_LOG.md` (2026-08-10, "A difficulty control that actually works").
 > All three collects share MATH-500 prompt ids (gold answers agree 500/500), so
 > each model's `B0` can be handed the other two models' eight-sibling pass rates
@@ -106,15 +125,16 @@ pre-registered cross-model gate.*
 > −0.0026]**. The pre-declared rule (two or more intervals covering zero) is not
 > triggered.
 >
-> **Read it as an amendment, not a confirmation.** ~80% of the increment is
+> **Historical interpretation, withdrawn for the paper.** ~80% of the increment is
 > common with what two other models already know about the problem, and Holm over
 > the pre-declared family of three passes Llama alone (0.012; Qwen 0.072).
 > DeepSeek's null is a **ceiling, not redundancy** — `B0+peer` lands 0.0045 above
 > a perfect ranker's AURC, so nothing was left for any feature to remove; the
 > honest count is 2/2 where the test could answer, never "3/3". `B0+peer` is a
 > **control, not a baseline**: two other models' pass rates do not exist at
-> decision time, so the method's practical value is untouched — only the
-> mechanistic claim moves.
+> decision time. The later deployable `agree` ladder does not reproduce the
+> "most is difficulty" interpretation, so these values remain provenance rather
+> than the current mechanism claim.
 
 > **The tail window is a model-dependent localization, not part of the method
 > (2026-08-09).** Two closest-baseline contrasts, both pre-declared, both on

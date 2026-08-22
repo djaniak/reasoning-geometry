@@ -45,8 +45,8 @@ md(r"""
 **Workshop storyboard: prompt-level abstention, not trace verification.**
 
 *Status: rewritten 2026-08-22 from the three closure experiments committed that
-day. Fixed eight-sample Best-of-N on all 500 MATH-500 prompts, three distilled
-reasoning models. Every number below is read out of a committed artifact under
+day. Fixed eight-sample Best-of-N on all 500 MATH-500 prompts, three checkpoints,
+two reasoning-distilled. Every number below is read out of a committed artifact under
 `results/`; the notebook runs no model and fits nothing. The long-form record is
 notebook [17](17_rmd_experiment_ledger.ipynb), which loads every closure-era
 artifact -- including the seven controls that appear in no other notebook -- and
@@ -61,9 +61,10 @@ abstention, DeepConf and label-efficiency material.*
 ## Paper claim
 
 A reliability signal read off hidden states is routinely evaluated by pooling
-every sampled trace and reporting one AUROC. That number answers a question
-nobody asked. It mixes *which prompt is hard* with *which of this prompt's own
-samples is right*, and the two are different capabilities with different uses.
+every sampled trace and reporting one AUROC. That statistic validly ranks traces
+drawn from the deployment mixture, but it does not answer which of one prompt's
+own samples is right. It mixes *which prompt is hard* with sibling-level
+correctness, and the two are different capabilities with different uses.
 
 Separating them on a fixed eight-sample protocol gives one positive and one
 negative result, on the same traces:
@@ -77,17 +78,18 @@ negative result, on the same traces:
 2. **Trace verification: the pooled number does not survive conditioning.** A
    supervised last-token probe, reproduced at its strength, reaches pooled trace
    AUROC **0.90 / 0.91 / 0.90** and falls to **0.64 / 0.58 / 0.72** within
-   prompt. The collapse is specific to the hidden-state scores: entropy and
-   log-probability keep their within-prompt signal, and on Qwen they *gain*.
+   prompt. Both hidden-state probes lose more than entropy and log-probability,
+   and on Qwen those output-side scores *gain*. Length also loses substantial
+   pooled discrimination, so the collapse is not exclusive to hidden states.
 
 3. **A paid alternative is not uniformly better or worse.** Against a deployable
    peer-agreement baseline bought with one extra generation, the six
    target-peer pairs split 4 ties, 1 win, 1 loss. Buy more of it and the peer
-   often wins outright -- over all 36 deployable rungs the split is 16 peer
-   wins, 16 ties, 4 wins for the hidden-state score. What decides it is *which*
-   peer, not how many samples of it; the cheap rung is the honest headline
-   because it is the only one matched on order of cost, not because it is the
-   most favourable.
+   often wins outright. The exploratory tally over all 36 correlated,
+   unadjusted deployable rungs is 16 peer wins, 16 ties, and 4 wins for the
+   hidden-state score. What decides it is *which* peer, not how many samples of
+   it; the cheap rung is the primary comparison because it is the only one
+   matched on order of cost, not because it is the most favourable.
 
 The scope is one dataset, one budget, three checkpoints. The claim is a
 prompt-level abstention feature, not a trace verifier and not a mechanism. All
@@ -114,8 +116,11 @@ sys.path.insert(0, str(Path.cwd()))
 import _viz_utils as vu
 
 ROOT = vu.repo_root()
+sys.path.insert(0, str(ROOT))
+from baselines.abstention_baselines import holm_correction
+
 MODELS = ["qwen", "deepseek", "deepseek_llama"]
-NICE = {"qwen": "Qwen-1.5B", "deepseek": "DeepSeek-7B", "deepseek_llama": "Llama-8B"}
+NICE = {"qwen": "Qwen2.5-7B", "deepseek": "DeepSeek-7B", "deepseek_llama": "Llama-8B"}
 PRIMARY = "full_population"  # C_B on all 500 prompts; see section 2
 
 
@@ -132,7 +137,8 @@ CLOSEST = artifact("closest_baselines/closest_baselines_results.json")
 
 # The refit sweep is registered and pending; the gate in section 4 reads this.
 REFIT_PATH = ROOT / "results/refit_stability/refit_stability_results.json"
-REFIT = json.loads(REFIT_PATH.read_text()) if REFIT_PATH.exists() else None
+REFIT_PAYLOAD = json.loads(REFIT_PATH.read_text()) if REFIT_PATH.exists() else {}
+REFIT = REFIT_PAYLOAD if REFIT_PAYLOAD.get("complete") else None
 
 # Guard the joins the prose depends on, so a renamed key fails here and not
 # silently three figures later.
@@ -428,7 +434,7 @@ plt.show()
 ''')
 
 md(r"""
-**Figure 1. The collapse is specific to the hidden-state scores.** Filled dot =
+**Figure 1. Hidden-state scores lose more under prompt conditioning.** Filled dot =
 pooled trace AUROC, hollow dot = macro within-prompt AUROC; the bar between them
 is what conditioning on the prompt removes. Red is hidden-state, blue is
 output-side. The panel titles carry the count that actually bounds the
@@ -436,7 +442,8 @@ within-prompt evidence: the macro dot on DeepSeek rests on 49 prompts, on Llama
 on 158, and no bootstrap can widen 49 prompts into more information than they
 hold. Two readings are visible and both matter. The three hidden-state scores
 lose 0.14–0.33; entropy and log-probability lose about 0.06, and on Qwen they
-cross over and score *higher* within prompt than pooled. And the probe that wins
+cross over and score *higher* within prompt than pooled. Length also loses
+0.10–0.20, so this is not a hidden-state-exclusive effect. The probe that wins
 the pooled comparison by 30 points on Qwen (0.9013 against 0.5951) **loses** the
 within-prompt one to entropy (0.6444 against 0.6602).
 """)
@@ -577,9 +584,9 @@ md(r"""
 Negative is better: `B1` carries less area under the risk-coverage curve than
 `B0`. The sign is the same on all twelve rows and every interval excludes zero,
 so the estimand choice sets the *size* of the effect, not its existence. The
-red row is `C_B` on all 500 prompts, and it is the smallest of the four on every
-model -- which is the honest direction for a headline to move when the
-conditioning is removed.
+red row is `C_B` on all 500 prompts. Its magnitude is smaller than the cap-free
+headline on every model, which is the honest direction for the result to move
+when the conditioning is removed.
 
 """)
 
@@ -589,13 +596,12 @@ md(r"""
 ### 4a. Where in the trace, and how much of that is the localization
 
 `B1` adds one score, and *where in the trace* it is measured is not a detail.
-There are three candidate regions, not two, and the third is the one that
-decides what this paper is claiming:
+The paper-facing comparison is between the published whole-trace score and the
+tail restriction used by `B1`:
 
 | Region | Score |
 |:--|:--|
 | the whole trace | `rmd_full` -- **this is Vazhentsev et al.'s ATRMD, published prior art** |
-| the highest-entropy 20% of tokens | `rmd_high_entropy_q20` |
 | the final 20% of tokens | `rmd_tail_q20`, the feature `B1` uses |
 
 Table 5a puts the tail against the published whole-trace score on the primary
@@ -603,7 +609,7 @@ population, and the answer is a **split, not a ranking**. On both distilled
 models the untailed ATRMD collects essentially the entire increment and the
 tail adds nothing measurable. On Qwen it is the reverse: ATRMD alone does not
 clear zero over `B0`, and the tail collects all of it. The two scores correlate
-at Pearson 0.89-0.95, so this is not two different signals -- it is the same
+at Pearson 0.931-0.957, so this is not two different signals -- it is the same
 signal, needing a different region on a different architecture.
 
 **So the claim is the increment, not the feature.** "A hidden-state Mahalanobis
@@ -612,16 +618,10 @@ all three models. "The *tail* is where it has to be measured" does not: it is a
 Qwen-specific refinement of an already-published score, it costs nothing, and
 presenting it as the contribution would be claiming across models something
 established on one. Stop rule `1b` pre-declared that no region or percentile
-sweep follows whichever way this landed, and none has.
-
-Table 5b then separates the two *localized* regions, and that comparison does
-run one way. It also runs opposite to the within-prompt result: notebook
-[11](11_prompt_geometry_core_experiments.ipynb) finds that restricting RMD to
-the highest-entropy 20% of tokens **beats** full-trace RMD *inside* a prompt
-(+0.052 / +0.055 / +0.058 centered AUC at L7/14/21, all p <= 0.006, Qwen).
-*Between* prompts the same localization **loses** to the tail. The two regimes
-do not want the same tokens -- this notebook's thesis showing up a second time,
-in the feature design rather than in the readout.
+sweep follows whichever way this landed, and none has. The older comparison
+with an entropy-selected region remains in notebook
+[11](11_prompt_geometry_core_experiments.ipynb); it is not part of the paper
+claim or this evidence package.
 """)
 
 code(r'''
@@ -630,9 +630,8 @@ def interval(entry):
             f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]")
 
 
-# Table 5a is on the SAME scale and the SAME population as sections 2-4: risk
-# against coverage, lower is better, C_B over all 500 prompts. So unlike Table
-# 5b below, these numbers are directly comparable to the increment table.
+# Table 5a is on the same scale and population as sections 2-4: risk against
+# coverage, lower is better, C_B over all 500 prompts.
 L = pd.DataFrame([
     {
         "model": NICE[m["label"]],
@@ -675,73 +674,6 @@ table(
           f"{sum(_clears(m['populations'][PRIMARY]['paired_deltas_aurc']['rmd_tail_over_B0_plus_H']) for m in CLOSEST['models'])}"
           " of 3 models, and the rule stops the claim at two failures."),
     **{"corr(ATRMD, tail)": "{:.2f}"},
-)
-
-# The E1 artifact behind notebook 12. Two things about it have to be said before
-# any number is read out of it, and the note under the table says both.
-#
-#   SIGN. E1 reports area under the *accuracy*-coverage curve, so HIGHER IS
-#   BETTER. Sections 2-4 report area under the *risk*-coverage curve, where
-#   lower is better -- which is why the increment there is a negative number.
-#   Both are called "aurc" in their artifacts. They are different curves and
-#   nothing converts one into the other.
-#
-#   POPULATION. E1 excludes unparsed and cap-hit traces from its correctness
-#   comparisons -- the complete-case filter section 2 argues against as a
-#   headline. It is admissible here only because both arms are the same score
-#   over different token regions, measured under the identical filter, so the
-#   filter cannot favour one region over the other. It is not comparable to the
-#   C_B numbers above and is not combined with them.
-REGION_DELTA = "rmd_high_entropy_q20_minus_rmd_tail_q20"
-REGION = {}
-for label in MODELS:
-    path = ROOT / f"results/{label}_bestofn_full/math500/math500_wave1_results.json"
-    if not path.exists():
-        continue
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    settings = payload["settings"]
-    # Same decoding budget, layer and seed as everything else here, or the
-    # contrast is not about the region.
-    assert settings["max_new_tokens"] == CAP[label]["max_new_tokens"], label
-    assert settings["deepest_layer"] == CAP[label]["layer"], label
-    assert settings["seed"] == 42, label
-    REGION[label] = payload["e1_prompt_abstention"]
-
-assert REGION, "no wave1 artifact found; section 4a has nothing to show"
-
-R = pd.DataFrame([
-    {
-        "model": NICE[label],
-        "prompts": e["n_prompts"],
-        "tail_q20": e["point"]["rmd_tail_q20"]["aurc"],
-        "high_entropy_q20": e["point"]["rmd_high_entropy_q20"]["aurc"],
-        "high_entropy - tail": interval(e["deltas"][REGION_DELTA]["aurc"]),
-        "same, at 50% coverage": interval(e["deltas"][REGION_DELTA]["0.5"]),
-    }
-    for label, e in REGION.items()
-])
-missing = [NICE[label] for label in MODELS if label not in REGION]
-table(
-    R, "Table 5b &middot; the two localized regions against each other, prompt level",
-    note=("<b>Higher is better in this table only.</b> E1 integrates accuracy "
-          "against coverage; sections 2-4 and Table 5a integrate risk against "
-          "coverage, so the increment there is negative and the loss here is "
-          "negative for the opposite reason. Both are stored under the key "
-          "<code>aurc</code> in their own artifacts, on different scales and "
-          "over differently filtered traces. Do not read a delta across the "
-          "two tables.<br><br>"
-          "The high-entropy region is worse on both models and both AURC "
-          "intervals exclude zero. At the single 50% operating point the gap "
-          "survives on Qwen and does not on DeepSeek-7B "
-          f"(p = {REGION['deepseek']['deltas'][REGION_DELTA]['0.5']['p_two_sided']:.2f}), "
-          "so the ranking is a statement about the curve, not about any one "
-          "coverage.<br><br>"
-          "E1 ran before the third model was collected, so this is "
-          f"{len(REGION)} of the 3 models" + (f" -- {', '.join(missing)} has no "
-          "wave1 artifact" if missing else "") + ". Traces are filtered "
-          "complete-case here, identically for both regions; see the cell "
-          "source. These numbers are not on the C_B scale used above."),
-    **{"tail_q20": "{:.4f}", "high_entropy_q20": "{:.4f}"},
 )
 ''')
 
@@ -849,16 +781,23 @@ for ax, label in zip(axes, MODELS):
                 xytext=(0, 4), textcoords="offset points", fontsize=7.5,
                 color=B1_COLOR, ha="left")
     for peer, marker in zip(entry["peers"] + ["both"], ["o", "s", "^"]):
-        xs, ys = [], []
+        xs, ys, err_low, err_high = [], [], [], []
         for size in SIZES:
-            rung = rungs.get(f"B0_agree_{peer}_m{size}")
+            name = f"B0_agree_{peer}_m{size}"
+            rung = rungs.get(name)
             if rung is None:
                 continue
+            delta = entry["populations"][PRIMARY]["contrasts"][f"B1_minus_{name}"]["aurc"]
             xs.append(rung["cost"]["extra_calls"])
             ys.append(rung["aurc_mean"])
+            err_low.append(delta["ci_high"] - delta["point_estimate"])
+            err_high.append(delta["point_estimate"] - delta["ci_low"])
         faded = peer == "both"
         ax.plot(xs, ys, marker=marker, ms=4.5, lw=1.3, color=PEER_COLOR,
                 alpha=.55 if faded else 1.0, zorder=2)
+        ax.errorbar(xs, ys, yerr=[err_low, err_high], fmt="none",
+                    color=PEER_COLOR, capsize=2, lw=.8,
+                    alpha=.4 if faded else .7, zorder=1)
         # The combined rung ends one tick further right and often lands on top
         # of the single-peer label, so it is dropped a line.
         ax.annotate(NICE.get(peer, "both peers"), (xs[-1], ys[-1]),
@@ -880,6 +819,8 @@ md(r"""
 **Figure 3. The deployable ladder.** Only `agree` rungs appear -- these are the
 peer scores that never see the gold answer. `B1` (red line) sits at zero extra
 calls; `B0` (grey dashes) is the target-only baseline both are measured against.
+Vertical bars are paired 95% intervals for each rung's difference from `B1`; a
+bar crossing the red line is not distinguishable from `B1`.
 
 The figure does not show a cost axis that `B1` sits at the top of. Most peer
 point estimates are *below* `B1` from the very first extra generation, and the
@@ -921,31 +862,43 @@ for outcome, count in sorted(LADDER_TALLY.items(), key=lambda kv: -kv[1]):
     print(f"  {outcome:<12s} {count:>3}")
 print("  -- all four RMD wins are DeepSeek-7B against Llama-8B peers, at every "
       "rung size.\n")
-T6 = pd.DataFrame([
-    {
-        "target": NICE[label],
-        "peer (1 extra generation)": name.replace("B0_agree_", "").replace("_m1", ""),
-        "AURC(B1) - AURC(rung)": rung["aurc_delta_B1_minus_rung"],
-        "95% CI": f"[{rung['ci'][0]:+.4f}, {rung['ci'][1]:+.4f}]",
-        "excludes 0": "yes" if rung["excludes_zero"] else "no",
-        "verdict": WORDS[rung["winner"]],
-    }
+PRIMARY_PEER_P = {
+    f"{label}:{name}": LADDER_BY[label]["populations"][PRIMARY]
+        ["contrasts"][f"B1_minus_{name}"]["aurc"]["p_two_sided"]
     for label in MODELS
     for name, rung in VERDICT[label]["rungs"].items()
     if rung["kind"] == "agree"
-])
+}
+PRIMARY_PEER_HOLM = holm_correction(PRIMARY_PEER_P)
+rows = []
+for label in MODELS:
+    for name, rung in VERDICT[label]["rungs"].items():
+        if rung["kind"] != "agree":
+            continue
+        key = f"{label}:{name}"
+        delta = LADDER_BY[label]["populations"][PRIMARY]["contrasts"][f"B1_minus_{name}"]["aurc"]
+        rows.append({
+            "target": NICE[label],
+            "peer (1 extra generation)": name.replace("B0_agree_", "").replace("_m1", ""),
+            "AURC(B1) - AURC(rung)": rung["aurc_delta_B1_minus_rung"],
+            "95% CI": f"[{rung['ci'][0]:+.4f}, {rung['ci'][1]:+.4f}]",
+            "p raw": delta["p_two_sided"],
+            "p Holm": PRIMARY_PEER_HOLM[key],
+            "verdict": WORDS[rung["winner"]],
+        })
+T6 = pd.DataFrame(rows)
 counts = T6["verdict"].value_counts()
 table(
     T6,
     "Table 7 · the deployable comparison at one extra generation",
     note=(f"{counts.get('tie', 0)} ties, {counts.get('RMD wins', 0)} RMD win, "
           f"{counts.get('peer wins', 0)} peer win over {len(T6)} target-peer "
-          "pairs. Negative favours <code>B1</code>. This is the cheapest rung a "
-          "peer method can be bought at, and it is the honest headline for the "
-          "comparison: at one extra generation the deployable peer is mostly "
-          "indistinguishable, beats RMD once, and loses to it once."),
+          "pairs. Negative favours <code>B1</code>. This six-test cheapest-rung "
+          "family is the primary peer comparison; Holm correction leaves the same "
+          "two non-null verdicts. At one extra generation the deployable peer is "
+          "mostly indistinguishable, beats RMD once, and loses to it once."),
     highlight=[verdict != "tie" for verdict in T6["verdict"]],
-    **{"AURC(B1) - AURC(rung)": "{:+.4f}"},
+    **{"AURC(B1) - AURC(rung)": "{:+.4f}", "p raw": "{:.3f}", "p Holm": "{:.3f}"},
 )
 
 T7 = pd.DataFrame([
@@ -980,8 +933,9 @@ md(r"""
 
 **The claim.** On MATH-500 under a fixed eight-sample protocol, a hidden-state
 Mahalanobis score adds a small prompt-level selective-prediction gain over
-target-only output features, at zero additional generations, on three distilled
-reasoning models. **The increment is the claim; the localization is not.**
+target-only output features, at zero additional generations, on three
+checkpoints, two reasoning-distilled. **The increment is the claim; the
+localization is not.**
 Which region of the trace supplies it splits by architecture -- on the two
 distilled models the published whole-trace ATRMD supplies essentially all of
 it, on Qwen only the tail does (section 4a, Table 5a) -- so `rmd_tail_q20` is a
@@ -990,9 +944,10 @@ trace AUROC -- and that of a last-token probe
 reproduced at full strength -- substantially conflates prompt difficulty with
 trace correctness, so neither is established as a trace verifier. A deployable
 peer-agreement baseline is a genuine competitor rather than a control: it is
-indistinguishable at the cheapest rung and better than the hidden-state score
-at most larger ones, so the case for the score is that it is free of extra
-generations, not that it is the strongest available signal.
+mostly indistinguishable at the cheapest rung. The broader 36-rung tally is
+exploratory because its nested comparisons are correlated and unadjusted. The
+case for the score is that it is free of extra generations, not that it is the
+strongest available signal.
 
 **Withdrawn from the previous version of this notebook.** Each of these was
 stated here before the closure experiments, and each is now contradicted by a

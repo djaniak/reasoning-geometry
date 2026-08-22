@@ -200,7 +200,7 @@ the sign question, which is the part the draft is blocked on.
 
 ### Status
 
-Harness written, 18 unit tests passing, dry run verified. **No refit results
+Harness written, 20 unit tests passing, dry run verified. **No refit results
 exist yet.** `tests/test_refit_stability.py` pins the property this entry is
 about: every stage carries the refit seed, because a stage left at 42 while the
 others move is not a refit.
