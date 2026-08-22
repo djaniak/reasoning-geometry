@@ -128,3 +128,12 @@ docs/superpowers
 /results/dag_patching/written_vs_omitted/*
 !/results/dag_patching/written_vs_omitted/*.json
 !/results/dag_patching/written_vs_omitted/README.md
+
+# The budget-indexed outcome table. Derived entirely from committed result
+# JSONs -- it fits nothing and rebuilds in seconds -- but it is the record of
+# which population every reported number was computed on, and the paper cites
+# it. Fourteen kilobytes; same admit-by-suffix rule as above.
+!/results/budget_outcomes/
+/results/budget_outcomes/*
+!/results/budget_outcomes/*.json
+!/results/budget_outcomes/*.md
