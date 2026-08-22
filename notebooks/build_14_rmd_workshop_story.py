@@ -924,7 +924,13 @@ committed artifact rather than merely softened:
 **Open.** The full outer refit (section 4's gate) is registered and pending;
 until it lands, every interval here is conditional on one prompt partition. The
 scope is one dataset, one budget, one layer per model, and three checkpoints
-from two architecture families. Nothing here isolates *why* the hidden-state
+from two architecture families. That layer is the pre-specified deepest probe
+layer at roughly two-thirds depth, and the L7/14/21 grid it is drawn from is not
+arbitrary: a dense 14-layer sweep found the geometry signal **bimodal** in
+depth -- peaks near L6-L10 and L20-L26 with a trough at L14 -- so the grid
+samples both peaks and the trough rather than the last layer alone
+([archived notebook 02](archive/02_layer_dynamics.ipynb); Qwen MATH-500 only,
+and whether the bimodality replicates on the distill models is untested). Nothing here isolates *why* the hidden-state
 scores encode difficulty, and the Qwen early-layer selection is a single-model
 observation, not evidence for a mechanism.
 
