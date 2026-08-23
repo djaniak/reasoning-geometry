@@ -9,8 +9,8 @@ committed with its outputs stored. Two steps, from the repo root:
 
 The second step exists because `nbconvert` and `nbclient` are not in this
 environment; `execute_notebook.py` drives a kernel through `jupyter_client` and
-writes the outputs back into the cells. **Look at the figures afterwards** --
-a layout collision renders silently and does not raise.
+writes the outputs back into the cells. **The figures should be inspected afterwards**, because a layout collision
+renders without raising an error.
 
 Every number in the notebook is read out of a committed artifact under
 `results/`, so an artifact that moves breaks the build loudly instead of
@@ -42,61 +42,102 @@ def code(source: str) -> None:
 md(r"""
 # What a hidden-state score measures after eight traces
 
-**Workshop storyboard: prompt-level abstention, not trace verification.**
+**Workshop analysis of prompt-level selective prediction and trace-level
+verification.**
 
-*Status: rewritten 2026-08-22 from the three closure experiments committed that
-day. Fixed eight-sample Best-of-N on all 500 MATH-500 prompts, three checkpoints,
-two reasoning-distilled. Every number below is read out of a committed artifact under
-`results/`; the notebook runs no model and fits nothing. The long-form record is
-notebook [17](17_rmd_experiment_ledger.ipynb), which loads every closure-era
-artifact -- including the seven controls that appear in no other notebook -- and
-states the population and sign hazards this storyboard only has room to mention;
-`EXPERIMENT_LOG.md` is the protocol record. Notebooks
-[12](12_wave1_abstention.ipynb) and
-[13](13_deepconf_null_and_label_efficiency.ipynb) keep the pre-closure
-abstention, DeepConf and label-efficiency material.*
+This notebook studies three checkpoints on all 500 MATH-500 prompts. Each
+checkpoint generates eight reasoning traces per prompt. Two checkpoints are
+reasoning-distilled; Qwen2.5-7B-Instruct is not. The notebook reads committed
+result files and does not run a model or fit a new readout. Notebook
+[17](17_rmd_experiment_ledger.ipynb) contains the complete evidence ledger, and
+`EXPERIMENT_LOG.md` records the protocols and decision rules.
 
 ---
 
-## Paper claim
+## Main conclusion
 
-A reliability signal read off hidden states is routinely evaluated by pooling
-every sampled trace and reporting one AUROC. That statistic validly ranks traces
-drawn from the deployment mixture, but it does not answer which of one prompt's
-own samples is right. It mixes *which prompt is hard* with sibling-level
-correctness, and the two are different capabilities with different uses.
+A hidden-state RMD feature improves prompt-level selective prediction after
+eight samples, beyond a baseline based on output statistics and
+self-consistency. A high pooled trace AUROC does not establish that the same
+feature identifies the correct trace among samples from one prompt.
 
-Separating them on a fixed eight-sample protocol gives one positive and one
-negative result, on the same traces:
+The fixed eight-sample evaluation gives three results:
 
-1. **Prompt-level abstention: a small, real gain at zero extra generations.**
-   Adding a Mahalanobis tail score to target-only output features improves
-   selective prediction over all 500 prompts on all three models --
-   AURC `B1 - B0` of **-0.0520 / -0.0284 / -0.0469**, every interval excluding
-   zero. It needs no additional sampling once the target's states are retained.
+1. **Prompt-level selective prediction improves.** Adding the RMD feature to
+   the target-only baseline changes AURC by **-0.0520 / -0.0284 / -0.0469**.
+   Lower AURC is better, and all three fixed-pipeline 95% intervals exclude
+   zero. The feature uses hidden states from the existing eight traces and
+   requires no additional generations.
 
-2. **Trace verification: the pooled number does not survive conditioning.** A
-   supervised last-token probe, reproduced at its strength, reaches pooled trace
-   AUROC **0.90 / 0.91 / 0.90** and falls to **0.64 / 0.58 / 0.72** within
-   prompt. Both hidden-state probes lose more than entropy and log-probability,
-   and on Qwen those output-side scores *gain*. Length also loses substantial
-   pooled discrimination, so the collapse is not exclusive to hidden states.
+2. **Pooled trace discrimination does not imply sibling verification.** A
+   supervised last-token probe reaches pooled trace AUROC **0.90 / 0.91 /
+   0.90**, but macro within-prompt AUROC is **0.64 / 0.58 / 0.72**. Length also
+   loses substantial discrimination after conditioning on prompt identity.
 
-3. **A paid alternative is not uniformly better or worse.** Against a deployable
-   peer-agreement baseline bought with one extra generation, the six
-   target-peer pairs split 4 ties, 1 win, 1 loss. Buy more of it and the peer
-   often wins outright. The exploratory tally over all 36 correlated,
-   unadjusted deployable rungs is 16 peer wins, 16 ties, and 4 wins for the
-   hidden-state score. What decides it is *which* peer, not how many samples of
-   it; the cheap rung is the primary comparison because it is the only one
-   matched on order of cost, not because it is the most favourable.
+3. **Peer-model agreement is a competitive paid baseline.** At one additional
+   peer generation, the six target-peer comparisons yield four ties, one RMD
+   win, and one peer win after Holm correction. No peer condition has the same
+   generation cost as RMD, which uses zero additional generations.
 
-The scope is one dataset, one budget, three checkpoints. The claim is a
-prompt-level abstention feature, not a trace verifier and not a mechanism. All
-intervals here resample prompts with the fitting path held fixed; the full
-outer refit that would carry the fit's own uncertainty is registered in
-`EXPERIMENT_LOG.md` (2026-08-22) and is still pending. Section 4 says so where
-the number is quoted.
+The present evidence covers one dataset, one sampling protocol, and three
+checkpoints. The full-refit sweep remains the confirmatory gate. Until that
+sweep finishes, the intervals in this notebook condition on one fitted
+pipeline.
+
+## Reader guide and definitions
+
+- **Prompt.** One MATH-500 problem given to a model.
+- **Trace.** One sampled model response, including its reasoning tokens and
+  final answer.
+- **Sibling traces.** The eight traces generated independently for the same
+  prompt. They share the problem but may contain different reasoning and
+  answers.
+- **Checkpoint.** A fixed set of model weights evaluated without further
+  training.
+- **Target and peer models.** The target model produces the answer being
+  assessed. A peer model is a second checkpoint sampled to provide an
+  additional agreement signal.
+- **Self-consistency.** Agreement among answers from repeated samples of one
+  model. `vote_agreement` is the fraction of target-model siblings that support
+  the plurality answer.
+- **Parseable, unparsed, and capped.** A parseable trace contains an answer that
+  the evaluation code can extract. An unparsed trace does not. A capped trace
+  reaches the maximum generation length; it may still contain a parsed answer.
+- **Mixed-outcome prompt.** A prompt with at least one correct and one incorrect
+  sibling trace.
+- **Population.** The exact set of prompts or traces included in an analysis.
+  Changing the population changes the scientific question.
+- **Estimand.** The quantity an analysis intends to estimate for a stated
+  population and protocol. The primary estimand here is correctness at the
+  stated token budget over all 500 prompts.
+- **Plurality answer.** The answer produced by the largest number of sibling
+  traces. A plurality need not contain more than half of the votes.
+- **Gold answer.** The reference answer supplied by the dataset.
+- **Selective prediction.** The model ranks prompts by estimated reliability
+  and abstains on the least reliable prompts.
+- **AUROC.** Area under the receiver operating characteristic curve. AUROC is
+  0.5 for chance ranking and 1.0 for perfect ranking; higher is better.
+- **AURC.** Area under the risk-coverage curve. Coverage is the fraction of
+  prompts retained, and risk is their error rate; lower is better.
+- **RMD.** Relative Mahalanobis distance, a hidden-state score that contrasts
+  distance to a correct-trace reference with distance to an all-trace
+  background reference. Fitting the reference requires labelled correct traces;
+  inference uses no gold answer and requires no additional generations.
+- **ATRMD.** The mean token-level RMD over the full trace. `rmd_tail_q20`
+  averages RMD over the final 20% of tokens instead.
+- **Probe or readout.** A fitted classifier that maps stored features to a
+  correctness or reliability score. A probe measures predictive information;
+  it does not by itself identify a causal mechanism.
+- **Prompt-disjoint cross-validation.** Training and evaluation splits place
+  all sibling traces from one prompt in the same fold, preventing prompt
+  leakage.
+- **Out-of-fold (OOF).** A score produced for data that were excluded when the
+  corresponding readout was fitted.
+- **95% confidence interval (CI).** A prompt-clustered bootstrap interval. The
+  fixed-pipeline CIs hold the data split, selected layer, and fitted
+  coefficients fixed unless the full-refit section states otherwise.
+- **Holm correction.** A multiple-testing correction that controls the family-
+  wise error rate when several related hypotheses are tested.
 """)
 
 # ------------------------------------------------------------------ 1. setup
@@ -140,8 +181,8 @@ REFIT_PATH = ROOT / "results/refit_stability/refit_stability_results.json"
 REFIT_PAYLOAD = json.loads(REFIT_PATH.read_text()) if REFIT_PATH.exists() else {}
 REFIT = REFIT_PAYLOAD if REFIT_PAYLOAD.get("complete") else None
 
-# Guard the joins the prose depends on, so a renamed key fails here and not
-# silently three figures later.
+# Guard the joins the prose depends on, so a renamed key fails here rather than
+# three figures later, where it would be harder to attribute.
 assert [r["label"] for r in LADDER["models"]] == MODELS
 assert set(PROBE["models"]) == set(MODELS)
 assert {row["population"] for row in BUDGET["populations"]} >= {
@@ -219,61 +260,66 @@ print()
 print(f"target budget     {LADDER['cost_model']['target_calls']} generations per prompt")
 print(f"B1 extra calls    {LADDER['cost_model']['rmd_extra_calls_over_B0']} "
       f"({LADDER['cost_model']['uncosted']})")
-print(f"refit sweep       {'loaded' if REFIT else 'PENDING -- section 4 gate is open'}")
+print(f"refit sweep       {'loaded' if REFIT else 'PENDING (section 4b)'}")
 ''')
 
 
 # ------------------------------------------------------- 2. question, boundary
 md(r"""
-## 1. Two questions that one number is asked to answer
+## 1. Two evaluation units
 
-Sample eight traces for a MATH-500 prompt and there are two decisions a
-reliability score could support.
+Eight traces from one prompt support two distinct decisions.
 
-**Prompt-level abstention.** *Given everything the eight traces produced, should
-this prompt's answer be trusted or handed off?* The unit is the prompt, the
-outcome is whether the aggregated answer is correct, and the metric is a
-selective-prediction curve over 500 prompts.
+**Prompt-level selective prediction** asks whether the plurality answer from
+the eight traces should be retained. The unit is one prompt. The outcome is the
+correctness of its plurality answer.
 
-**Within-prompt trace selection.** *Given these eight traces for one prompt,
-which one is right?* The unit is the trace, and only prompts that produced both
-a correct and an incorrect trace can inform it at all.
+**Within-prompt trace verification** asks which sibling trace is correct. The
+unit is one trace. Only a mixed-outcome prompt, containing at least one correct
+and one incorrect trace, can inform this analysis.
 
-A pooled trace AUROC -- score every held-out trace, ignore which prompt it came
-from, take one AUROC -- is reported as if it answered the second. It does not.
-A score that is constant inside a prompt and tracks prompt difficulty across
-prompts scores high pooled and exactly at chance within prompt. That is a
-sharp, testable difference, and section 3 measures it.
+A pooled trace AUROC ranks all traces together and ignores prompt identity. It
+is valid for ranking traces sampled from the full deployment mixture. It is not
+a within-prompt statistic: a score can obtain high pooled AUROC by separating
+easy prompts from hard prompts while assigning the same score to every sibling
+within each prompt.
 
-The two questions also live on different populations, which is why they cannot
-share an interval:
+The trace analysis reports three AUROC summaries:
 
-| Readout | Population | Single-outcome prompts |
-|:--|:--|:--|
-| `pooled` | every held-out trace, prompt identity ignored | their traces are counted |
-| `micro` | every within-prompt (correct, incorrect) pair, pair-weighted | contribute no pairs |
-| `macro` | per-prompt AUROC, each prompt counted once | undefined, excluded |
+| Summary | Definition | Weighting | Single-outcome prompts |
+|:--|:--|:--|:--|
+| `pooled` | rank all held-out traces together | each correct-incorrect trace pair | included |
+| `micro` | compare correct-incorrect pairs only within the same prompt | each within-prompt pair | excluded |
+| `macro` | compute AUROC within each mixed prompt, then average | each mixed prompt | excluded |
 
-On Qwen, 381 of 498 parseable prompts are single-outcome. The within-prompt
-readouts rest on the other 117. Every table below prints that count next to the
-number it bounds.
+For Qwen, 381 of 498 parseable prompts contain only correct traces or only
+incorrect traces. The macro and micro results therefore use the remaining 117
+mixed-outcome prompts. Section 3 reports the corresponding counts for each
+checkpoint.
 """)
 
 # --------------------------------------------------------- 3. outcome protocol
 md(r"""
-## 2. The outcome is defined at a budget, and the budget is part of the claim
+## 2. Experiment 1: define correctness at the generation budget
 
-"Is this prompt answered correctly?" is not well posed until the sampling budget
-is fixed. Every trace here was generated under a token cap -- 1024, 8192 and
-12288 for the three models -- and a capped trace has no parsed answer. The
-choice of what to do with those prompts moves the headline.
+**Question.** Does the estimated RMD increment depend on how the analysis treats
+traces that reach the token cap or do not yield a parseable answer?
 
-The primary estimand is **`C_B`: correctness at budget `B`, over all 500
-prompts, with an unparsed trace scoring 0.** A capped trace is not a missing
-observation. It is the protocol's answer -- at this budget, this sample produced
-nothing usable -- and dropping it conditions on an outcome of the very budget
-being evaluated. The cap-free subset that earlier drafts led with is a
-conditional secondary analysis, and Table 1 shows what conditioning buys.
+**Design.** The primary population, `full_population`, contains all 500 prompts.
+Its outcome is **`C_B`**, correctness at token budget `B`. An unparsed trace
+scores 0 because it provides no usable answer at that budget. Three secondary
+populations remove prompts according to parsing or cap status. The token caps
+are 1,024, 8,192, and 12,288 for Qwen, DeepSeek-Qwen, and DeepSeek-Llama.
+
+**Result.** The AURC difference `B1 - B0` is negative for all twelve
+model-population combinations, and every fixed-pipeline interval excludes zero.
+The primary full-population effect is smaller than the cap-free effect for all
+three checkpoints.
+
+**Interpretation.** The positive conclusion does not depend on one population
+filter, but the estimated effect size does. `full_population` answers the
+deployment question at the stated budget. Removing capped or unparsed outcomes
+conditions on events produced by that budget and defines a secondary estimand.
 """)
 
 code(r'''
@@ -301,26 +347,25 @@ T1 = pd.DataFrame([
 ])
 table(
     T1,
-    "Table 1 · the increment on four populations, three models",
-    note=("Lower AURC is better. The highlighted rows are the primary estimand: "
-          "<code>C_B</code> on all 500 prompts. Every population gives the same "
-          "sign and every interval excludes zero, so the choice is not what makes "
-          "the effect exist -- it is what sets its size. Intervals resample "
-          "prompts with folds, layer and coefficients frozen (section 4)."),
+    "Table 1 · RMD increment across four analysis populations",
+    note=("Lower AURC is better, so a negative <code>B1 - B0</code> favours "
+          "RMD. Highlighted rows show the primary estimand, <code>C_B</code>, "
+          "over all 500 prompts. The analysis uses a prompt-clustered bootstrap "
+          "with the folds, selected layer, and fitted coefficients fixed."),
     highlight=[population == PRIMARY for population in T1["population"]],
     **{"retained": "{:.1%}", "AURC B0": "{:.4f}", "AURC B1": "{:.4f}",
        "B1 - B0": "{:+.4f}"},
 )
 
-print("How much the cap-free headline overstates the primary estimand:")
+print("Difference between the cap-free and primary effect estimates:")
 for label in MODELS:
     rows = {r["population"]: r for r in BUDGET["populations"] if r["model"] == label}
     primary = rows[PRIMARY]["delta_estimate"]
     headline = rows["cap_free_valid_plurality"]["delta_estimate"]
     print(f"  {NICE[label]:<12s} {headline:+.4f} -> {primary:+.4f}   "
-          f"primary is {primary / headline:.0%} of the headline "
-          f"({(headline - primary) / headline:.0%} overstatement), "
-          f"on {rows['cap_free_valid_plurality']['n_prompts']} of 500 prompts")
+          f"primary magnitude is {primary / headline:.0%} of cap-free; "
+          f"cap-free population has "
+          f"{rows['cap_free_valid_plurality']['n_prompts']} of 500 prompts")
 ''')
 
 code(r'''
@@ -341,11 +386,10 @@ T2 = pd.DataFrame([
 ])
 table(
     T2,
-    "Table 2 · secondary: what the cap actually removed",
-    note=("A cap does not only truncate: a capped trace can still carry a parsed "
-          "answer, and an uncapped trace can still fail to parse. The two "
-          "accuracy columns are conditional on parsing and are not comparable to "
-          "<code>C_B</code>. Cap values are "
+    "Table 2 · relation between token-cap status and answer parsing",
+    note=("Some capped traces contain a parsed answer, and some uncapped traces "
+          "do not. The two accuracy columns condition on successful parsing and "
+          "therefore do not estimate <code>C_B</code>. Cap values are "
           f"{CAP['qwen']['cap_provenance']}."),
     **{"capped %": "{:.1%}", "acc | capped, parsed": "{:.3f}",
        "acc | uncapped, parsed": "{:.3f}"},
@@ -353,7 +397,7 @@ table(
 
 CONT = BUDGET["continuation_case_study"]
 completed = CONT["n_completed"]
-print(f"Continuation case study -- {CONT['settings']['model_name']} only, "
+print(f"Continuation case study: {CONT['settings']['model_name']} only, "
       f"cap {CONT['settings']['original_cap']}")
 print(f"  continued            {CONT['n_continued']} capped traces "
       f"({CONT['n_excluded_as_already_degenerate']} excluded as already degenerate)")
@@ -364,7 +408,7 @@ print(f"  accuracy of completions   {CONT['accuracy_of_completions_recomputed']:
       f"= {CONT['outcomes']['completed_correct']}/{completed} completions")
 print(f"  (the value stored as accuracy_of_completions is "
       f"{CONT['accuracy_of_completions_as_stored']:.4f}, which is "
-      f"{CONT['outcomes']['completed_correct']}/35 -- a different denominator; "
+      f"{CONT['outcomes']['completed_correct']}/35 with a different denominator; "
       f"the recomputed figure names its own.)")
 print(f"  extra tokens to finish, percentiles  "
       f"{CONT['extra_tokens_to_finish_percentiles']}")
@@ -373,21 +417,30 @@ print(f"  extra tokens to finish, percentiles  "
 
 # ------------------------------------------------- 4. the decomposition (main)
 md(r"""
-## 3. The pooled trace AUROC does not survive conditioning on the prompt
+## 3. Experiment 2: separate pooled from within-prompt discrimination
 
-The object this section corrects is not one of our own scores. It is the claim
-shape used for a supervised probe on the **last token** hidden state -- the
-setting a pooled trace AUROC in the low 0.90s is reported for. The repository's
-own `probe_hidden_tail_q20` is a different object (a mean over the final 20% of
-tokens, LDA on 128 principal components), so it cannot stand in for one; the
-last-token probe was refitted here on the same traces.
+**Question.** Does a high pooled trace AUROC show that a hidden-state probe can
+identify the correct trace among siblings generated for the same prompt?
 
-It was reproduced **at its strength** before being taken apart. Layer and L2
-penalty are chosen together inside each outer training split by prompt-disjoint
-inner 5-fold CV, never on the split they are scored on. The penalty matters: on
-Qwen layer 21, held-out pooled AUROC runs 0.828 at `C=1` and 0.895 at `C=1e-3`.
-Fixing it loosely would have understated the very number this exists to
-decompose.
+**Design.** We fit an L2-regularized logistic classifier to the hidden state of
+the final generated token. The model selects the layer and regularization
+strength inside each outer training fold using prompt-disjoint inner
+cross-validation. The held-out prompts do not influence either selection. We
+then compare pooled, micro, and macro AUROC on parseable traces. The existing
+`probe_hidden_tail_q20` is included as a separate reference: it applies linear
+discriminant analysis to 128 principal components of the mean hidden state over
+the final 20% of tokens.
+
+**Result.** The last-token probe obtains pooled AUROC 0.901, 0.914, and 0.903,
+but macro within-prompt AUROC 0.644, 0.582, and 0.718. The hidden-state scores
+lose 0.14 to 0.33 AUROC after prompt conditioning. Length also loses 0.10 to
+0.20, while entropy and log-probability lose less.
+
+**Interpretation.** Much of the pooled discrimination reflects differences
+between prompts. The result does not show that hidden states lack all
+within-prompt information; the macro values remain above chance for Qwen and
+DeepSeek-Llama. It shows that pooled AUROC alone does not quantify sibling
+verification.
 """)
 
 code(r'''
@@ -434,18 +487,15 @@ plt.show()
 ''')
 
 md(r"""
-**Figure 1. Hidden-state scores lose more under prompt conditioning.** Filled dot =
-pooled trace AUROC, hollow dot = macro within-prompt AUROC; the bar between them
-is what conditioning on the prompt removes. Red is hidden-state, blue is
-output-side. The panel titles carry the count that actually bounds the
-within-prompt evidence: the macro dot on DeepSeek rests on 49 prompts, on Llama
-on 158, and no bootstrap can widen 49 prompts into more information than they
-hold. Two readings are visible and both matter. The three hidden-state scores
-lose 0.14–0.33; entropy and log-probability lose about 0.06, and on Qwen they
-cross over and score *higher* within prompt than pooled. Length also loses
-0.10–0.20, so this is not a hidden-state-exclusive effect. The probe that wins
-the pooled comparison by 30 points on Qwen (0.9013 against 0.5951) **loses** the
-within-prompt one to entropy (0.6444 against 0.6602).
+**Figure 1. Pooled and macro within-prompt trace AUROC.** Filled markers show
+pooled AUROC; hollow markers show macro AUROC across mixed-outcome prompts. Red
+marks hidden-state scores and blue marks output-derived scores. The panel title
+reports the number of mixed prompts and within-prompt correct-incorrect pairs.
+DeepSeek has only 49 mixed prompts, which limits the precision of its macro
+estimate. On Qwen, the last-token probe exceeds entropy by 0.306 pooled
+(0.901 versus 0.595) but falls below entropy within prompt (0.644 versus 0.660).
+Length also shows a substantial pooled-to-macro decrease, so the decrease is
+not unique to hidden-state scores.
 """)
 
 code(r'''
@@ -472,13 +522,11 @@ table(
     T3,
     "Table 3 · pooled, pair-weighted and prompt-weighted trace AUROC "
     "(population: parseable)",
-    note=("The three columns are not defined on the same prompts, so the gap "
-          "between them is a change of question and not a loss of precision. "
-          "<code>parseable</code> drops unparsed traces to match the frozen "
-          "probe's training rule -- keeping them lets a probe score by detecting "
-          "truncation rather than reasoning failure. An interval that spans zero "
-          "means that score's pooled number is not inflated, which is the "
-          "result for entropy and log-probability on Qwen."),
+    note=("Pooled AUROC includes traces from single-outcome prompts. Micro and "
+          "macro AUROC use only mixed-outcome prompts, with pair and prompt "
+          "weighting, respectively. The parseable population matches the "
+          "probe's training rule and excludes direct discrimination of missing "
+          "answers. The CI applies to pooled minus macro AUROC."),
     highlight=[row.score == "last-token probe" for row in T3.itertuples()],
     **{"pooled": "{:.4f}", "micro": "{:.4f}", "macro": "{:.4f}",
        "pooled - macro": "{:+.4f}"},
@@ -491,7 +539,7 @@ FROZEN = {"mean_entropy": (0.571, 0.559, 0.599, 0.595),
           "length": (0.737, 0.563, 0.581, 0.582),
           "rmd_tail_q20": (0.839, 0.640, 0.658, 0.653)}
 here = PROBE["models"]["qwen"]["populations"]["all_traces"]["scores"]
-print("Continuity with the frozen Qwen layer-21 report (population: all_traces)")
+print("Validation against the frozen Qwen layer-21 report (population: all_traces)")
 print(f"{'score':<16s} {'frozen':>28s}    {'here':>32s}")
 for key, expected in FROZEN.items():
     point = here[key]["point"]
@@ -500,13 +548,10 @@ for key, expected in FROZEN.items():
     assert all(abs(a - b) < 1e-3 for a, b in zip(expected, got)), (key, expected, got)
     print(f"{key:<16s} {' / '.join(f'{v:.3f}' for v in expected):>28s}"
           f"    {' / '.join(f'{v:.4f}' for v in got):>32s}")
-print("\npooled / prompt-centered / macro / micro. All four match, on all four "
-      "columns.\nThat is load-bearing: pooled, micro and macro are rank "
-      "statistics and cannot see\na monotone change of scale, but the "
-      "prompt-centered column subtracts a per-prompt\nmean from the raw score "
-      "and can. Reproducing three columns and missing the fourth\nis what a "
-      "monotone mismatch looks like, and it is how the length score's "
-      "transform\nwas caught. `length` is -log1p(token count), pinned by a test.")
+print("\nColumn order: pooled / prompt-centered / macro / micro. All values "
+      "match within 0.001.\nThe prompt-centered statistic detects monotone "
+      "transform changes that rank-based\nstatistics cannot detect. The "
+      "validated length definition is -log1p(token count).")
 
 from collections import Counter
 
@@ -526,30 +571,37 @@ table(
     LAYERS,
     "Table 4 · in-fold layer and penalty selection, counted over the five "
     "outer folds",
-    note=("Qwen reaching for the earliest offered layer in most folds is what "
-          "prompt-difficulty encoding would look like -- but Llama selects its "
-          "middle layer in every fold and DeepSeek mostly selects layer 14. The "
-          "early-layer reading is Qwen's, not a general result, and is not "
-          "evidence for the difficulty interpretation on its own. Layer and "
-          "penalty were chosen together, inside the training split, by "
-          "prompt-disjoint inner CV -- never on the split they are scored on."),
+    note=("Qwen selects the earliest offered layer in four of five folds, "
+          "DeepSeek usually selects layer 14, and DeepSeek-Llama selects its "
+          "middle layer in every fold. This variation does not support a common "
+          "layer-localization claim. Layer and penalty are selected together "
+          "inside each training split by prompt-disjoint inner CV."),
 )
 ''')
 
 
 # ------------------------------------------------------- 5. what survives, gate
 md(r"""
-## 4. What survives for the hidden-state score
+## 4. Experiment 3: test the prompt-level RMD increment
 
-Section 3 removes a claim the score was never entitled to. What is left is the
-prompt-level one, and it is measured on a different unit: 500 prompts, not
-4,000 traces, with the outcome aggregated over the eight samples. Nothing in the
-within-prompt collapse touches it, because it never asked which sibling is
-right.
+**Question.** Does RMD improve selective prediction after accounting for
+information already available from the target model's eight outputs?
 
-`B0` is the target-only output baseline -- length, entropy, log-probability and
-vote agreement. `B1` adds `rmd_tail_q20` and nothing else. Both are fitted the
-same way on the same folds, so the contrast is the hidden-state feature.
+**Design.** For each prompt, `B0` uses aggregate trace length, token entropy,
+token log-probability, and vote agreement among the eight sibling answers.
+`B1` adds `rmd_tail_q20`, the mean RMD over the final 20% of tokens. Both
+logistic readouts use the same prompt-disjoint folds and produce OOF reliability
+scores. We compare their AURC on the primary `full_population` and three
+secondary populations.
+
+**Result.** On all 500 prompts, `B1 - B0` equals -0.0520 for Qwen, -0.0284 for
+DeepSeek-Qwen, and -0.0469 for DeepSeek-Llama. All three fixed-pipeline 95% CIs
+exclude zero.
+
+**Interpretation.** RMD adds prompt-level ranking information beyond the four
+output-derived features under this fixed fitting path. This experiment does not
+claim that RMD verifies individual sibling traces or explains why a prompt is
+difficult.
 """)
 
 code(r'''
@@ -580,48 +632,133 @@ plt.show()
 ''')
 
 md(r"""
-**Figure 2. The increment, on every population, with the primary one marked.**
-Negative is better: `B1` carries less area under the risk-coverage curve than
-`B0`. The sign is the same on all twelve rows and every interval excludes zero,
-so the estimand choice sets the *size* of the effect, not its existence. The
-red row is `C_B` on all 500 prompts. Its magnitude is smaller than the cap-free
-headline on every model, which is the honest direction for the result to move
-when the conditioning is removed.
+**Figure 2. AURC difference between `B1` and `B0`.** Negative values favour
+`B1`. Red markers denote the primary `full_population`; grey markers denote
+secondary populations. All twelve intervals exclude zero. The cap-free
+population gives a larger effect than the full population for each checkpoint,
+showing that population filtering changes the estimated magnitude.
 
 """)
 
 
+md(r"""
+### Operational interpretation: accuracy after abstention
+
+**Question.** How much accuracy does the ranking gain at specific operating
+points?
+
+**Design.** Each readout ranks all 500 prompts. At an abstention rate of 20%,
+the system answers the highest-ranked 80% and defers the rest. The figure uses
+the primary `full_population`. `B0` and `B1` are OOF readouts; entropy and
+length are single-feature references. Bands show pointwise prompt-bootstrap
+95% CIs for `B0` and `B1` with the fitted pipeline held fixed.
+
+**Interpretation.** The AURC increment corresponds to higher accuracy among
+answered prompts across the displayed operating range. The plot gives an
+operational reading of the integrated result; it does not select a deployment
+threshold.
+
+### Answer-distribution control
+
+**Question.** Does RMD add information beyond the complete distribution of the
+eight sibling answers, rather than only beyond plurality agreement?
+
+**Design.** `H` is minus the Shannon entropy of the exact-answer histogram over
+parseable siblings. We compare `B0 + H` with and without `rmd_tail_q20` on all
+500 prompts.
+
+**Result.** Answer-distribution entropy changes AURC by at most 0.0016, while
+RMD added to `B0 + H` improves AURC by 0.0281 to 0.0519 across the three
+checkpoints. Each RMD interval excludes zero.
+
+**Interpretation.** The RMD increment is not explained by answer-distribution
+shape omitted from `vote_agreement`. At eight samples, `H` is close to the vote
+feature already present in `B0`.
+""")
+
+code(r'''
+OPERATING = BUDGET["operational_curves"]
+fig, axes = plt.subplots(1, 3, figsize=(11.6, 3.0), sharex=True,
+                         sharey=True, constrained_layout=True)
+styles = {
+    "B1": (B1_COLOR, "-", 2.2),
+    "B0": (B0_COLOR, "-", 1.8),
+    "length": ("#7a6f64", "--", 1.3),
+    "entropy": (OUTPUT_SIDE, ":", 1.5),
+}
+for ax, label in zip(axes, MODELS):
+    methods = OPERATING[label]["methods"]
+    for name in ("B1", "B0", "length", "entropy"):
+        curve = methods[name]
+        x = 100 * np.asarray(curve["abstention_rates"])
+        y = np.asarray(curve["accuracy"])
+        colour, linestyle, width = styles[name]
+        ax.plot(x, y, color=colour, ls=linestyle, lw=width, label=name)
+        if name in {"B0", "B1"}:
+            ax.fill_between(x, curve["ci_low"], curve["ci_high"],
+                            color=colour, alpha=0.12, linewidth=0)
+    ax.set_title(NICE[label])
+    ax.set_xlabel("Abstention rate (%)")
+    ax.set_xticks([0, 10, 20, 30, 40, 50])
+    ax.set_ylim(0.54, 0.96)
+axes[0].set_ylabel("Accuracy among answered prompts")
+axes[0].legend(loc="upper left", ncol=2)
+plt.show()
+
+H_ROWS = []
+fmt_delta = lambda entry: (
+    f"{entry['point_estimate']:+.4f} "
+    f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]"
+)
+for model in CLOSEST["models"]:
+    pop = model["populations"][PRIMARY]
+    deltas = pop["paired_deltas_aurc"]
+    H_ROWS.append({
+        "model": NICE[model["label"]],
+        "H over B0": fmt_delta(deltas["H_over_B0"]),
+        "RMD over B0 + H": fmt_delta(deltas["rmd_tail_over_B0_plus_H"]),
+        "corr(H, vote)": pop["redundancy"]
+            ["neg_answer_entropy_vs_vote_agreement"]["pearson"],
+    })
+table(
+    pd.DataFrame(H_ROWS),
+    "Table 5 &middot; RMD after adding exact-answer-distribution entropy",
+    note=("AURC on <code>full_population</code>; lower is better. "
+          "<code>H</code> adds little to <code>B0</code>, while the RMD "
+          "increment remains below zero on all three checkpoints. The last "
+          "column shows why: answer entropy and plurality agreement contain "
+          "nearly the same ordering at eight samples."),
+    **{"corr(H, vote)": "{:.3f}"},
+)
+''')
+
+
 # ------------------------------------------------- 5b. why this feature region
 md(r"""
-### 4a. Where in the trace, and how much of that is the localization
+### 4a. Experiment 4: compare whole-trace and tail RMD
 
-`B1` adds one score, and *where in the trace* it is measured is not a detail.
-The paper-facing comparison is between the published whole-trace score and the
-tail restriction used by `B1`:
+**Question.** Does the final-20% restriction provide a consistent improvement
+over the published whole-trace ATRMD score?
+
+**Design.** We compare two prompt-level features on `full_population`:
 
 | Region | Score |
 |:--|:--|
-| the whole trace | `rmd_full` -- **this is Vazhentsev et al.'s ATRMD, published prior art** |
+| all generated tokens | `rmd_full`, the published ATRMD feature |
 | the final 20% of tokens | `rmd_tail_q20`, the feature `B1` uses |
 
-Table 5a puts the tail against the published whole-trace score on the primary
-population, and the answer is a **split, not a ranking**. On both distilled
-models the untailed ATRMD collects essentially the entire increment and the
-tail adds nothing measurable. On Qwen it is the reverse: ATRMD alone does not
-clear zero over `B0`, and the tail collects all of it. The two scores correlate
-at Pearson 0.931-0.957, so this is not two different signals -- it is the same
-signal, needing a different region on a different architecture.
+**Result.** ATRMD accounts for nearly all of the RMD increment on both
+reasoning-distilled checkpoints, and the tail adds no detectable improvement.
+For Qwen, ATRMD does not improve over `B0`, while the tail restriction does.
+The two features have Pearson correlation 0.931 to 0.957.
 
-**So the claim is the increment, not the feature.** "A hidden-state Mahalanobis
-score adds a prompt-level gain over target-only output features" replicates on
-all three models. "The *tail* is where it has to be measured" does not: it is a
-Qwen-specific refinement of an already-published score, it costs nothing, and
-presenting it as the contribution would be claiming across models something
-established on one. Stop rule `1b` pre-declared that no region or percentile
-sweep follows whichever way this landed, and none has. The older comparison
-with an entropy-selected region remains in notebook
-[11](11_prompt_geometry_core_experiments.ipynb); it is not part of the paper
-claim or this evidence package.
+**Interpretation.** The prompt-level RMD increment replicates across the three
+checkpoints, but its token-region localization does not. The final-20%
+restriction is a Qwen-specific refinement in this sample, not a new general
+method. Pre-registered stop rule `1b` therefore closes further region and
+percentile sweeps. Notebook
+[11](11_prompt_geometry_core_experiments.ipynb) retains the older exploratory
+comparison with an entropy-selected region.
 """)
 
 code(r'''
@@ -630,7 +767,7 @@ def interval(entry):
             f"[{entry['ci_low']:+.4f}, {entry['ci_high']:+.4f}]")
 
 
-# Table 5a is on the same scale and population as sections 2-4: risk against
+# Table 6 is on the same scale and population as sections 2-4: risk against
 # coverage, lower is better, C_B over all 500 prompts.
 L = pd.DataFrame([
     {
@@ -646,45 +783,51 @@ L = pd.DataFrame([
 ])
 _clears = lambda d: d["ci_high"] < 0
 table(
-    L, "Table 5a &middot; the tail against the published whole-trace score, "
+    L, "Table 6 &middot; tail RMD compared with published whole-trace ATRMD, "
        f"{PRIMARY}",
-    note=("<b>Lower is better; a negative delta favours the left-hand readout.</b> "
-          "<code>rmd_full</code> is Vazhentsev et al.'s ATRMD, so the middle "
-          "column asks what an already-published feature buys and the right one "
-          "asks what the tail adds on top of it.<br><br>"
-          "<b>The split.</b> ATRMD clears zero over <code>B0</code> on "
+    note=("Lower AURC is better; a negative delta favours the feature named on "
+          "the left. <code>rmd_full</code> is the published ATRMD feature. ATRMD "
+          "has a CI below zero relative to <code>B0</code> on "
           + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
                       if _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
                                  ["rmd_full_over_B0"]))
-          + " and not on "
+          + ", but not on "
           + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
                       if not _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
                                      ["rmd_full_over_B0"]))
-          + "; the tail clears zero over ATRMD on "
+          + ". Tail RMD has a CI below zero relative to ATRMD on "
           + ", ".join(NICE[m["label"]] for m in CLOSEST["models"]
                       if _clears(m["populations"][PRIMARY]["paired_deltas_aurc"]
                                  ["rmd_tail_over_rmd_full"]))
-          + " only. Exactly the models where one works are the models where the "
-          "other does not, and the last column shows the two are near-collinear "
-          "throughout. The increment is what replicates across models; the "
-          "region it has to be read from is not.<br><br>"
-          "Stop rule <code>1a</code> lives in the same artifact and does not "
-          "trigger here either: the tail over <code>B0 + neg_answer_entropy</code> "
-          "clears zero on "
+          + " only. The high correlations show that the features remain closely "
+          "related despite the model-dependent contrast.<br><br>"
+          "Stop rule <code>1a</code> also remains open: tail RMD relative to "
+          "<code>B0 + answer-distribution entropy</code> has a CI below zero on "
           f"{sum(_clears(m['populations'][PRIMARY]['paired_deltas_aurc']['rmd_tail_over_B0_plus_H']) for m in CLOSEST['models'])}"
-          " of 3 models, and the rule stops the claim at two failures."),
+          " of 3 checkpoints; the rule would reject the claim after two failures."),
     **{"corr(ATRMD, tail)": "{:.2f}"},
 )
 ''')
 
 
 md(r"""
-These are **fixed-pipeline intervals** -- every interval in this notebook, the
-table above included. They resample prompts with the folds, the layer and the
-fitted coefficients all held at `seed=42`. That answers "a different set of
-prompts to score", not "a different partition to fit on", and no number of
-bootstrap draws converts one into the other. The gate below is the missing
-piece.
+### 4b. Experiment 5: refit the complete analysis pipeline
+
+**Question.** Do the main conclusions retain their sign when new prompt
+partitions change the fitted references, selected hyperparameters, and readout
+coefficients?
+
+**Design.** The registered sweep repeats the complete fitting procedure for
+four partition seeds. In contrast, the CIs reported above resample prompts
+while holding the seed-42 folds, selected layer, and fitted coefficients fixed.
+
+**Result.** Pending. The canonical result file is accepted only after all
+registered seeds, checkpoints, and quantities are complete.
+
+**Interpretation.** The fixed-pipeline intervals quantify sampling variation
+among prompts under one fitted pipeline. They do not quantify variation caused
+by fitting the pipeline on a different prompt partition. Publication of the
+confirmatory claims depends on this registered stability check.
 """)
 
 code(r'''
@@ -694,15 +837,12 @@ if REFIT is None:
         f"padding:11px 15px;font:400 12px/1.6 {SANS};color:{INK};max-width:780px'>"
         "<b>Gate open: full-refit stability is registered and pending.</b><br>"
         "Registered in <code>EXPERIMENT_LOG.md</code> (2026-08-22, "
-        "<i>Refit stability -- registered before the sweep runs</i>), before any "
-        "refit existed. The decision rule fixed there: a residual that changes "
-        "sign across refits is demoted however tight its within-refit interval "
-        "was; a stable sign with spread comparable to the bootstrap width leaves "
-        "the claim standing and both are reported; a stable sign with materially "
-        "wider spread means the refit spread replaces the reported interval."
-        "<br><br>Until <code>results/refit_stability/</code> exists, every "
-        "interval in this notebook is conditional on one partition, and the "
-        "paper says so."
+        "<i>Refit stability, registered before the sweep runs</i>). The decision "
+        "rule demotes a quantity if its sign changes across refits. If the sign "
+        "remains stable, the paper reports the across-refit spread and replaces "
+        "the fixed-pipeline interval when that spread is materially wider."
+        "<br><br>Until the complete canonical result exists, all reported CIs "
+        "remain conditional on one fitted partition."
         "</div>"))
 else:
     G = pd.DataFrame([
@@ -724,12 +864,12 @@ else:
         if summary.get("n")
     ])
     table(
-        G, f"Table 6 · full-refit stability over seeds {REFIT['seeds']}",
-        note=("Each refit re-runs the pipeline end to end on a different prompt "
-              "partition: OOF scores regenerated, prompt-level readouts "
-              "refitted, the probe refitted including its in-fold layer and "
-              "penalty choice, the peer ladder refitted across all models. "
-              "Read against the decision rule registered before the sweep ran."),
+        G, f"Table 7 · full-refit stability over seeds {REFIT['seeds']}",
+        note=("Each seed changes the prompt partition and refits the full "
+              "pipeline: reference distributions, OOF scores, prompt-level "
+              "readouts, probe layer and penalty selection, and peer-model "
+              "comparisons. Interpret sign stability using the decision rule "
+              "registered before the sweep."),
         **{"mean": "{:+.4f}", "min": "{:+.4f}", "max": "{:+.4f}",
            "spread": "{:.4f}", "drift from seed 42": "{:.4f}"},
     )
@@ -737,29 +877,29 @@ else:
 
 # ------------------------------------------------------------ 6. the cost axis
 md(r"""
-## 5. What the same money buys from a peer model
+## 5. Experiment 6: compare RMD with peer-model agreement
 
-`B1` adds no generations. The obvious challenge is that a second model's
-disagreement, bought with real sampling, would do the same job. Turning that
-into a comparison needs one distinction the earlier draft of this notebook did
-not make.
+**Question.** How does RMD compare with reliability information obtained by
+sampling a second model, after making the generation cost explicit?
 
-A **graded** peer score is the fraction of the peer's drawn siblings that are
-*correct*. It consults the gold answer, so it cannot be deployed; it is an
-oracle diagnostic that bounds what the peer family could contribute. An
-**agree** peer score is the fraction of the peer's siblings whose predicted
-answer matches the target's plurality answer. No gold is consulted, so it is a
-method someone could actually run.
+**Design.** A deployable **agreement score** is the fraction of peer traces
+whose answer matches the target model's plurality answer. It does not use the
+gold answer. The ladder adds 1, 2, 4, or 8 generations from either peer, or from
+both peers, to `B0`. A separate **graded peer score** measures the fraction of
+peer traces that match the gold answer. This score is an oracle diagnostic and
+cannot be computed at deployment. `B1` uses the target model's stored hidden
+states and requires zero additional generations, although hidden-state storage
+and scoring still have computational cost.
 
-The earlier reading of this notebook -- that peer controls absorb the increment,
-and most of what `B1` adds is prompt difficulty -- rested on the graded score.
-It is withdrawn. A gold-aware ceiling losing to nothing is not a baseline
-beating anything.
+**Result.** At one additional peer generation, the six target-peer comparisons
+produce four ties, one RMD win, and one peer win after Holm correction. Across
+all 36 correlated and unadjusted ladder contrasts, the descriptive counts are
+16 peer wins, 16 ties, and 4 RMD wins.
 
-One more piece of accounting: **no peer rung is cost-matched to `B1`.** `B1`
-buys zero extra generations, but it is not free -- it needs retained hidden
-states, an extraction pass and a fitted readout. The x-axis below counts
-generations, which is the cost `B1` genuinely does not pay.
+**Interpretation.** Peer agreement is a competitive baseline, but its value
+depends more on the target-peer pair than on the number of peer samples in this
+range. No peer rung exactly matches the cost of `B1`; the supported operational
+advantage of RMD is zero additional generations, not uniform superiority.
 """)
 
 code(r'''
@@ -816,21 +956,18 @@ plt.show()
 ''')
 
 md(r"""
-**Figure 3. The deployable ladder.** Only `agree` rungs appear -- these are the
-peer scores that never see the gold answer. `B1` (red line) sits at zero extra
-calls; `B0` (grey dashes) is the target-only baseline both are measured against.
-Vertical bars are paired 95% intervals for each rung's difference from `B1`; a
-bar crossing the red line is not distinguishable from `B1`.
+**Figure 3. Cost ladder for deployable peer agreement.** The horizontal axis
+shows additional peer generations per prompt; the vertical axis shows AURC.
+The red horizontal line is `B1`, and the grey dashed line is `B0`. Each green
+series adds an agreement score from one peer or both peers. Vertical bars show
+paired 95% CIs for the AURC difference relative to `B1`; an interval that
+crosses the red line does not distinguish the peer rung from `B1`.
 
-The figure does not show a cost axis that `B1` sits at the top of. Most peer
-point estimates are *below* `B1` from the very first extra generation, and the
-tally below counts how many of those differences actually exclude zero. What
-moves the comparison is **which peer**, not **how much of it**: Qwen as a peer
-beats `B1` on Llama-8B at every rung, Llama as a peer loses to `B1` on
-DeepSeek-7B at every rung, and going from 1 to 8 extra generations barely
-shifts either. That is a real limit on peer disagreement as a baseline -- its
-value is a property of the model pair, not something a budget buys -- and it is
-also why no single rung can be called *the* peer baseline.
+The target-peer pair determines most of the observed variation. Qwen peer
+agreement improves over `B1` for the DeepSeek-Llama target at each sampled
+budget. DeepSeek-Llama peer agreement performs worse than `B1` for the
+DeepSeek-Qwen target. Increasing the peer budget from one to eight generations
+changes these contrasts little.
 """)
 
 code(r'''
@@ -855,12 +992,12 @@ for label in MODELS:
             continue
         outcome = verdict(fp["contrasts"][f"B1_minus_{name}"]["aurc"])
         LADDER_TALLY[outcome] = LADDER_TALLY.get(outcome, 0) + 1
-print("Every deployable rung on the primary population "
+print("Descriptive results for all deployable rungs on the primary population "
       f"({sum(LADDER_TALLY.values())} rungs: 3 targets x 3 peer sets x "
       f"{len(SIZES)} sizes)")
 for outcome, count in sorted(LADDER_TALLY.items(), key=lambda kv: -kv[1]):
     print(f"  {outcome:<12s} {count:>3}")
-print("  -- all four RMD wins are DeepSeek-7B against Llama-8B peers, at every "
+print("  All four RMD wins are DeepSeek-7B against Llama-8B peers, at every "
       "rung size.\n")
 PRIMARY_PEER_P = {
     f"{label}:{name}": LADDER_BY[label]["populations"][PRIMARY]
@@ -890,13 +1027,12 @@ T6 = pd.DataFrame(rows)
 counts = T6["verdict"].value_counts()
 table(
     T6,
-    "Table 7 · the deployable comparison at one extra generation",
+    "Table 8 · the deployable comparison at one extra generation",
     note=(f"{counts.get('tie', 0)} ties, {counts.get('RMD wins', 0)} RMD win, "
           f"{counts.get('peer wins', 0)} peer win over {len(T6)} target-peer "
-          "pairs. Negative favours <code>B1</code>. This six-test cheapest-rung "
-          "family is the primary peer comparison; Holm correction leaves the same "
-          "two non-null verdicts. At one extra generation the deployable peer is "
-          "mostly indistinguishable, beats RMD once, and loses to it once."),
+          "pairs. Negative values favour <code>B1</code>. The six one-generation "
+          "comparisons form the primary peer family, and the table reports Holm-"
+          "corrected p-values for that family."),
     highlight=[verdict != "tie" for verdict in T6["verdict"]],
     **{"AURC(B1) - AURC(rung)": "{:+.4f}", "p raw": "{:.3f}", "p Holm": "{:.3f}"},
 )
@@ -907,7 +1043,7 @@ T7 = pd.DataFrame([
         "graded peer (1 extra generation)": name.replace("B0_graded_", "").replace("_m1", ""),
         "AURC(B1) - AURC(rung)": rung["aurc_delta_B1_minus_rung"],
         "95% CI": f"[{rung['ci'][0]:+.4f}, {rung['ci'][1]:+.4f}]",
-        "deployable": "no -- consults gold",
+        "deployable": "no; uses gold answer",
     }
     for label in MODELS
     for name, rung in VERDICT[label]["rungs"].items()
@@ -915,13 +1051,11 @@ T7 = pd.DataFrame([
 ])
 table(
     T7,
-    "Table 8 · diagnostic only: the gold-aware graded peer",
-    note=("<b>Not a baseline.</b> The graded readout scores a peer's siblings "
-          "against the gold answer, so no deployment can compute it. It is "
-          "reported to bound what peer information could contribute if it were "
-          "free and perfectly graded. Any claim that peers &ldquo;absorb&rdquo; "
-          "or &ldquo;explain&rdquo; the increment came from this table and does "
-          "not survive the distinction."),
+    "Table 9 · diagnostic only: the gold-aware graded peer",
+    note=("The graded score compares peer answers with the gold answer and is "
+          "therefore unavailable at deployment. It is an oracle diagnostic, not "
+          "a deployable baseline. Conclusions based on this table cannot be "
+          "transferred to the agreement score in Table 8."),
     **{"AURC(B1) - AURC(rung)": "{:+.4f}"},
 )
 ''')
@@ -929,61 +1063,59 @@ table(
 
 # ------------------------------------------------------ 7. boundary, provenance
 md(r"""
-## 6. What this claims, what it withdraws, and what is still open
+## 6. Supported claim, withdrawn statements, and limitations
 
-**The claim.** On MATH-500 under a fixed eight-sample protocol, a hidden-state
-Mahalanobis score adds a small prompt-level selective-prediction gain over
-target-only output features, at zero additional generations, on three
-checkpoints, two reasoning-distilled. **The increment is the claim; the
-localization is not.**
-Which region of the trace supplies it splits by architecture -- on the two
-distilled models the published whole-trace ATRMD supplies essentially all of
-it, on Qwen only the tail does (section 4a, Table 5a) -- so `rmd_tail_q20` is a
-cheap choice that works everywhere, not an established contribution. Its pooled
-trace AUROC -- and that of a last-token probe
-reproduced at full strength -- substantially conflates prompt difficulty with
-trace correctness, so neither is established as a trace verifier. A deployable
-peer-agreement baseline is a genuine competitor rather than a control: it is
-mostly indistinguishable at the cheapest rung. The broader 36-rung tally is
-exploratory because its nested comparisons are correlated and unadjusted. The
-case for the score is that it is free of extra generations, not that it is the
-strongest available signal.
+### Supported claim
 
-**Withdrawn from the previous version of this notebook.** Each of these was
-stated here before the closure experiments, and each is now contradicted by a
-committed artifact rather than merely softened:
+Under a fixed eight-sample MATH-500 protocol, adding a hidden-state RMD feature
+to target-model output features improves prompt-level selective prediction on
+three checkpoints. The feature uses hidden states from the existing traces and
+requires no additional generations. The current CIs condition on one fitted
+pipeline; the registered full-refit sweep must confirm sign stability.
+
+The evidence supports the RMD increment, not a new RMD method or a general tail
+localization. Whole-trace ATRMD provides nearly the complete increment on the
+two reasoning-distilled checkpoints, while the final-20% restriction is needed
+for Qwen in this evaluation. Pooled hidden-state AUROC also overstates
+within-prompt trace discrimination. Peer agreement remains a competitive
+baseline with an additional generation cost.
+
+### Withdrawn statements
+
+The following statements appeared in an earlier version and conflict with the
+current evidence:
 
 | Withdrawn claim | Why |
 |:--|:--|
-| the score is read from *a single forward pass* | it is computed over retained states of eight generated traces; the "no extra generations" property is real, the "one pass" framing is not |
-| capped rows are *censored observations, not failures* | at a stated budget an unfinished trace is the protocol's outcome; treating it as missing conditions on the budget under evaluation |
-| peer pass rates *absorb roughly four fifths* of the increment | that used the **graded** peer score, which consults the gold answer; the deployable `agree` score does not reproduce it |
-| *most of the increment is prompt difficulty* | same source, same defect; the deployable comparison at one extra generation is 4 ties, 1 win, 1 loss |
-| peer models are only a non-deployable control | `agree` rungs are deployable and are now the primary comparison; `graded` is the diagnostic |
-| *tail localization is what replicates* | it replicates in the weak sense of never losing, but the untailed ATRMD -- published prior art -- collects the whole increment on both distilled models, and the tail is load-bearing on Qwen alone (section 4a) |
+| the score is read from *a single forward pass* | RMD uses retained states from eight generated traces; it requires no additional generations but still requires generation and hidden-state processing |
+| capped rows are *censored observations, not failures* | a missing answer is an observed failure for correctness at the stated budget; it is censored only for eventual correctness beyond that budget |
+| peer pass rates *absorb roughly four fifths* of the increment | this result used the gold-aware graded peer score, which is unavailable at deployment |
+| *most of the increment is prompt difficulty* | the deployable agreement comparison does not reproduce this mechanism interpretation |
+| peer models are only a non-deployable control | agreement scores are deployable; graded peer scores remain diagnostic |
+| *tail localization is what replicates* | whole-trace ATRMD provides the increment on both reasoning-distilled checkpoints; the tail is required only for Qwen in this evaluation |
 
-**Open.** The full outer refit (section 4's gate) is registered and pending;
-until it lands, every interval here is conditional on one prompt partition. The
-scope is one dataset, one budget, one layer per model, and three checkpoints
-from two architecture families. That layer is the pre-specified deepest probe
-layer at roughly two-thirds depth, and the L7/14/21 grid it is drawn from is not
-arbitrary: a dense 14-layer sweep found the geometry signal **bimodal** in
-depth -- peaks near L6-L10 and L20-L26 with a trough at L14 -- so the grid
-samples both peaks and the trough rather than the last layer alone
-([archived notebook 02](archive/02_layer_dynamics.ipynb); Qwen MATH-500 only,
-and whether the bimodality replicates on the distill models is untested). Nothing here isolates *why* the hidden-state
-scores encode difficulty, and the Qwen early-layer selection is a single-model
-observation, not evidence for a mechanism. The same n=1 problem applies to
-section 4a's localization split: it falls along the distilled/non-distilled
-axis, and there is one non-distilled model in the set, so "distilled models do
-not need the tail" is a description of these three checkpoints and not a
-finding about distillation.
+### Limitations and falsification tests
 
-**How to falsify it.** Run the decomposition on a benchmark where most prompts
-produce mixed outcomes -- the within-prompt readouts here rest on 117, 49 and
-158 prompts, and a dataset with more of them could show the collapse shrinking.
-Or find a hidden-state readout that keeps its pooled margin under macro
-conditioning; nothing in the design forbids one existing.
+- The full-refit sweep is the main open gate. Until it completes, every CI in
+  this notebook is conditional on one prompt partition and fitting path.
+- The evaluation covers one dataset, one generation budget per checkpoint, and
+  three checkpoints from two architecture families.
+- Only one checkpoint is not reasoning-distilled. The localization split cannot
+  establish an effect of distillation.
+- The within-prompt analyses use 117, 49, and 158 mixed prompts. A dataset with
+  more mixed outcomes could produce a smaller pooled-to-macro gap.
+- The probe searches three layers selected from an earlier Qwen layer study.
+  That study found two depth regions with stronger signal, near layers 6-10 and
+  20-26, but this pattern has not been tested on the two distilled checkpoints.
+- **Reranking sibling answers** is unsupported at this budget. Only 39 of 500
+  prompts had tied plurality answers, and about 10 ties contained both a correct
+  and an incorrect option; all 15 tested tie-breakers were null.
+- **Allocating additional samples** is unsupported. Single-trace RMD predicts
+  prompt difficulty, but the registered allocation precheck found that it did
+  not predict the marginal benefit of sampling more traces.
+- A hidden-state readout that retains strong macro within-prompt AUROC would
+  falsify the conclusion for that readout. The present experiments do not rule
+  out such a method.
 
 ### Provenance
 
@@ -993,16 +1125,16 @@ conditioning; nothing in the design forbids one existing.
 - Peer cost ladder: [`results/peer_cost_ladder/`](../results/peer_cost_ladder/README.md)
 - Closest baselines, stop rules 1a and 1b: [`results/closest_baselines/`](../results/closest_baselines/README.md)
 - Last-token probe: [`results/last_token_probe/`](../results/last_token_probe/README.md)
-- Refit stability (registered, pending): `controls/refit_stability.py`
+- Refit stability (registered; canonical result pending): `controls/refit_stability.py`
 - Every closure artifact, loaded: [notebook 17](17_rmd_experiment_ledger.ipynb)
 - Long-form abstention detail: [notebook 12](12_wave1_abstention.ipynb)
 - DeepConf null and label efficiency: [notebook 13](13_deepconf_null_and_label_efficiency.ipynb)
 """)
 
-# The rewrite must not quietly reintroduce the claims it exists to withdraw.
+# The rewrite must not reintroduce, unnoticed, the claims it exists to withdraw.
 # Each string below was in the previous version of this notebook. They may
-# appear only in a cell that is retracting them -- one that says so in the same
-# breath -- and nowhere else.
+# appear only in a cell that is retracting them, that is, one that states the
+# retraction explicitly, and nowhere else.
 MARKDOWN = ["".join(cell["source"]) for cell in CELLS
             if cell["cell_type"] == "markdown"]
 retracting = [source for source in MARKDOWN if "ithdraw" in source]
@@ -1021,7 +1153,7 @@ for phrase in WITHDRAWN[:5]:
     assert any(phrase in source for source in retracting), \
         f"stopped retracting {phrase!r}"
 
-assert sum(cell["cell_type"] == "code" for cell in CELLS) == 10
+assert sum(cell["cell_type"] == "code" for cell in CELLS) == 11
 
 NOTEBOOK = {
     "cells": CELLS,

@@ -5,6 +5,47 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-22: Tail-window sensitivity registered after freezing q20
+
+This is a post-hoc robustness analysis. It does not select a detector, and
+`rmd_tail_q20` remains the paper feature regardless of the result. The run was
+registered before computing q10 or q50.
+
+The original 20% window matched the size of the high-entropy and random-token
+controls. The repository has evidence that tail-q20 can outperform whole-trace
+ATRMD on Qwen, but no evidence that 20% is a privileged cutoff. The new run
+compares `tail_q10`, frozen `tail_q20`, `tail_q50`, whole-trace ATRMD,
+`high_entropy_q20`, and `random_q20` on the three frozen headline layers. It
+uses the same prompt-disjoint RMD fits, `full_population`, `B0 + detector`
+readouts, and paired prompt bootstrap as the paper result.
+
+The robustness rule is fixed before the run: q10, q20, and q50 must each improve
+AURC over `B0` with a 95% interval below zero on every checkpoint. If the rule
+passes, notebook 14 may state:
+
+> We fixed 20% as a simple localized window; sensitivity analysis shows that the
+> result is not specific to this exact cutoff.
+
+If the rule fails, the notebook will state that the increment is sensitive to
+the cutoff. It will not call 20% optimal or replace the frozen feature with the
+best observed window.
+
+This run reopens the 2026-08-09 no-window-sweep decision only as a robustness
+check requested during paper review. It does not restore the withdrawn
+tail-aggregator novelty claim.
+
+Implementation: `analysis/rmd_window_sensitivity.py`. The scorer reuses
+`applications.prompt_decomposition` and adds generic fixed `tail_qNN` regions.
+The run is queued behind the active full-refit sweep because both jobs refit the
+same high-memory reference manifolds.
+
+```bash
+uv run python -m analysis.rmd_window_sensitivity \
+  --model qwen:data/qwen_bestofn_full/math500:21:1024 \
+  --model deepseek:data/deepseek_bestofn_full/math500:21:8192 \
+  --model deepseek_llama:data/deepseek_llama_bestofn_full/math500:24:12288
+```
+
 ## 2026-08-22: Scope — the label-efficiency claim is cut from the paper
 
 No new run. A decision recorded so it is not silently relitigated.

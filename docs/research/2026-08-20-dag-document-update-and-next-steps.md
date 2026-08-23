@@ -212,14 +212,14 @@ not a priority claim.
 Summary: 0 P1, 2 P2, 1 P3. Worst issue: the notebook diff is large but carries
 no source change.
 
-- **P2 — `notebooks/15_dag_paper_story.ipynb`: generated-output churn.** The
+- **P2, `notebooks/15_dag_paper_story.ipynb`: generated-output churn.** The
   normalized source-cell hash is identical before and after the commit. The diff
   should either contain the intended source rewrite or omit the notebook.
-- **P2 — `docs/research/2026-08-12-post-training-reasoning-prefix-novelty.md`: repository writing style.**
+- **P2, `docs/research/2026-08-12-post-training-reasoning-prefix-novelty.md`: repository writing style.**
   The note is in Polish while the repository's research record and style rules
   use simple technical English. Translate it if it is meant to be a durable
   shared source; otherwise keep it outside the DAG workshop change.
-- **P3 — `docs/research/2026-08-16-dag-literature-pass.md`: loaded prose.** Phrases
+- **P3, `docs/research/2026-08-16-dag-literature-pass.md`: loaded prose.** Phrases
   such as “the paper that kills” make an evidence record harder to reuse
   ([source matrix](../../raw/repos/reasoning-geometry/docs/research/2026-08-16-dag-literature-pass.md:54)).
   Replace them during the manuscript edit, not in a separate cleanup project.
@@ -229,15 +229,14 @@ no source change.
 Summary: 2 P1, 2 P2. Worst issue: the updated source matrix makes a false claim
 about Shih's printed state token.
 
-- **P1 — Shih token description is false.** Replace “no digit on the page could
+- **P1. The Shih token description is false.** Replace “no digit on the page could
   be copied” and “no written digit exists” with the narrower outcome-measure
   distinction described in the truth audit.
-- **P1 — Claim ownership remains duplicated.** Remove the source matrix's
+- **P1. Claim ownership remains duplicated.** Remove the source matrix's
   forbidden-claims inventory; File A should be the only governing claim record.
-- **P2 — Shih training-arm description is imprecise.** Only the two matched LoRA
+- **P2. The Shih training-arm description is imprecise.** Only the two matched LoRA
   arms isolate supervision target; the pretrained base is unmodified.
-- **P2 — The notebook part of the commit does not implement the requested
-  rewrite.** It changes serialization and outputs while leaving source cells
+- **P2. The notebook part of the commit does not implement the requested rewrite.** It changes serialization and outputs while leaving source cells
   unchanged.
 
 The requested Kudo, Garcia, supervision-causality, and full-text-Shih corrections

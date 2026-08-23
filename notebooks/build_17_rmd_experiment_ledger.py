@@ -11,7 +11,7 @@ you the objects.
         notebooks/17_rmd_experiment_ledger.ipynb notebooks
 
 Every number is read out of a committed artifact under `results/`. The
-presentation helpers are not redefined here -- they are lifted out of
+presentation helpers are not redefined here; they are lifted out of
 `build_14_rmd_workshop_story.py` at build time, so the two notebooks cannot
 drift into different table styling, and a rename over there fails this build.
 """
@@ -42,7 +42,7 @@ def presentation() -> str:
 
     Two notebooks in one paper should not diverge in table rules because
     somebody edited one of them. The markers below are asserted, so if 14's
-    setup cell is restructured this build fails instead of silently emitting a
+    setup cell is restructured this build fails instead of emitting, unnoticed, a
     notebook with stale styling.
     """
     setup = next("".join(cell["source"]) for cell in STORY_CELLS
@@ -63,26 +63,26 @@ md(r"""
 **The long-form record, and a working surface.** Notebook
 [14](14_rmd_workshop_story.ipynb) is the storyboard: it makes one argument and
 quotes the handful of numbers that argument needs. This notebook is the other
-half -- every closure-era artifact loaded, including the seven controls that
+half: every closure-era artifact loaded, including the seven controls that
 appear in no other notebook, with the reasons a number here may not be
 comparable to a number there stated up front rather than left to be discovered.
 
 *Status: built 2026-08-22. Reads committed artifacts only; runs no model, fits
 nothing, and takes seconds. The outer refit sweep is registered and pending, so
-every interval below -- like every interval in 14 -- resamples prompts with
+every interval below, like every interval in 14, resamples prompts with
 folds, layer and coefficients frozen at `seed=42`.*
 
 ## Two things to settle before reading any number
 
 **1. There is more than one population, and the difference is not small.** Most
-closure controls -- sections 4 and 5, and the two negatives in 6 and 7 -- report
+closure controls, in sections 4 and 5 and the two negatives in 6 and 7, report
 on `cap_free_valid_plurality`, which drops every prompt with a capped sibling:
 22%, 21% and 18% of prompts. The paper's primary estimand is `full_population`:
 correctness at budget `B` over all 500 prompts, with unparsed scored 0. Section
 1 puts the two side by side. The headline population is the more favourable one
 on all three models, so a control that clears its bar there has cleared a
 slightly easier bar than the claim it is defending. **Section 3 is the
-exception** -- the two pre-declared stop rules were rerun on `full_population`
+exception**: the two pre-declared stop rules were rerun on `full_population`
 on 2026-08-22 for exactly this reason, and land the same way.
 
 **2. Metrics and signs change across experiments.** Prompt abstention uses AURC
@@ -98,8 +98,9 @@ the estimand and sign convention before any table combines results.
 | negative / exploratory | allocation precheck, application alignment |
 | supervision | label-efficiency trio |
 | in notebook 14 | budget outcomes, peer cost ladder, last-token probe |
+| reviewer defenses | evidence location, safe claim, and paper status |
 
-Sections 3--8 are the material that has no other notebook, except the first of
+Sections 3--9 are the material that has no other notebook, except the first of
 the three label-efficiency runs, which notebook 13 covers. The three experiments
 14 is built on are loaded here too, so an analysis can join across them, but
 their story is told there and not repeated.
@@ -127,7 +128,7 @@ MODELS = ["qwen", "deepseek", "deepseek_llama"]
 NICE = {"qwen": "Qwen2.5-7B", "deepseek": "DeepSeek-7B", "deepseek_llama": "Llama-8B"}
 
 # Three generations of this harness wrote three label vocabularies for the same
-# three checkpoints -- `deepseek`, `deepseek_qwen` and `DeepSeek-Qwen` are one
+# three checkpoints: `deepseek`, `deepseek_qwen` and `DeepSeek-Qwen` are one
 # model. Joining artifacts on the raw string drops rows without complaining, so
 # every table below goes through nice().
 ALIASES = {"deepseek_qwen": "deepseek", "DeepSeek-Qwen": "deepseek",
@@ -228,7 +229,7 @@ not a missing observation.
 
 Read the last column as *how much more favourable the headline filter is*. It is
 positive on all three models, which is why the closure controls in sections
-3--5 -- all of which report on `cap_free_valid_plurality` -- should be read as
+3--5, all of which report on `cap_free_valid_plurality`, should be read as
 defending the claim on the easier population, not the primary one.
 """)
 
@@ -251,7 +252,7 @@ POPS = pd.DataFrame(rows)
 primary = POPS[POPS["population"] == "full_population"].set_index("model")["B1 - B0"]
 headline = POPS[POPS["population"] == "cap_free_valid_plurality"].set_index("model")["B1 - B0"]
 # Both are negative and lower is better, so the headline overstates when it is
-# the more negative of the two. As a share of the headline effect -- the same
+# the more negative of the two. As a share of the headline effect, on the same
 # formula notebook 14 section 2 prints, so the two notebooks cannot disagree.
 OVERSTATEMENT = ((headline - primary) / headline).rename("headline vs primary")
 
@@ -306,7 +307,7 @@ md(r"""
 The question a reviewer asks first: if you already have eight samples, you can
 compute the entropy of their answer histogram for free. Does a hidden-state
 score add anything over *that*, rather than over the weaker output features in
-`B0`? And separately -- since the feature is measured on the trace tail -- does
+`B0`? And separately, since the feature is measured on the trace tail, does
 the tail actually beat the whole-trace mean it is a restriction of?
 
 Both were registered with a stop rule before the run. `H` is
@@ -314,12 +315,12 @@ Both were registered with a stop rule before the run. `H` is
 histogram over parseable siblings. `rmd_full` is the whole-trace mean of the
 same per-token distance.
 
-`rmd_full` is not a strawman: it is **Vazhentsev et al.'s ATRMD**, i.e. the
+`rmd_full` is not a weak comparator: it is **Vazhentsev et al.'s ATRMD**, i.e. the
 published version of this feature. That is what makes 1b the interesting one.
 
 **1a does not trigger, on either population.** Read 1b the useful way round --
 not "does the tail beat the whole trace" but "what does the *published* score
-already buy" -- and it splits by architecture. On both distilled models ATRMD
+already provide", and it splits by architecture. On both distilled models ATRMD
 over `B0` collects essentially the whole increment and the tail adds nothing
 measurable; on Qwen ATRMD does not clear zero and the tail collects all of it.
 The two correlate at Pearson 0.93-0.96, so this is one signal wanting a
@@ -458,12 +459,12 @@ md(r"""
 The strongest available difficulty proxy: for each target, the other two models'
 eight-sibling pass rates on the same prompt ids, entered into `B0` as two
 features. Those pass rates reach AUROC 0.80--0.96 against the target's own
-outcome -- a near-oracle. If `rmd_tail_q20` is difficulty in disguise, this is
+outcome, i.e. a near-oracle. If `rmd_tail_q20` is merely a restatement of difficulty, this is
 where it should disappear.
 
 **This rung is superseded, and the reason matters more than the result.** Its
 peer feature is the fraction of a peer's siblings that were *correct*, which
-needs the gold answer -- so *this* readout is a **control, not a baseline**:
+needs the gold answer, so *this* readout is a **control, not a baseline**:
 nothing computed from it competes with the headline. But the 2026-08-21 review
 rejected generalizing that to peer models as such, because a peer ensemble read
 for *agreement* needs no gold answer and is a deployable uncertainty method in
@@ -480,8 +481,8 @@ stop rule asked whether two or more models lost their interval, and one did.
 code(r'''
 PEER = A["peer_difficulty_control"]
 # Named locally, not inherited. This control was never run on the primary
-# population, and section 3 now reads full_population -- a shared POP would
-# have made one section quietly change the other's numbers.
+# population, and section 3 now reads full_population; a shared POP would
+# have made one section change the other's numbers without this being visible.
 POP_PEER = "cap_free_valid_plurality"
 rows = []
 for model in PEER["models"]:
@@ -523,7 +524,7 @@ md(r"""
 ## 6. Allocation: a clean negative
 
 A different question from every other rung. Not *is this prompt right*, but
-*would buying more samples help* -- `g(p) = a(p,8) - a(p,1)`, the expected
+*would additional samples help*: `g(p) = a(p,8) - a(p,1)`, the expected
 plurality-vote gain from 1 to 8 samples over all `C(8,k)` sibling subsets.
 
 Gain is not difficulty: a prompt solved 0/8 and one solved 8/8 both gain
@@ -577,8 +578,7 @@ md(r"""
 
 Twelve model-layer-method conditions, asking whether the within-prompt readouts
 predict what a downstream application actually gets: top-1 selection gain over
-random, and gain over majority vote. The correlations are high -- Spearman 0.96
-between within-prompt AUC and top-1 gain -- but n = 12 conditions from 2 models,
+random, and gain over majority vote. The correlations are high, with Spearman 0.96 between within-prompt AUC and top-1 gain, but n = 12 conditions from 2 models,
 and the artifact says so itself.
 
 It earns a place in the ledger for one reason: it is the only artifact that
@@ -631,7 +631,7 @@ The ladder is a strict superset of the pooling run, so if you only read one, rea
 the ladder.
 
 **The comparability trap.** The evaluation set is the complement of the *largest*
-budget in that run, and the runs have different largest budgets -- 400 versus
+budget in that run, and the runs have different largest budgets, 400 versus
 100. So the original scores about 80 prompts and the follow-ups score about 320.
 Same rule, different eval sets: crossing points are not transferable between
 rows of the table below, and the original's Qwen crossing at ~226 labels simply
@@ -646,7 +646,7 @@ label-efficiency claim: it is a small-sample effect of the one-class fit, not a
 property of the geometry.
 
 **Scope decision, 2026-08-22: this does not go in the paper.** Three things
-have to be said at once for the result to be stated correctly -- the effect is
+have to be said at once for the result to be stated correctly. The effect is
 confined to 25--100 labels, the attribution belongs to the quadratic decision
 function rather than to the geometry (`EXPERIMENT_LOG.md` 2026-08-08;
 `PAPER_STRATEGY_RMD.md` §7f), and the crossing points do not transfer across
@@ -716,21 +716,87 @@ if LADDER_RUN:
 ''')
 
 
-# -------------------------------------------------------- 10. working surface
+# -------------------------------------------------- 10. reviewer defenses
 md(r"""
-## 9. Working surface
+## 9. Reviewer-defense index
+
+This section records where each predictable objection is answered and how far
+the answer can be used. Rows marked *appendix* support the main result without
+changing its scope. Rows marked *historical* need a packaged source artifact
+before a paper can quote their numbers; the index does not promote cached
+notebook output into current evidence.
+
+| Objection | Defense | Safe use | Evidence |
+|:--|:--|:--|:--|
+| RMD restates self-consistency | Answer-distribution entropy adds nothing to `B0`; RMD survives it. The unanimous-prompt analysis also holds vote agreement constant. | Main text for the answer-histogram control; appendix for the unanimous stratum. | Sections 3--4 |
+| RMD only detects long traces | `B1` adds RMD to a baseline that already contains length on all three checkpoints. **Length residualization** gives a second, exploratory check on Qwen and DeepSeek. | Main claim uses `B1 - B0`; residualization stays in the appendix. | Notebook 12, E1R |
+| Relative distance is unnecessary | **Background subtraction** reverses the misleading target-only raw Mahalanobis ranking in the retired one-class sweep. | Methods motivation only because the old absolute AUCs are pooled and length-confounded. | `EXPERIMENT_LOG.md`, 2026-07-25 |
+| Output confidence already provides the same signal | **DeepConf** is at chance as a prompt score on two checkpoints and does not improve the eight-sibling vote. | Appendix only; Qwen lacks the cached tokens required for the exact statistic. | Notebook 13 |
+| PCA dimension or layer was tuned to the result | The **PCA dimension** sweep found no consistent advantage beyond 128. The dense layer study motivated the sparse layer grid but used one checkpoint. | Methods appendix; do not claim a cross-model layer mechanism. | Archived notebooks 02 and 09 |
+| Why exactly the final 20%? | `tail_q20` was fixed before this sensitivity run and remains fixed. A registered post-hoc comparison will test q10, q20, q50, ATRMD, high-entropy-q20, and random-q20 without selecting a replacement. | Use the robustness sentence only if the registered rule passes. | `EXPERIMENT_LOG.md`, 2026-08-22 |
+| Budget failures should be treated as missing data | **Budget continuation** shows that capped DeepSeek prefixes often finish with more tokens, while `C_B` still scores what was available at the registered budget. | Sensitivity evidence only; it does not relabel the primary outcome. | `budget_outcomes` below |
+| Difficulty ranking should enable reranking or allocation | Tie-breaking has little headroom, and the allocation gate fails because difficulty does not rank marginal sampling gain. | Scope statement, not an application result. | Notebook 11 and section 6 |
+
+The main paper needs the first two defenses and the outcome definition. The
+remaining rows belong in methods, limitations, or an appendix.
+""")
+
+code(r'''
+DEFENSES = pd.DataFrame([
+    {"defense": "answer histogram", "status": "main", "loaded evidence": "sections 3-4"},
+    {"defense": "length residualization", "status": "appendix", "loaded evidence": "no; notebook 12"},
+    {"defense": "background subtraction", "status": "methods", "loaded evidence": "no; retired sweep"},
+    {"defense": "DeepConf", "status": "appendix", "loaded evidence": "no; notebook 13"},
+    {"defense": "PCA dimension and layer", "status": "methods", "loaded evidence": "no; archived notebooks"},
+    {"defense": "tail-window cutoff", "status": "registered", "loaded evidence": "no; queued behind refit"},
+    {"defense": "budget continuation", "status": "appendix", "loaded evidence": "yes; budget_outcomes"},
+    {"defense": "reranking and allocation", "status": "limitations", "loaded evidence": "section 6"},
+])
+table(
+    DEFENSES,
+    "Table 10 &middot; reviewer defenses and evidence-package status",
+    note=("A defense marked <code>no</code> under loaded evidence remains a "
+          "pointer to historical material. Package its source artifact before "
+          "quoting a number from it in a paper-facing notebook."),
+)
+
+case = BUDGET.get("continuation_case_study")
+if case:
+    total = case["n_continued"]
+    CONTINUATION = pd.DataFrame([
+        {"outcome": name.replace("_", " "), "n": count, "share": count / total}
+        for name, count in case["outcomes"].items()
+    ])
+    table(
+        CONTINUATION,
+        "Table 11 &middot; DeepSeek-only continuation from 8,192 to 16,384 tokens",
+        note=("A sensitivity case on 50 sampled capped traces. It shows that a "
+              "cap hit can be a budget shortfall. It does not define correctness "
+              "at the original budget, and it does not generalize to the other "
+              "checkpoints or unsampled capped traces."),
+        **{"share": "{:.1%}"},
+    )
+else:
+    CONTINUATION = pd.DataFrame()
+    print("No continuation artifact loaded.")
+''')
+
+
+# -------------------------------------------------------- 11. working surface
+md(r"""
+## 10. Working surface
 
 Everything above is loaded and named. `A` is the artifact dict keyed by the
 registry names in Table 2; the frames built along the way (`POPS`, `CLOSEST`,
-`AGREE`, `DIFFICULTY`, `ALLOCATION`, `ALIGN`, `LABELS`, `QMD`) are still in
-scope. The cell below adds the two things that are awkward to assemble by hand:
+`AGREE`, `DIFFICULTY`, `ALLOCATION`, `ALIGN`, `LABELS`, `QMD`, `DEFENSES`,
+`CONTINUATION`) are still in scope. The cell below adds the two things that are
+awkward to assemble by hand:
 
-- `REPLICATES` -- the per-replicate label-efficiency rows from all three runs
+- `REPLICATES`: the per-replicate label-efficiency rows from all three runs
   concatenated with a `run` column, which is the only tidy long-format table
-  in the closure era. The columns differ by run -- the ladder has arms the
-  original does not -- so the missing cells are real, not a join failure.
-- `OOF` -- a loader for the per-trace out-of-fold scores. **Rows are per (trace,
-  layer)**; forget to select a layer and the geometry columns silently average
+  in the closure era. The columns differ by run, since the ladder has arms the original does not, so the missing cells are real rather than a join failure.
+- `OOF`: a loader for the per-trace out-of-fold scores. **Rows are per (trace,
+  layer)**; if a layer is not selected, the geometry columns are averaged without warning
   over the sweep while the output-side columns reproduce exactly, which is a
   failure that leaves no trace in the numbers. The loader will not let you skip
   the argument.
@@ -776,16 +842,17 @@ for label in MODELS:
               f"(paper uses {CAP[label]['layer']})")
 
 print("\nIn scope: A, REGISTRY, REPLICATES, OOF(), and the frames "
-      "POPS CLOSEST AGREE DIFFICULTY ALLOCATION ALIGN LABELS QMD")
+      "POPS CLOSEST AGREE DIFFICULTY ALLOCATION ALIGN LABELS QMD "
+      "DEFENSES CONTINUATION")
 ''')
 
 
-# ------------------------------------------------------------- 11. boundaries
+# ------------------------------------------------------------- 12. boundaries
 md(r"""
-## 10. What is not in here
+## 11. What is not in here
 
 **The refit gate.** Every interval in this notebook resamples prompts with the
-fitting path frozen at `seed=42` -- folds, layer, PCA basis and coefficients all
+fitting path frozen at `seed=42`: folds, layer, PCA basis and coefficients all
 held fixed. The outer refit that would carry the fitting path's own uncertainty
 is registered in `EXPERIMENT_LOG.md` (2026-08-22) and has not run. Until it
 does, a control that clears its stop rule has cleared it conditional on one
@@ -802,7 +869,7 @@ the closure-era definitions.
 **Mechanism.** Nothing here isolates *why* hidden-state scores encode prompt
 difficulty. Section 5 shows the increment is attenuated but not eliminated by a
 near-oracle difficulty control; that is a bound on the confound, not an account
-of it -- and it is a bound measured with a retired instrument, since the cost
+of it, and it is a bound measured with a retired instrument, since the cost
 ladder replaced that control's gold-aware readout.
 
 **Localization.** Section 3's split between architectures falls along the
@@ -819,8 +886,8 @@ not a finding about distillation, and nothing here says why a region would move.
 """)
 
 
-assert sum(cell["cell_type"] == "code" for cell in CELLS) == 10
-assert sum(cell["cell_type"] == "markdown" for cell in CELLS) == 11
+assert sum(cell["cell_type"] == "code" for cell in CELLS) == 11
+assert sum(cell["cell_type"] == "markdown" for cell in CELLS) == 12
 
 # The ledger's job is to state the two hazards, not to assume the reader knows
 # them. If a rewrite drops either one the notebook stops being safe to reuse.
@@ -831,7 +898,7 @@ REQUIRED = (
     "cap_free_valid_plurality",     # so is the one the controls actually ran on
     "sign convention",              # metric direction is stated
     "control, not a baseline",      # the peer columns are not a competitor
-    "refit",                        # the open gate is not quietly dropped
+    "refit",                        # the open gate is not dropped unnoticed
 )
 for required in REQUIRED:
     assert required in PROSE, f"the ledger stopped stating: {required!r}"

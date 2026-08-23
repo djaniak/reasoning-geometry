@@ -1,13 +1,13 @@
-# Paper Strategy (DAG) — Where a Patched Residual State Is Read in a Written Chain of Thought
+# Paper Strategy (DAG): Where a Patched Residual State Is Read in a Written Chain of Thought
 
-*Durable working doc, opened 2026-08-15. Survives context compaction.*
+*Durable working document, opened 2026-08-15. Survives context compaction.*
 
 > **Split out of `PAPER_STRATEGY.md`, 2026-08-15.** That file is now
 > [`PAPER_STRATEGY_RMD.md`](PAPER_STRATEGY_RMD.md) and covers the
 > selective-prediction / Mahalanobis thread only. **The two are separate papers.**
 > They share no model (1.5B distill here, 7–8B there), no data (synthetic
-> arithmetic DAG here, MATH-500 there), no metric, and no claim. Do not staple
-> them; do not let a sentence from one qualify the other.
+> arithmetic DAG here, MATH-500 there), no metric, and no claim. They should not be
+> combined, and a sentence from one should not be used to qualify the other.
 
 Sources of record: `EXPERIMENT_LOG.md` entries 2026-08-13 through 2026-08-16,
 `results/dag_patching/` (eight archived pilot artifacts plus seven later
@@ -19,7 +19,7 @@ the literature and claim audit in
 *Updated 2026-08-16 for E3 at its registered N and the chain-node arm
 (`results/dag_patching/e3_ladder/`). That run changed §1, §2 (D2, and new D7–D9),
 §3.1, §3.7, a new §3.10, §4, §5 and §6b. It did not change §6a: the workshop
-paper was complete before it and is stronger after it.*
+paper was already complete before that run, and it is stronger after it.*
 
 *Corrected 2026-08-16 against the literature pass and paired gap analysis. The
 strategy now separates the semantic cliff from distributional decay, adds
@@ -42,10 +42,11 @@ at the clean trace's own token positions.
 Three digits are named for every patched row, and keeping them distinct is what
 makes the experiment well-posed: the **clean/target** digit (the true answer),
 the **implied** digit (the donor's value carried through the recipient's
-remaining arithmetic — the chain is affine, so donor `v_j` through recipient `i`
+remaining arithmetic; the chain is affine, so donor `v_j` through recipient `i`
 implies `v_j + delta_i`), and the **raw** digit (the one literally written at the
 patched position). `v3_distinct` is the generator that guarantees all three
-differ; earlier families did not, which is a defect it was built to fix.
+differ. Earlier families did not guarantee this, which is the defect it was built
+to correct.
 
 ---
 
@@ -70,7 +71,7 @@ distributional decay**. Across 1,035 eligible site observations, clustered
 within items, arms and seeds, a site **one** step from the target lands the
 implied digit 555/603 (92%), at token distances from 11 to 60. A site **two or
 more** steps away lands it **0/432**. Probability and total-variation effects
-remain at the multi-step sites, so this is not a claim that the patch has no
+remain at the multi-step sites, so the patch cannot be said to have no
 influence. On the registered semantic outcome, the two-step and three-step sites
 are indistinguishable within the same items (0 discordant pairs of 144).
 
@@ -86,8 +87,8 @@ selection rule was written, before the items existed, and before any of these
 numbers did.
 
 **Quote 5.96e-8 and nothing else.** The registered bootstrap interval
-[1.000, 1.000] is degenerate — every replicate is 1 by construction — and is the
-absence of a counterexample, not a bound. Fisher's exact (3.1e-14) is the wrong
+[1.000, 1.000] is degenerate, because every replicate is 1 by construction, and it
+records the absence of a counterexample rather than a bound. Fisher's exact (3.1e-14) is the wrong
 model: it credits a matched-pair design with twice the independent observations
 it has.
 
@@ -120,8 +121,9 @@ latent state, or show that no downstream component reads the patched state.
 
 *1–9 are in rank order. 10–12 were added on 2026-08-16 and are appended in
 discovery order rather than inserted, so that the §3.n references already written
-elsewhere keep resolving; by danger, **10 belongs around third** — it is the one
-that will silently produce a wrong sentence in a draft.*
+elsewhere keep resolving. Ordered by danger, **10 belongs around third**, because it
+is the one most likely to produce an incorrect sentence in a draft without being
+noticed.*
 
 1. **The ancestor edit is a mixture, not pure symbolic propagation.** The
    registered semantic outcome is clear: across the depth-1 ancestor arms, the
@@ -149,12 +151,12 @@ that will silently produce a wrong sentence in a draft.*
    everywhere. A foreign item's state perturbs the readout about as much as the
    native edit (median TV 0.971 vs 0.984). The control built to close selectivity
    reopened it.
-3. **"Depth" is a bundle, not a variable.** It adds an operation, a written
+3. **"Depth" is a bundle of several factors rather than a single variable.** It adds an operation, a written
    intermediate result, a new variable binding and a changed local context
    simultaneously. `dag_tasks` says so in its own module docstring and has since
    before the run. Matching two observed covariates removes two rival
-   explanations; it does not unbundle the rest. Never write "the depth result is
-   about graph depth" — that sentence was retracted on 2026-08-15.
+   explanations; it does not separate the rest. The statement that the depth result
+   is about graph depth should never be written; it was retracted on 2026-08-15.
 4. **Layer 13 is inherited**, from the `v3_distinct` discovery table, not
    re-searched. E2 is confirmatory for the *contrast*; the depth-1 rate is not a
    fresh test of anything.
@@ -166,22 +168,22 @@ that will silently produce a wrong sentence in a draft.*
    it is a different batch from the one stage A matched). Recorded in
    `unreachable_row_kinds` in both arms and labelled a **protocol deviation**.
    This label stays regardless of what is run next.
-7. **Two verdict systems disagree on depth 2 — now with the tie broken.** E2's
+7. **Two verdict systems disagree on depth 2, and the tie is now broken.** E2's
    registered null-flip gate calls it valid-and-negative; `dag_patching`'s arm
    scorer calls it an *invalid test* (`directional_control_failed`,
    `surface_above_null`) because its gates are relative and there is no movement
-   to be relative to. Both labels are in the artifacts and both stay. What has
-   changed is that an invalid test is no longer the *only* thing on offer: an
+   to be relative to. Both labels are in the artifacts and both remain. What has
+   changed is that an invalid test is no longer the only available reading. An
    invalid test is not evidence about the model, and D8 supplies the in-arm
-   positive control that arm never had — patching a line in the same trace, at
-   the same clean readout and null spread, moves the answer 144/144. The
-   intervention demonstrably works there, so the ancestor's silence is
-   attributable. **Do not retro-score the E2 arm on this.** It is a separate run;
-   what E3 licenses is the claim about the model, not a relabelling of an
-   archived verdict.
+   positive control that the arm previously lacked: patching a line in the same
+   trace, at the same clean readout and null spread, moves the answer 144/144. The
+   intervention demonstrably works there, so the ancestor's silence can be
+   attributed. **The E2 arm should not be retro-scored on this basis.** It is a
+   separate run, and what E3 licenses is a claim about the model rather than a
+   relabelling of an archived verdict.
 8. **High-confidence regime only.** Matched window p(target) 0.696–0.990, median
-   0.914 — the upper half of the range the original depth-1 result came from.
-9. **float32 is a model run, not a readout.** E2 ran every matmul in float32; the
+   0.914, which is the upper half of the range the original depth-1 result came from.
+9. **float32 is a property of the model run rather than of the readout.** E2 ran every matmul in float32; the
    eight archived arms are bfloat16. E2 is internally valid (both depths at one
    precision) but is **not** a same-precision replication, and `dag_pooling.pool`
    refuses to merge across the difference.
@@ -190,7 +192,7 @@ that will silently produce a wrong sentence in a draft.*
     where "all but one" asks for 80%. At n = 48 the same rule asks for 97.9%. The
     surface control's actual pass rate is 85–100% in every E3 arm, so which side
     of the line an arm falls on turns on one or two items: `depth1_gap0` scores
-    *invalid test* on all three seeds at 46/48, 45/48, 45/48 — while its ancestor
+    *invalid test* on all three seeds at 46/48, 45/48, 45/48, while its ancestor
     gap is 48/48 and its directional control 47/48. **The gate was deliberately
     not changed**, because rewriting a quorum after seeing which arms it fails is
     a retroactive policy move made on evidence produced by the run being scored.
@@ -222,33 +224,33 @@ worth more than D1.
 
 - **A directional gate cannot separate propagation from copying.** "The answer
   moved toward the value the donor implies" is satisfied by a readout that simply
-  copied the digit the donor wrote, whenever those two digits differ — and they
-  do differ, by construction, at depth 1. The fix is one extra recorded quantity
+  copied the digit the donor wrote, whenever those two digits differ, and they
+  do differ by construction at depth 1. The fix is one extra recorded quantity
   (`delta_toward_raw`) at zero extra forward passes. Every patching paper that
   reports a directional statistic is exposed to this.
 - **Relative gates are blind at both ends.** Every gate was a ratio or a
   one-sided comparison against a null, so none noticed when both sides were
   ≈ 0 (fixed by an absolute floor, which flipped four verdicts to *scientific
-  negative*) — and none noticed the mirror case where *everything* moves. In the
+  negative*), and none noticed the opposite case in which *everything* moves. In the
   omission arms the nulls flip 23/40 and 33/40 and a comment-tag rewrite flips
   the answer 4/5, so a collapsed model clears every relative gate and scores
   `positive`. `control_specificity` is the diagnostic that catches it, and it is
   reported and never binding, on purpose.
 - **A three-valued verdict space is necessary.** *invalid test* / *positive* /
   *scientific negative*. A patch that was directional, quiet, selective and
-  simply did not change the answer is a finding; collapsing it into "failed" and
-  a broken intervention into the same bucket destroys information.
+  simply did not change the answer is a finding. Placing it and a broken
+  intervention in a single "failed" category destroys information.
 - **Measurement and scoring must be separable.** Rows are the measurement; gates
   are a policy over them. `--rescore` and `--reanalyse` re-derive every verdict
   with no GPU and no rewrite of an archived file, which is what made three rounds
   of external review answerable at all.
 - **A fixed-count quorum is a moving significance level.** "All but one" is a
   natural-sounding validity rule and it is 80% at n = 5 and 97.9% at n = 48, so
-  scaling a pilot to its registered N silently tightens every gate that uses one
-  — and tightens it hardest on the *positive control*, which is the arm most
-  likely to sit just under a very high bar. E3 hit this exactly (§3.10). Anyone
-  freezing a gate at pilot N is exposed; the rule has to be written as a rate, or
-  as a test, before the N changes. Note that this was found the expensive way,
+  scaling a pilot to its registered N tightens every gate that uses one without
+  this being visible, and it tightens the *positive control* most, since that is the
+  arm most likely to sit just below a very high bar. E3 encountered this exactly
+  (§3.10). Any gate frozen at pilot N is exposed in the same way, so the rule has to
+  be written as a rate, or as a test, before the N changes. Note that this was found the expensive way,
   by running the registered N and watching a working arm score *invalid test*.
 - **The within-item design is available more often than it is used.** A depth
   ladder compares conditions across items and inherits every between-item
@@ -292,19 +294,19 @@ The defensible increment is:
    after exact semantic counterfactual control disappears.
 
 The omission arm is supporting evidence, not proof that written text overwrites
-latent state. The ancestor edit is a measured mixture — implied 267/315, raw
-46/315, clean 0/315 — not a pure propagation mechanism and not an unresolved
-semantic outcome. See the linked research note for sources and wording
+latent state. The ancestor edit is a measured mixture (implied 267/315, raw
+46/315, clean 0/315). It is therefore neither a pure propagation mechanism nor an
+unresolved semantic outcome. See the linked research note for sources and wording
 guardrails.
 
-Expected fight: a reviewer who reads "1.5B distill, synthetic arithmetic,
+Expected objection: a reviewer who reads "1.5B distill, synthetic arithmetic,
 digit readout" and asks whether any of it transfers. §6 is the answer.
 
 ---
 
 ## 6. Two venues, two scopes
 
-### 6a. Workshop paper — submittable now
+### 6a. Workshop paper, submittable now
 
 Everything in §2 exists on disk, is committed, and has survived three rounds of
 external review. The literature pass is complete. What is missing is the
@@ -320,7 +322,7 @@ write-up, not evidence.
   stated as limits, with §3.1 and §3.2 given real space rather than a footnote.
 - E3 changed the spine's shape, not its length: D1 stays the headline because it
   is the pre-registered one, and D7 goes immediately after it because it answers
-  the first question a reader has about D1 — whether the depth-2 null is the
+  the first question a reader has about D1, namely whether the depth-2 null is the
   model or the intervention.
 - Quote rates, not arm verdicts, from `e3_ladder` (§3.10). The prose must not
   say "positive in three of five arms."
@@ -329,15 +331,15 @@ write-up, not evidence.
   here is what it cost us to notice" is the right room for this.
 - Cost: the draft and clustered summaries from existing artifacts. No GPU.
 
-### 6b. Main conference — and why E4 is not on the critical path
+### 6b. Main conference, and why E4 is not on the critical path
 
 This is a genuine main-conference candidate, and it is the stronger of the two
 threads in this repo, because the effect is large, pre-registered, and cleanly
 controlled. What it is missing is not rigor but **estimand and scope**: it is a
-contrast on one checkpoint and one format — better measured than it was on
-2026-08-15, but not broader.
+contrast on one checkpoint and one format. It is better measured than it was on
+2026-08-15, but it is not broader.
 
-> **E4 — the node-by-node influence matrix against the transitive reduction — is
+> **E4, the node-by-node influence matrix against the transitive reduction, is
 > not on this paper's critical path.** An earlier draft ranked it first. E3
 > answers the decision that motivated it, but it does not measure every possible
 > influence-matrix estimand:
@@ -368,18 +370,18 @@ below is about reaching the G1 format.
 intermediate is *unwritten* is itself the intervention that does not copy a
 written value: with no digit at the patched position to copy, the propagate/copy
 confound largely dissolves at depth ≥ 2. So "clean-valid multi-step format" and
-"selective propagation" are not two runs in sequence — they are one screen with
+"selective propagation" are not two runs in sequence. They form one screen with
 two acceptance criteria.
 
-- **G1 — clean validity.** A (model, format) pair where at least one intermediate
+- **G1, clean validity.** A (model, format) pair where at least one intermediate
   on the dependency path is unwritten *and* the model still solves the clean task
   at high p(target). The naive version is already known to fail: D3's
   comment-padded omission drops clean p(target) to 0.240 at depth 2 and 0.050 at
   depth 3. This is the hard part and it may not be reachable on the current
-  checkpoint at all — the log states the reason plainly, that this distill was
+  checkpoint at all. The log states the reason plainly: this distill was
   never trained on traces with unstated steps, and "never learned to" is not the
   same claim as "cannot".
-- **G2 — selective propagation.** On a format that clears G1: the patch moves the
+- **G2, selective propagation.** On a format that clears G1: the patch moves the
   answer toward the implied value, and does so for ancestors and not for
   non-ancestors, with the raw-digit reading no longer available as an explanation.
   E3 shows that one-step ancestor edits usually transform the donor value and
@@ -387,9 +389,9 @@ two acceptance criteria.
   selective semantic control survives another operation when the model cannot
   read the needed intermediate from the trace.
 
-**Only if G1 and G2 both clear does the structural E4 become worth running** —
-and at that point it converts a two-point contrast into a claim about structure,
-which is why it stays in the plan rather than being dropped.
+**Only if G1 and G2 both clear does the structural E4 become worth running.** At
+that point it converts a two-point contrast into a claim about structure, which is
+why it remains in the plan rather than being dropped.
 
 **What this does to the ordering.** E5 moves up and changes role. It was a
 breadth follow-on; it is now the most likely *route to G1*, because if no
@@ -404,27 +406,27 @@ So:
    now blocks the others: every run below is at E3's N or larger, where the
    frozen `max(1, n − 1)` is a 97.9% validity bar that a working positive control
    fails (§3.10). Decide it as a rate or a test, pre-register the decision, and
-   apply it going forward only — E3's own arms keep the labels they were scored
+   apply it going forward only. E3's own arms keep the labels they were scored
    with, and its rates are unaffected either way.
-1. **E5 as a G1 screen** — Base / Instruct / Distill, plus scale, asking one
-   question: does any of them solve a task with an unstated intermediate? Cheap,
-   and it is the fork the rest of the plan hangs on.
+1. **E5 as a G1 screen**: Base / Instruct / Distill, plus scale, asking one
+   question: does any of them solve a task with an unstated intermediate? It is
+   inexpensive, and the rest of the plan depends on its outcome.
 2. **Format search for G1**, informed by 1. Second operation/format family folds
    in here rather than being a separate item, since one notation and one
    operation set also confounds "depth" with a rendering.
 3. **G2 on whatever clears G1.** Registered in advance, with a caliper on the
-   matching rule and the screening cap fixed beforehand — the standing rule from
-   the 2026-08-15 corrections. Include a chain-edit arm: it is one extra row per
+   matching rule and the screening cap fixed beforehand, following the standing rule
+   from the 2026-08-15 corrections. Include a chain-edit arm: it is one extra row per
    item and it supplies the in-arm positive control that made E3's negative
    attributable (D8). On a G1 format there is no written intermediate to patch,
-   so the chain site has to be redefined for that design — do that at
-   registration time, not after.
+   so the chain site has to be redefined for that design. This should be done at
+   registration time rather than afterwards.
 4. **E4 on a G1 format, only then.** The current results answer the decision to
    prioritize it; they do not claim to contain a full node-by-node matrix.
 
 GPU cost is genuinely small: a current arm is ~225 forward passes of 127-token
-sequences on a 1.5B model. Item-family design, not compute, is the constraint —
-that has been true at every step of this thread and should be planned for.
+sequences on a 1.5B model. The constraint is item-family design rather than compute.
+This has been true at every step of this thread and should be planned for.
 
 **Timeline honesty.** This is a longer path than "run E4 next", and G1 is a real
 risk of failing outright. That does not touch §6a: the workshop paper is complete
@@ -437,10 +439,10 @@ on the evidence that exists, and none of it depends on this gate clearing.
 - Do not backfill or rewrite the archived JSON files. Anything recovered after
   the fact is stored beside them.
 - The verdict space stays three-valued.
-- Do not add an epsilon for the 0.0153-vs-0.0152 surface case. It stays a
-  failure; the 4/5 rule already handles it.
-- No DVC for this thread — no remote on this host, and `.dvc/cache` would be the
-  only copy.
+- No epsilon should be added for the 0.0153-vs-0.0152 surface case. It remains a
+  failure, and the 4/5 rule already handles it.
+- No DVC for this thread: there is no remote on this host, and `.dvc/cache` would be
+  the only copy.
 - `notebooks/15_dag_paper_story.ipynb` and
   `notebooks/16_dag_workshop_story.ipynb` are generated by scripts and executed
   by a `jupyter_client` runner; never hand-edit the `.ipynb` files.

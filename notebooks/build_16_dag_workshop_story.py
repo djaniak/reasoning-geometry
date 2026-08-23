@@ -469,7 +469,7 @@ same-task comparison of final-answer-only and running-state supervision.
   [`results/dag_patching/e2_stage_b/ANALYSIS.json`](../results/dag_patching/e2_stage_b/ANALYSIS.json)
 """)
 
-# The shorter story must not quietly reintroduce the causal overclaims it replaces.
+# The shorter story must not reintroduce, unnoticed, the causal overclaims it replaces.
 prose = "\n".join("".join(cell["source"]) for cell in CELLS
                   if cell["cell_type"] == "markdown")
 for forbidden in ("step count alone", "reaches exactly one step",

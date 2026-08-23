@@ -143,36 +143,39 @@ and the continuation study provides the answer. Ledger: `EXPERIMENT_LOG.md`
    confound + truncation artifact + between/within decomposition + between-prompt
    solvability application beating length, and competitive with a trained probe at
    full labels. ~~and ahead of it below ~100 (§7f)~~ **[Dropped 2026-08-22 with
-   claim 3 below — same reason.]** Every claim we can support; avoids the fight
-   (beating trained probes at raw correctness) we'd lose.
+   claim 3 below, for the same reason.]** This framing covers only claims that the
+   evidence supports, and it does not require us to beat trained probes at raw
+   correctness.
 2. **Between-prompt difficulty for ~~test-time compute allocation~~ / routing** (constructive).
-   **[Narrowed 2026-08-10.]** The allocation half is closed — see the amendment in §1.
-   What survives is routing/abstention by predicted difficulty, which the same
+   **[Narrowed 2026-08-10.]** The allocation half is closed; see the amendment in §1.
+   What remains is routing and abstention by predicted difficulty, which the same
    precheck supports at one trace (AUROC 0.790 / 0.674 / 0.688).
 3. ~~**Single-trace label-efficient RMD beating length+entropy**~~ **[Cut from the
-   paper 2026-08-22.]** Stating it correctly needs three qualifications at once —
-   the effect is confined to 25–100 labels, §7f moves the attribution off the
-   geometry and onto the quadratic decision function, and the three
+   paper 2026-08-22.]** Stating this claim correctly requires three qualifications
+   at once. The effect is confined to 25–100 labels; §7f attributes it to the
+   quadratic decision function rather than to the geometry; and the three
    label-efficiency runs score different eval sets (the complement of each run's
    *largest* budget, 400 vs 100), so crossing points do not transfer between
-   them. A short paper cannot carry all three, and dropping any one over-claims.
-   Kept as the record in notebook 17 §8. If a sentence is ever wanted: *a
-   positive-only fit is a cheap route to a quadratic decision boundary in the
-   scarce-label regime* — never that geometry is label-efficient.
+   them. A short paper cannot carry all three qualifications, and omitting any one
+   of them over-claims. The record is kept in notebook 17 §8. If a single sentence
+   is ever required, it should state that a positive-only fit is an inexpensive
+   route to a quadratic decision boundary in the scarce-label regime. It should
+   not state that geometry is label-efficient.
 
 ## 6. Baselines / experiments a top venue will demand
 
-- ~~Trained linear probe (PCA+LDA, SEP-style) — *the* required baseline; does it ALSO collapse
-  to length? (the killer experiment).~~ **DONE 2026-07-31, both models — see §7e.** The probe
-  does not collapse (rho ~0.22 DeepSeek); neither does RMD; entropy/logprob do. Length-
-  controlled, the probe does not reliably beat RMD on either model. RMD-vs-EigenScore
-  head-to-head on reasoning is still open.
+- ~~Trained linear probe (PCA+LDA, SEP-style): the required baseline. Does it also collapse
+  to length?~~ **DONE 2026-07-31, both models; see §7e.** The probe
+  does not collapse (rho ~0.22 DeepSeek), and neither does RMD, whereas entropy and logprob
+  do. Under length control, the probe does not reliably beat RMD on either model. The
+  RMD-versus-EigenScore comparison on reasoning is still open.
 - ~~Matched comparator ladder: is the probe gap supervision, decision-function form, or
-  pooling order?~~ **DONE 2026-08-08, three models — see §7f.** A reviewer who reads
-  "one-class geometry needs fewer labels" asks exactly this, because
-  `probe_hidden_tail_q20` differed from `rmd_tail_q20` in all three at once. Two thirds
-  of the 50-label gap is form, one third supervision, and pooling order runs the *other*
-  way. Volunteer the decomposition; do not wait to be asked for it.
+  pooling order?~~ **DONE 2026-08-08, three models; see §7f.** A reviewer who reads
+  "one-class geometry needs fewer labels" is likely to ask this question, because
+  `probe_hidden_tail_q20` differed from `rmd_tail_q20` in all three respects at once. Two thirds
+  of the 50-label gap is decision-function form and one third is supervision, while pooling
+  order runs in the opposite direction. The decomposition should be reported without waiting
+  for a reviewer to request it.
 - Length baseline everywhere (done: `rmd_minus_length` wired into prompt_decomposition).
 - Pilot re-collection @ larger `max_new_tokens` (CONFIRMED by probe: Qwen-distill 8192,
   Llama-distill 12288 → 0% truncation) to get clean, well-powered parseable numbers.
@@ -187,50 +190,56 @@ Grounding of the four FINDINGS-specific results:
    distillation/R1-RL to compression of a hidden-state *correctness* manifold. Adjacent:
    intrinsic-dim work is SFT-vs-ICL / prompting / parameter-subspace only; truth-subspace
    work (universal truthfulness hyperplane = **arXiv:2407.08582**; LID↔truthfulness =
-   arXiv:2402.18048) never covers distilled checkpoints. ⚠️ Scope carefully: instruction
-   tuning INCREASES intrinsic dim (2402.18048) — opposite direction; parameter-subspace ID
-   ≠ activation-manifold ID. Support is analogical → we must supply direct evidence.
-2. **"Manifold shape transfers, readout doesn't": NOVEL framing**, grounded by Platonic
-   Representation Hypothesis (arXiv:2405.07987) + Linear Representation Transferability
-   (arXiv:2506.00653); complemented (not pre-empted) by Orgad et al. (error detectors don't
-   transfer, arXiv:2410.02707) and SEP. ⚠️ LRT transfers steering vectors (not covariance
-   manifolds) within one family — analogical support only.
+   arXiv:2402.18048) never covers distilled checkpoints. ⚠️ The scope must be stated
+   carefully: instruction tuning *increases* intrinsic dimension (2402.18048), which is the
+   opposite direction, and parameter-subspace ID is not activation-manifold ID. The support
+   is therefore analogical, and direct evidence has to be supplied.
+2. **"Manifold shape transfers, readout does not": NOVEL framing**, grounded by the Platonic
+   Representation Hypothesis (arXiv:2405.07987) and Linear Representation Transferability
+   (arXiv:2506.00653), and complemented by Orgad et al. (error detectors do not
+   transfer, arXiv:2410.02707) and SEP, which do not pre-empt it. ⚠️ LRT transfers steering
+   vectors within one family, not covariance manifolds, so the support is analogical only.
 3. **Selective prediction/abstention: crowded.** Established metrics are **AURCC / AUACC /
-   Coverage@Acc / R-Acc / ER** (TACL 2025 'Know Your Limits', arXiv:2407.18418) — use these,
+   Coverage@Acc / R-Acc / ER** (TACL 2025 'Know Your Limits', arXiv:2407.18418). These should be used,
    NOT "AUSC". Strong single-pass baselines to beat: supervised latent correctness probe
    **~0.84 AUC on MATH** (arXiv:2511.14773), Semantic Entropy Probes. Competitors: SelectLLM,
-   AbstentionBench. Novelty ONLY via **positive-only + single-forward-pass + beats
-   length/entropy/SE**. Hook: **reasoning fine-tuning DEGRADES abstention 24%** (AbstentionBench,
+   AbstentionBench. Novelty rests only on the combination of **positive-only supervision, a
+   single forward pass, and improvement over length, entropy and SE**. Motivation:
+   **reasoning fine-tuning degrades abstention by 24%** (AbstentionBench,
    arXiv:2506.09038, NeurIPS 2025).
-4. **Truncation pitfall: WEAK alone.** A related difficulty-driven sample-selection artifact
-   in long-CoT probing is already published (arXiv:2511.14773). Fold in as methodology.
+4. **Truncation pitfall: WEAK on its own.** A related difficulty-driven sample-selection artifact
+   in long-CoT probing is already published (arXiv:2511.14773). It should be included as
+   methodology rather than as a separate contribution.
 
 **Blocking citation fix:** arXiv:2412.06245 = Janapati & Ji (intrinsic dim, SFT-vs-ICL), NOT
 the truthfulness-hyperplane paper (that is arXiv:2407.08582).
 
-### FINAL recommended paper — MECHANISM-first (deviates from pass-2's "lead with abstention")
+### FINAL recommended paper, MECHANISM-first (deviates from pass-2's "lead with abstention")
 
-Rationale for deviating: our de-confounded correctness AUC (DeepSeek RMD 0.636) is WELL BELOW
-the supervised latent probe (~0.84). Leading with the application invites the comparison we
-lose. Lead instead with the mechanism (where the lit confirms genuine novelty), use abstention
-as an honestly-scoped demonstration.
+Rationale for deviating: our de-confounded correctness AUC (DeepSeek RMD 0.636) is well below
+the supervised latent probe (~0.84). Leading with the application invites a comparison that we
+lose. The paper should lead with the mechanism, where the literature confirms genuine novelty,
+and use abstention as a demonstration with a clearly stated scope.
 
 > **Title direction:** "How Reasoning Distillation Reshapes the Geometry of Correctness."
 > **C1 (mechanism, novel):** distillation/RL compresses the correctness-relevant hidden-state
 >   structure into a low-dimensional subspace (dim~8 distilled vs 64–128 instruct).
 > **C2 (mechanism, novel):** the correct-reasoning manifold *shape* transfers across
->   same-architecture instruct↔distilled models; the accuracy-trained *readout* does not (PRH/LRT).
+>   same-architecture instruct↔distilled models, whereas the accuracy-trained *readout* does
+>   not (PRH/LRT).
 > **C3 (application):** positive-only, single-forward-pass RMD for selective prediction on
->   reasoning — beats length/entropy/semantic-entropy at zero supervision (supervised probes do
->   better but need labels); motivated by reasoning-FT degrading abstention.
-> **Rigor thread:** length is the baseline to beat; truncation/auto-label-incorrect confound.
+>   reasoning. It improves on length, entropy and semantic entropy at zero supervision, while
+>   supervised probes perform better but require labels. The motivation is that reasoning
+>   fine-tuning degrades abstention.
+> **Rigor thread:** length is the baseline to beat, and the truncation and
+>   auto-label-incorrect confounds must be controlled.
 > **Positioning:** RMD is trace-level (vs SAT(R)MD token-level), positive-only (vs PCA+LDA/SEP/
 >   SelectLLM), between-prompt/cross-model (vs INSIDE within-prompt).
 
 ### GATING REALITY (critical)
-Every load-bearing number for C1/C2/C3 is currently on **artifact-contaminated data** (the
-low-dim sweep, the transfer grid, and the AUSC were all computed pre-fix). Before any of this
-is a paper:
+Every number that C1, C2 and C3 currently rest on comes from **artifact-contaminated data**;
+the low-dim sweep, the transfer grid and the AUSC were all computed before the fix. Before any
+of this becomes a paper, the following are required:
 - Pilot re-collection at proper budget → clean parseable data. **Budgets confirmed by probe
   (2026-06-19):** deepseek(-Qwen) 8192 (residual ~12% non-terminating), deepseek-llama 12288 (0%
   truncation, heavy ~11k tail). Wired into `params.yaml bestofn_matrix` with per-arch layers
@@ -238,42 +247,49 @@ is a paper:
 - Re-validate C1 (low-dim sweep), C2 (transfer grid), C3 (risk-coverage) **parseable-only**,
   with the full baseline suite: length, entropy, **Semantic Entropy Probes**, and the
   **supervised latent probe (~0.84)** head-to-head.
-- Honest expectation: RMD (0.64) loses raw AUC to the supervised probe; the paper wins on
-  *positive-only + single-pass + cross-model + mechanism*, not on raw accuracy.
+- Realistic expectation: RMD (0.64) is below the supervised probe on raw AUC. The case for the
+  paper rests on *positive-only supervision, a single pass, cross-model evidence, and the
+  mechanism*, rather than on raw accuracy.
 
 ## 7c. DE-RISK OUTCOME (2026-06-19, parseable-only on existing greedy data)
 
 Ran C1 (one_class dim sweep) and C2 (cross-model transfer) ALL vs parseable. Verdict:
 
-- **C1 REJECTED.** DeepSeek's "dim~8 plateau" was 100% truncation artifact: on contaminated data
-  RMD hits 0.86 at dim 2 (truncated traces trivially separable); parseable-only, DeepSeek climbs
-  monotonically to dim 128 (max 0.77) exactly like Qwen. No distillation low-dim compression.
+- **C1 REJECTED.** DeepSeek's "dim~8 plateau" was 100% a truncation artifact: on contaminated
+  data RMD reaches 0.86 at dim 2, because truncated traces are trivially separable, whereas on
+  parseable-only data DeepSeek climbs monotonically to dim 128 (max 0.77), exactly as Qwen does.
+  There is no distillation-induced low-dimensional compression.
 - **"DeepSeek > Qwen geometry effect" REJECTED.** DS parseable best 0.77 < Qwen 0.79.
-- **C2 WEAKENED/PARTIAL.** "Readout doesn't transfer" survives (clf transfer ~chance both ways).
-  "Shape transfers" survives ONE direction (Qwen-eval/DS-ref 95–99% retention) on a weak raw-Mahal
-  signal (~0.7); DS-eval direction uninformative (its own parseable raw-Mahal ~0.55). Not RMD-based,
-  not cross-arch. No longer a strong standalone contribution.
+- **C2 WEAKENED/PARTIAL.** The claim that the readout does not transfer survives (classifier
+  transfer is near chance in both directions). The claim that shape transfers survives in one
+  direction only (Qwen-eval/DS-ref 95–99% retention) and rests on a weak raw-Mahalanobis
+  signal (~0.7); the DS-eval direction is uninformative, since its own parseable raw-Mahalanobis
+  is ~0.55. The result is neither RMD-based nor cross-architecture, and it is no longer a strong
+  standalone contribution.
 - **SURVIVING POSITIVES (de-confounded, parseable):**
-  - **RMD ≫ raw Mahalanobis: +0.177 (DS), +0.143 (Qwen)** — background subtraction is the mechanism;
-    raw Mahal near-useless on reasoning. STRENGTHENS after de-confounding. (Robust contribution.)
+  - **RMD ≫ raw Mahalanobis: +0.177 (DS), +0.143 (Qwen).** Background subtraction is the
+    mechanism, and raw Mahalanobis is close to useless on reasoning. The effect strengthens
+    after de-confounding, so this is a robust contribution.
   - **RMD > length + entropy** (between-prompt pooled; +0.05–0.09 over length, CI excludes zero).
-  - **Dissociation:** geometry = between-prompt solvability, NOT within-prompt correctness.
+  - **Dissociation:** geometry measures between-prompt solvability rather than within-prompt
+    correctness.
 
 ### REVISED paper (mechanism-first is OFF; C1 dead, C2 weak)
-> **"What hidden-state geometry actually measures in reasoning models — once you control for length
-> and truncation."** (1) Cautionary/rigor hook: geometry "correctness detectors" are largely
-> length/truncation detectors — demonstrated by collapsing a 0.93→chance within-prompt result and a
-> dim-8→dim-128 plateau. (2) What survives: a between-prompt SOLVABILITY signal where RELATIVE
-> geometry (RMD) is essential (≫ raw Mahal; beats length+entropy), useful for abstention / compute
-> allocation, not per-attempt reranking.
-Strength: findings/short-paper level; main-conf-plausible with a clean difficulty/abstention
-benchmark + cross-model breadth. Honest and contribution-bearing, not splashy.
+> **"What hidden-state geometry actually measures in reasoning models, once length
+> and truncation are controlled."** (1) Cautionary and methodological part: geometry
+> "correctness detectors" are largely length and truncation detectors, demonstrated by
+> collapsing a 0.93→chance within-prompt result and a dim-8→dim-128 plateau. (2) Surviving
+> part: a between-prompt SOLVABILITY signal in which RELATIVE geometry (RMD) is essential
+> (≫ raw Mahalanobis, and above length+entropy). It is useful for abstention and compute
+> allocation, but not for per-attempt reranking.
+Strength: findings or short-paper level, and plausible for a main conference given a clean
+difficulty/abstention benchmark and cross-model breadth. The claims are modest but supported.
 
 ### Remaining cheap checks (analysis-only, existing data)
-1. C3: `selective_prediction.py --exclude_unparsed` — does RMD abstention beat length+entropy
+1. C3: `selective_prediction.py --exclude_unparsed`. Does RMD abstention beat length+entropy
    parseable? (decides whether the abstention application stays). MOST IMPORTANT un-run number.
-2. RMD-vs-raw across all 4 models parseable (incl. Llama greedy data) — breadth for the mechanism.
-3. ~~Pass-rate/difficulty correlation parseable — the compute-allocation hook.~~
+2. RMD-vs-raw across all 4 models parseable (incl. Llama greedy data), for breadth on the mechanism.
+3. ~~Pass-rate/difficulty correlation parseable, for the compute-allocation motivation.~~
    **[Done 2026-08-10, and it went further than a correlation.]** Experiment 2 puts
    peer-model pass rates *inside* the readout as a control rather than correlating
    them alongside: `EXPERIMENT_LOG.md` (2026-08-10). The hook survives, at ~20% of
@@ -285,155 +301,161 @@ Fresh `evaluate_prompt_decomposition@0` / `evaluate_prompt_selection@0` rerun po
 truncation-fix. Ledger: `EXPERIMENT_LOG.md` 2026-07-18; narrative: `FINDINGS.md`
 "Localized Geometry" section. Impact on the revised paper of §7c:
 
-- **The §7c thesis SURVIVES and gains a second leg.** The between-prompt/within-prompt
-  dissociation replicates on clean Qwen data (ICC 0.94–0.97; within-prompt geometry ties
-  but never beats entropy/logprob). NEW: the abstention application now has numbers —
-  prompt-level abstention at 50% coverage: rmd_tail_q20 **0.836** vs length 0.740 /
-  logprob 0.680 / entropy 0.672 (exploratory, needs CIs via selective-prediction stages;
-  this is §7c-check-1 "MOST IMPORTANT un-run number" in trace form, and it passes).
+- **The §7c thesis SURVIVES and acquires a second component.** The between-prompt and
+  within-prompt dissociation replicates on clean Qwen data (ICC 0.94–0.97; within-prompt
+  geometry ties entropy and logprob but never exceeds them). The abstention application now
+  has numbers as well. Prompt-level abstention at 50% coverage gives rmd_tail_q20 **0.836**
+  against length 0.740, logprob 0.680 and entropy 0.672 (exploratory, and confidence
+  intervals are still required from the selective-prediction stages). This is
+  §7c-check-1 "MOST IMPORTANT un-run number" in trace form, and it passes.
 - **NEW contribution-bearing positive: entropy-localized RMD.** rmd over highest-entropy
   20% tokens beats full-trace rmd at ALL THREE layers (+0.05 centered, p ≤ 0.006) with a
-  matched random-token control failing — prespecified, entropy-specific, depth-monotone.
+  matched random-token control failing. The test was prespecified, entropy-specific and depth-monotone.
   Plus: label-free residualization shows the L21 signal is linearly complementary to
-  entropy+logprob+length (residual within-macro 0.645 vs 0.654 raw). This upgrades the
-  mechanism story: geometry at *uncertainty forks* is where the trace-level information
-  lives, even though it only ties output baselines head-to-head.
-- **Selection/reranking is now CLOSED with a structural explanation:** at N=8 only
-  39/500 prompts tie and ~10 have headroom (~2-pt ceiling); all tie-break deltas ≤0.006,
-  p ≥ 0.248; weighted-RMD voting underperforms majority. Do not spend more compute here.
-- **Contrastive supervision is a NEGATIVE worth one sentence:** OOF cross-prompt
-  directions are real (alignment 0.18–0.22 vs null 0.10 at L21) but add nothing over
-  matched localized RMD — region choice, not supervision, is what matters.
+  entropy+logprob+length (residual within-macro 0.645 vs 0.654 raw). This strengthens the
+  mechanism account: the trace-level information is concentrated in geometry measured at
+  *uncertainty forks*, even though head-to-head it only ties the output baselines.
+- **Selection and reranking are now CLOSED, with a structural explanation.** At N=8 only
+  39 of 500 prompts tie and about 10 have headroom (a ceiling of roughly 2 points); all
+  tie-break deltas are ≤0.006 with p ≥ 0.248, and weighted-RMD voting underperforms
+  majority voting. No further compute should be spent in this direction.
+- **Contrastive supervision is a NEGATIVE result and should be reported briefly.** OOF
+  cross-prompt directions are real (alignment 0.18–0.22 against a null of 0.10 at L21) but
+  add nothing over matched localized RMD. The determining factor is therefore the choice of
+  region rather than supervision.
 - **Multiplicity discipline for the paper:** the only unadjusted-significant incremental
   probe cell (L21 macro +0.049, p=0.024) must be framed as suggestive; pre-specify the
   deepest layer and the two surviving contrasts (localization, entropy-specificity) for
   the cross-model confirmation on deepseek/llama/deepseek_llama full runs
-  (deepseek_llama decomposition outputs currently deleted — regenerate first).
+  (deepseek_llama decomposition outputs are currently deleted and must be regenerated first).
 
 ## 7e. 2026-07-31 UPDATE (supervised probe ceiling + length residualization, BOTH models)
 
-Ran §6's flagged "killer experiment" — the trained PCA+LDA probe — on both models,
+Ran the baseline flagged as required in §6, the trained PCA+LDA probe, on both models,
 plus E1R (abstention with trace length partialled out in rank space). Narrative:
 `FINDINGS.md` "Supervised Probe Ceiling and Length Residualization". Exploratory,
 not pre-registered.
 
-**§6 asked: does the trained probe ALSO collapse to length? The answer is the
-inverse of the framing — the probe does not collapse, and neither does RMD, but the
-output baselines do.**
+**§6 asked whether the trained probe also collapses to length. It does not, and neither
+does RMD; the output baselines are the ones that collapse.**
 
 - **The label-efficiency argument is now at its strongest form.** Once length is partialled
   out of both scorers, the supervised probe does **not** reliably beat the positive-only
   RMD fit on either model (probe − rmd_tail_q20: +0.029 Holm 0.090 Qwen, +0.033 Holm 0.126
   DeepSeek). The one Holm-surviving cell has the probe *losing* (Qwen he_q20, 0.018).
   **Qualified 2026-08-08 (§7f):** this is a full-budget, length-residualized *tie*, and
-  reading it as a positive-only *win* over-claims twice — the probe here also differs in
-  pooling order and in being linear, and at 400 labels it takes the lead on solo AUROC.
-  This is the comparison §7b's "GATING REALITY" expected to lose ("honest expectation:
-  RMD loses raw AUC to the supervised probe") — at prompt-level abstention, length-
-  controlled, it does not. Note the scope: this is between-prompt abstention AURC, not
-  raw trace-correctness AUC, where the ~0.84 supervised probe number still stands.
+  reading it as a positive-only *win* over-claims in two respects. The probe here also differs
+  in pooling order and in being linear, and at 400 labels it takes the lead on solo AUROC.
+  This is the comparison that §7b's "GATING REALITY" expected to lose ("honest expectation:
+  RMD loses raw AUC to the supervised probe"); at prompt-level abstention, under length
+  control, it does not. The scope should be noted: this is between-prompt abstention AURC and
+  not raw trace-correctness AUC, where the ~0.84 supervised probe number still stands.
 - **RMD survives length control on both models; entropy/logprob do not on DeepSeek.**
   Δ vs an uninformative scorer: rmd_tail_q20 +0.161 [+0.128, +0.194] Qwen /
   +0.107 [+0.077, +0.135] DeepSeek, both Holm < 0.01; entropy and logprob
-  +0.009–0.011 on DeepSeek, Holm 1.000. This upgrades §7c's surviving positive
-  "RMD > length + entropy" to the sharper claim: **RMD beats length on a component
-  length cannot supply, and the output-side baselines are the ones that are length
-  proxies on the reasoning-distilled model.** Negative control validates the removal
-  (a pure-length scorer lands at +0.008 / −0.007, p ≥ 0.82).
-- **Do not headline the raw Spearman-vs-length table.** RMD reaches rho +0.82 with
-  length on DeepSeek L21 (vs +0.22 for the probe), which reads as a collapse and is
-  not one. High rank correlation with length coexists with a large length-independent
-  component because length itself explains only part of solvability. Report the
-  correlation *and* E1R together, or the correlation invites a wrong reading — this
-  document previously drew that wrong reading before E1R was run.
-- **Raw (uncontrolled) probe-vs-RMD, for completeness:** probe_hidden_tail_q20 beats
+  +0.009–0.011 on DeepSeek, Holm 1.000. This sharpens §7c's surviving positive
+  "RMD > length + entropy" into a stronger claim: **RMD exceeds length on a component that
+  length cannot supply, and on the reasoning-distilled model it is the output-side baselines
+  that act as length proxies.** A negative control validates the removal
+  (a pure-length scorer reaches +0.008 / −0.007, p ≥ 0.82).
+- **The raw Spearman-versus-length table should not be used as a headline.** RMD reaches
+  rho +0.82 with length on DeepSeek L21, against +0.22 for the probe, which appears to be a
+  collapse but is not one. A high rank correlation with length can coexist with a large
+  length-independent component, because length itself explains only part of solvability. The
+  correlation should therefore be reported together with E1R; reported alone it invites an
+  incorrect reading, which this document itself drew before E1R was run.
+- **Raw (uncontrolled) probe-versus-RMD, for completeness:** probe_hidden_tail_q20 exceeds
   rmd_tail_q20 by +0.025 (Qwen, Holm 0.056, does not survive) and +0.048 (DeepSeek,
   Holm 0.006, survives). Reviewers will want both the raw and the length-controlled
-  version; the gap between them *is* the finding.
+  version, and the difference between them is itself the finding.
 - **One DeepSeek weakness to disclose:** `rmd_high_entropy_q20 − length` = +0.005
-  [−0.011, +0.025] p=0.506 — the entropy-localized region does not clear length on
-  that model. Only `rmd_tail_q20` does (+0.030 [+0.014, +0.048]). Consistent with
-  §7d's failed localization gate: entropy-localization is Qwen-specific, tail
-  localization is what replicates.
-  **[Updated 2026-08-09]** Both halves of that last sentence now need qualifying.
-  Entropy-localization stays Qwen-specific, but the §7d gate run on
-  `deepseek_llama` L24 — the model its own layer column names — *passes* on both
-  tests; it only stays Qwen-specific once you notice the localized score there is
-  0.491, i.e. at chance, and that the gate never required either score to beat it.
-  And "tail localization is what replicates" is now wrong as a statement about the
-  aggregator: between prompts, the untailed `rmd_full` recovers the whole increment
-  on both distilled models, and the tail is load-bearing only on Qwen. See
+  [−0.011, +0.025] p=0.506, so the entropy-localized region does not clear length on
+  that model. Only `rmd_tail_q20` does (+0.030 [+0.014, +0.048]). This is consistent with
+  §7d's failed localization gate: entropy-localization is Qwen-specific, whereas tail
+  localization replicates.
+  **[Updated 2026-08-09]** Both halves of that last sentence now require qualification.
+  Entropy-localization remains Qwen-specific, but the §7d gate run on
+  `deepseek_llama` L24, the model after which its own layer column is named, *passes* on both
+  tests. It remains Qwen-specific only because the localized score there is
+  0.491, that is, at chance, and because the gate never required either score to exceed it.
+  The statement that tail localization is what replicates is now incorrect as a claim about
+  the aggregator: between prompts, the untailed `rmd_full` recovers the whole increment
+  on both distilled models, and the tail is required only on Qwen. See
   `EXPERIMENT_LOG.md` (2026-08-09, both entries).
   **[Sharpened 2026-08-22, on `full_population`.]** Experiment 1b now says this
-  with intervals, and the missing half changes the framing. `rmd_full` — which
-  *is* Vazhentsev's ATRMD, published prior art — over `B0`: −0.0287 [−0.0534,
+  with intervals, and the missing half changes the framing. `rmd_full` (which
+  *is* Vazhentsev's ATRMD, published prior art) over `B0`: −0.0287 [−0.0534,
   −0.0055] DeepSeek-Qwen and −0.0445 [−0.0739, −0.0151] Llama, essentially the
   whole increment; but −0.0178 [−0.0435, **+0.0105**] on Qwen, where it does not
-  clear zero at all. So it is not that the tail is redundant on two models — it
-  is that each architecture needs a different region, and the two scores
-  correlate at Pearson 0.93–0.96. **Write the increment as the claim and the
+  clear zero at all. The correct reading is therefore not that the tail is redundant on
+  two models. Each architecture requires a different region, and the two scores
+  correlate at Pearson 0.93–0.96. **The increment should be written as the claim and the
   localization as a scope note.** `rmd_tail_q20` is the region that works
   everywhere, not an established contribution. Notebook 14 §4a Table 5a.
-- **Breadth is now the binding constraint, not rigor.** ~~n=2 models, both
+- **Breadth, rather than rigor, is now the binding constraint.** ~~n=2 models, both
   Qwen-lineage. Every claim in this section needs the Llama-architecture replication
-  (`deepseek_llama`, cancelled by the §7d gate)~~ **[Stale — corrected
+  (`deepseek_llama`, cancelled by the §7d gate)~~ **[Stale; corrected
   2026-08-09.]** The `deepseek_llama` collect was restored for other reasons and
   finished 2026-08-03, so this section's claims now rest on **three models spanning
-  two architecture families** — but two of the three are reasoning-distilled and
+  two architecture families**. However, two of the three are reasoning-distilled and
   two are Qwen-lineage, all are 7–8B, and all share one task and one prompt set.
   Breadth is still the binding constraint, and it is now **single-dataset scope**
   rather than model count. Note also that "a property of reasoning-distilled models"
   is exactly the axis the 2026-08-09 localization split falls along, and it rests on
   a single non-distilled model.
 
-## 7f. 2026-08-08 UPDATE (the supervision/form ladder — attribution moved, regime bounded)
+## 7f. 2026-08-08 UPDATE (the supervision and form ladder: attribution moved, regime bounded)
 
-Ran the comparator ladder §6 now records as required. Ledger:
+Ran the comparator ladder that §6 now records as required. Ledger:
 `EXPERIMENT_LOG.md` 2026-08-08 "Splitting the label-efficiency gap into supervision
 and decision-function form". Three models, budgets 25/50/100, 30 label draws.
 
-**§7e compared `rmd_tail_q20` against a probe that differed in three ways at once** —
-positive-only vs labelled negative class, quadratic vs linear, score-then-pool vs
-pool-then-score. `qmd_tail_q20` (RMD's own estimator with the unconditional background
-swapped for a Gaussian over incorrect traces) makes the rungs separable.
+**§7e compared `rmd_tail_q20` against a probe that differed in three respects at once:**
+positive-only versus a labelled negative class, quadratic versus linear, and
+score-then-pool versus pool-then-score. `qmd_tail_q20` (RMD's own estimator with the
+unconditional background replaced by a Gaussian over incorrect traces) separates these
+factors.
 
 - **The headline sentence changes.** At 50 labels the −0.033 AURC gap against a
-  pooling-matched linear probe is roughly **−0.011 supervision + −0.018
-  decision-function form**. "The positive-only inductive bias is what buys the label
-  efficiency" must quote −0.011, not −0.033. The defensible version: *a positive-only
-  one-class fit is a cheap way to obtain a quadratic decision function, and the
-  quadratic is where most of the scarce-label advantage lives.*
-- **Both rungs expire by 100 labels** (+0.000 each, 15/30 and 14/30). The quadratic is
-  what a hyperplane cannot *express* — on a pure shape axis the correct class is 2.9x
-  wider with no mean shift, and no linear boundary encodes "too wide" — but that stops
-  costing the probe AURC once it can fit its own direction. **Do not write that geometry
-  keeps an edge at scale.** The regime is the claim.
+  pooling-matched linear probe decomposes into approximately **−0.011 supervision and −0.018
+  decision-function form**. The statement that the positive-only inductive bias accounts for
+  the label efficiency must therefore quote −0.011 rather than −0.033. The defensible version
+  is that *a positive-only one-class fit is an inexpensive way to obtain a quadratic decision
+  function, and that the quadratic accounts for most of the scarce-label advantage.*
+- **Both components expire by 100 labels** (+0.000 each, 15/30 and 14/30). The quadratic
+  captures what a hyperplane cannot *express*: on a pure shape axis the correct class is 2.9x
+  wider with no mean shift, and no linear boundary encodes "too wide". This stops
+  costing the probe AURC once the probe can fit its own direction. It should not be written
+  that geometry retains an advantage at scale, because the claim is restricted to the
+  scarce-label regime.
 - **Pooling order runs opposite to the intuition.** Score-then-pool *costs* the LDA
-  ≈ +0.016 at 50 labels, so §7e's region-mean probe was being helped by averaging first.
-  The original comparison was conservative in the probe's favour, not inflated in
-  geometry's — a point worth volunteering, since it is the first thing a reviewer
-  suspects.
-- **QMD is not a strawman.** `B0+qmd − B0` reaches −0.058 at 100 (28/30). The labelled
-  quadratic is a strong feature that simply needs more labels than the positive-only one.
+  approximately +0.016 at 50 labels, so §7e's region-mean probe was in fact helped by
+  averaging first. The original comparison was therefore conservative in the probe's favour
+  rather than inflated in favour of geometry. This should be stated without waiting to be
+  asked, since it is the first point a reviewer is likely to suspect.
+- **QMD is a strong comparator.** `B0+qmd − B0` reaches −0.058 at 100 (28/30). The labelled
+  quadratic is a strong feature that simply requires more labels than the positive-only one.
 - **Mechanism, for the figure and the intuition section.** RMD's background Gaussian is a
   *mixture containing the positives*, not a rival class: its mean sits 0.44 from
   `mu_correct` in that class's own metric against the incorrect class's 0.90. So RMD
-  already points along the contrast with the magnitude damped (score range 2.0 vs 4.7),
-  and labelling the negative class undilutes rather than reveals. `RMD − QMD =
-  d_incorrect − d_background` exactly — `d_correct` cancels — so the supervision rung has
-  a closed form. Figure: `rmd_qmd_geometry.py`.
-- **Scope caveat that blocks a direct splice into §7e.** These budgets cap at 100, leaving
-  ~314–328 evaluation prompts against the frozen run's ~80. Only the paired within-run
-  deltas transfer; AURC *levels* and crossing budgets do not.
+  already points along the contrast with the magnitude damped (score range 2.0 vs 4.7), so
+  labelling the negative class removes the dilution rather than revealing a new direction.
+  The identity `RMD − QMD = d_incorrect − d_background` holds exactly, because `d_correct`
+  cancels, so the supervision component has a closed form. Figure: `rmd_qmd_geometry.py`.
+- **Scope caveat that prevents these numbers from being combined directly with §7e.** These
+  budgets cap at 100, leaving ~314–328 evaluation prompts against the frozen run's ~80. Only
+  the paired within-run deltas transfer; AURC *levels* and crossing budgets do not.
 
-## 7. Open questions for the SECOND research pass (a) — what research #1 did NOT see
+## 7. Open questions for the SECOND research pass (a): what research #1 did NOT see
 
-Research #1 only saw a curated brief, not FINDINGS.md. The second pass must ground:
-- **Distillation reshaping representation geometry** (our low-dim contrast, bimodal layers) —
-  is there prior work on RL/distillation changing internal geometry? (research flagged ungrounded)
-- **Cross-model manifold transfer / Platonic Representation Hypothesis** for correctness —
-  prior work? (not evaluated in pass #1)
-- **Selective prediction / abstention for reasoning** as the headline application — prior art,
-  benchmarks, and what AUSC numbers are considered strong.
-- **Truncation / generation-cap / non-termination** as an evaluation confound in o1/R1-style
-  reasoning-model papers — first-to-document check.
+Research #1 saw only a curated brief and not FINDINGS.md. The second pass must ground the
+following:
+- **Distillation reshaping representation geometry** (our low-dim contrast, bimodal layers).
+  Is there prior work on RL or distillation changing internal geometry? (research flagged
+  this as ungrounded)
+- **Cross-model manifold transfer and the Platonic Representation Hypothesis** for
+  correctness. Is there prior work? (not evaluated in pass #1)
+- **Selective prediction and abstention for reasoning** as the headline application: prior
+  art, benchmarks, and which AUSC values are considered strong.
+- **Truncation, generation caps and non-termination** as an evaluation confound in o1/R1-style
+  reasoning-model papers, including a check on whether this is first documented here.
