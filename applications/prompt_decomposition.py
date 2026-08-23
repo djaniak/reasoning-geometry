@@ -82,6 +82,9 @@ LOCALIZED_RMD_METHODS = (
     "rmd_tail_q20",
     "rmd_random_q20",
 )
+DEFAULT_LOCALIZED_RMD_REGIONS = tuple(
+    method.removeprefix("rmd_") for method in LOCALIZED_RMD_METHODS
+)
 
 CONTRASTIVE_METHODS = (
     "contrast_full",
@@ -325,9 +328,16 @@ def region_indices(
         raise ValueError("entropy sequence must be a non-empty 1D array")
     if region == "full":
         return np.arange(values.size, dtype=int)
-    count = max(1, int(np.ceil(0.20 * values.size)))
-    if region == "tail_q20":
+    if region.startswith("tail_q"):
+        try:
+            percentage = int(region.removeprefix("tail_q"))
+        except ValueError as error:
+            raise ValueError(f"invalid tail percentage: {region}") from error
+        if not 1 <= percentage <= 100:
+            raise ValueError(f"invalid tail percentage: {region}")
+        count = max(1, int(np.ceil(percentage / 100 * values.size)))
         return np.arange(values.size - count, values.size, dtype=int)
+    count = max(1, int(np.ceil(0.20 * values.size)))
     if region == "high_entropy_q20":
         order = np.argsort(values, kind="stable")
         return np.sort(order[-count:]).astype(int)
@@ -1267,9 +1277,16 @@ def generate_oof_scores(
     alignment_diagnostics: list[dict] | None = None,
     hidden_probe_regions: tuple[str, ...] = (),
     hidden_probe_diagnostics: list[dict] | None = None,
+    localized_rmd_regions: tuple[str, ...] = DEFAULT_LOCALIZED_RMD_REGIONS,
 ) -> list[dict]:
     contrastive_regions = tuple(dict.fromkeys(contrastive_regions))
     hidden_probe_regions = tuple(dict.fromkeys(hidden_probe_regions))
+    localized_rmd_regions = tuple(dict.fromkeys(localized_rmd_regions))
+    for region in localized_rmd_regions:
+        try:
+            region_indices(np.ones(1), region, trace_id=0)
+        except ValueError as error:
+            raise ValueError(f"unknown localized-RMD region: {region}") from error
     unknown_probe_regions = set(hidden_probe_regions) - set(HIDDEN_PROBE_REGIONS)
     if unknown_probe_regions:
         raise ValueError(
@@ -1491,11 +1508,7 @@ def generate_oof_scores(
                             and len(token_logprobs) == len(entropies)
                             else None
                         )
-                        for region in (
-                            "high_entropy_q20",
-                            "tail_q20",
-                            "random_q20",
-                        ):
+                        for region in localized_rmd_regions:
                             row[f"rmd_{region}_score"] = score_localized_rmd(
                                 rmd,
                                 entropies,
@@ -1563,6 +1576,7 @@ def generate_oof_scores_layerwise(
     hidden_dtype: np.dtype | None = None,
     hidden_probe_regions: tuple[str, ...] = (),
     hidden_probe_diagnostics: list[dict] | None = None,
+    localized_rmd_regions: tuple[str, ...] = DEFAULT_LOCALIZED_RMD_REGIONS,
 ) -> tuple[list[dict], dict] | tuple[list[dict], dict, list[dict]]:
     """Load and score one layer at a time to bound peak hidden-state memory."""
     all_rows = []
@@ -1615,6 +1629,7 @@ def generate_oof_scores_layerwise(
             "n_splits": n_splits,
             "seed": seed,
             "show_progress": show_progress,
+            "localized_rmd_regions": localized_rmd_regions,
         }
         if contrastive_regions:
             score_kwargs.update(
@@ -2239,7 +2254,11 @@ def analyze_oof_scores(
     return result
 
 
-def write_trace_csv(rows: list[dict], path: str | Path) -> None:
+def write_trace_csv(
+    rows: list[dict],
+    path: str | Path,
+    localized_rmd_regions: tuple[str, ...] = DEFAULT_LOCALIZED_RMD_REGIONS,
+) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
@@ -2260,7 +2279,7 @@ def write_trace_csv(rows: list[dict], path: str | Path) -> None:
         "centroid_score",
         "raw_score",
         "rmd_score",
-        *(f"{method}_score" for method in LOCALIZED_RMD_METHODS),
+        *(f"rmd_{region}_score" for region in localized_rmd_regions),
         "entropy_he_score",
         "logprob_he_score",
         "prompt_local_rmd_score",
@@ -2625,6 +2644,11 @@ def parse_args() -> argparse.Namespace:
             "tail_q20. Empty disables it."
         ),
     )
+    parser.add_argument(
+        "--localized_rmd_regions",
+        default=",".join(DEFAULT_LOCALIZED_RMD_REGIONS),
+        help="Comma-separated token regions used for localized RMD scores.",
+    )
     parser.add_argument("--n_alignment_shuffles", type=int, default=0)
     parser.add_argument("--alignment_seed", type=int, default=42)
     parser.add_argument("--region_seed", type=int, default=42)
@@ -2683,6 +2707,11 @@ def main() -> None:
         for part in args.hidden_probe_regions.split(",")
         if part.strip()
     )
+    localized_rmd_regions = tuple(
+        part.strip()
+        for part in args.localized_rmd_regions.split(",")
+        if part.strip()
+    )
     hidden_probe_diagnostics: list[dict] = []
     rows, data_report, contrastive_diagnostics = generate_oof_scores_layerwise(
         data_dir=args.data_dir,
@@ -2703,6 +2732,7 @@ def main() -> None:
         hidden_dtype=hidden_dtype,
         hidden_probe_regions=hidden_probe_regions,
         hidden_probe_diagnostics=hidden_probe_diagnostics,
+        localized_rmd_regions=localized_rmd_regions,
     )
     _status("[5/8] Fitting cross-fitted supervised readouts")
     probe_diagnostics = add_crossfit_probe_scores(rows)
@@ -2717,6 +2747,7 @@ def main() -> None:
         "seed": args.seed,
         "contrastive_regions": list(contrastive_regions),
         "hidden_probe_regions": list(hidden_probe_regions),
+        "localized_rmd_regions": list(localized_rmd_regions),
         "n_alignment_shuffles": int(args.n_alignment_shuffles),
         "alignment_seed": int(args.alignment_seed),
         "region_seed": int(args.region_seed),
@@ -2743,7 +2774,11 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     prefix = f"{args.dataset_label}_prompt_decomposition"
     _status(f"[7/8] Writing CSV, JSON, and Markdown outputs to {output_dir}")
-    write_trace_csv(rows, output_dir / f"{prefix}_oof.csv")
+    write_trace_csv(
+        rows,
+        output_dir / f"{prefix}_oof.csv",
+        localized_rmd_regions=localized_rmd_regions,
+    )
     write_json(result, output_dir / f"{prefix}_results.json")
     write_markdown(result, output_dir / f"{prefix}_report.md")
     _status(f"[8/8] Complete in {time.perf_counter() - started:.1f}s")

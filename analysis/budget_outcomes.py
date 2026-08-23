@@ -24,7 +24,10 @@ Two quantities answer different questions, and neither is "eventual correctness"
 
 This module reads the committed result JSONs and reports the selection ladder
 side by side, so the sensitivity of the headline to the outcome definition is
-visible rather than implied.  It fits nothing and runs no model.
+visible rather than implied. For the operating-point figure it rebuilds the
+frozen prompt-level logistic readouts on the recorded folds and asserts that
+their AURCs reproduce the stored results. It does not refit hidden-state
+references or run a model.
 
 A capped trace that still carries a parseable answer is scored at ``B``: its
 stopping time is censored but its answer is observed.  ``parseable_at_cap``
@@ -42,7 +45,16 @@ from typing import Iterable, Mapping
 import numpy as np
 import pandas as pd
 
-from applications.incremental_abstention import is_parseable_answer
+from applications.incremental_abstention import (
+    BASE_FEATURE_NAMES,
+    _population_ids,
+    _read_oof,
+    aggregate_prompt_features,
+    crossfit_logistic_predictions,
+    is_parseable_answer,
+    prompt_metrics,
+    select_layer_rows,
+)
 
 MODELS = ("qwen", "deepseek", "deepseek_llama")
 
@@ -56,6 +68,7 @@ POPULATION_LADDER = (
 )
 
 CONTRAST = "B1_minus_B0_aurc"
+ABSTENTION_RATES = tuple(value / 10 for value in range(6))
 
 
 def result_path(model: str, results_root: Path) -> Path:
@@ -148,6 +161,116 @@ def _accuracy(frame: pd.DataFrame) -> float:
     return float(frame["is_correct"].mean()) if len(frame) else float("nan")
 
 
+def _accuracy_at_abstention(
+    scores: np.ndarray, outcomes: np.ndarray, abstention_rate: float
+) -> float:
+    coverage = 1.0 - float(abstention_rate)
+    keep = max(1, min(len(outcomes), int(np.ceil(coverage * len(outcomes)))))
+    order = np.argsort(-scores, kind="stable")
+    return float(np.mean(outcomes[order[:keep]]))
+
+
+def operational_curve(
+    scores: Iterable[float],
+    outcomes: Iterable[float],
+    *,
+    abstention_rates: tuple[float, ...] = ABSTENTION_RATES,
+    n_bootstrap: int = 1000,
+    seed: int = 42,
+) -> dict[str, list[float]]:
+    """Accuracy among answered prompts at fixed abstention rates."""
+    scores = np.asarray(list(scores), dtype=float)
+    outcomes = np.asarray(list(outcomes), dtype=float)
+    usable = np.isfinite(scores) & np.isfinite(outcomes)
+    scores, outcomes = scores[usable], outcomes[usable]
+    if not len(outcomes):
+        raise ValueError("operational curve requires at least one finite outcome")
+
+    rates = [float(rate) for rate in abstention_rates]
+    point = [_accuracy_at_abstention(scores, outcomes, rate) for rate in rates]
+    draws = np.empty((int(n_bootstrap), len(rates)), dtype=float)
+    rng = np.random.default_rng(seed)
+    for draw in range(int(n_bootstrap)):
+        sampled = rng.integers(0, len(outcomes), size=len(outcomes))
+        for column, rate in enumerate(rates):
+            draws[draw, column] = _accuracy_at_abstention(
+                scores[sampled], outcomes[sampled], rate
+            )
+    return {
+        "abstention_rates": rates,
+        "accuracy": point,
+        "ci_low": np.percentile(draws, 2.5, axis=0).tolist(),
+        "ci_high": np.percentile(draws, 97.5, axis=0).tolist(),
+    }
+
+
+def operational_curves(
+    model: str,
+    result: Mapping,
+    results_root: Path,
+    data_root: Path,
+) -> dict:
+    """Rebuild the frozen B0/B1 OOF rankings and report operating points."""
+    rows, layer = select_layer_rows(
+        _read_oof(oof_path(model, results_root)),
+        int(result["layer"]),
+        context=f"operational curve for {model}",
+    )
+    features = aggregate_prompt_features(
+        rows,
+        max_new_tokens=int(result["max_new_tokens"]),
+        data_dir=data_root / f"{model}_bestofn_full" / "math500",
+    )
+    prompt_ids = _population_ids(features)["full_population"]
+    outcomes = np.asarray([features[prompt_id]["outcome"] for prompt_id in prompt_ids])
+    folds = np.asarray([features[prompt_id]["fold"] for prompt_id in prompt_ids])
+    columns = {
+        name: np.asarray([features[prompt_id][name] for prompt_id in prompt_ids])
+        for name in BASE_FEATURE_NAMES + ("rmd_tail_q20",)
+    }
+    predictions = {
+        "B0": crossfit_logistic_predictions(
+            np.column_stack([columns[name] for name in BASE_FEATURE_NAMES]),
+            outcomes,
+            folds,
+            seed=int(result["seed"]),
+        ),
+        "B1": crossfit_logistic_predictions(
+            np.column_stack(
+                [columns[name] for name in BASE_FEATURE_NAMES + ("rmd_tail_q20",)]
+            ),
+            outcomes,
+            folds,
+            seed=int(result["seed"]),
+        ),
+        "entropy": columns["entropy"],
+        "length": columns["length"],
+    }
+    stored = result["populations"]["full_population"]["models"]
+    for name in ("B0", "B1"):
+        rebuilt = prompt_metrics(predictions[name], outcomes)["aurc"]
+        expected = stored[name]["metrics"]["aurc"]
+        if not np.isclose(rebuilt, expected, atol=1e-12):
+            raise ValueError(
+                f"{model} {name} operational curve does not reproduce stored AURC: "
+                f"{rebuilt} != {expected}"
+            )
+    return {
+        "population": "full_population",
+        "layer": layer,
+        "n_prompts": len(prompt_ids),
+        "methods": {
+            name: operational_curve(
+                scores,
+                outcomes,
+                n_bootstrap=int(result["n_bootstrap"]),
+                seed=int(result["seed"]),
+            )
+            for name, scores in predictions.items()
+        },
+    }
+
+
 def continuation_case(results_root: Path) -> dict | None:
     """The DeepSeek C_{B->B'} case study, reported on its own terms."""
     path = results_root / "deepseek_bestofn_full" / "math500" / "math500_continue_capped_results.json"
@@ -173,7 +296,7 @@ def continuation_case(results_root: Path) -> dict | None:
     }
 
 
-def build(results_root: Path) -> dict:
+def build(results_root: Path, data_root: Path = Path("data")) -> dict:
     results = {model: load_result(model, results_root) for model in MODELS}
     table = population_table(results)
     caps = {
@@ -188,6 +311,10 @@ def build(results_root: Path) -> dict:
     return {
         "populations": table.to_dict(orient="records"),
         "cap_accounting": caps,
+        "operational_curves": {
+            model: operational_curves(model, result, results_root, data_root)
+            for model, result in results.items()
+        },
         "continuation_case_study": continuation_case(results_root),
     }
 
@@ -205,7 +332,9 @@ def write_report(payload: Mapping, path: Path) -> None:
     lines = [
         "# Budget-indexed outcomes for the RMD prompt-level result",
         "",
-        "Built by `analysis/budget_outcomes.py` from committed result JSONs. No refit.",
+        "Built by `analysis/budget_outcomes.py` from committed results and OOF rows.",
+        "The operating points rebuild the frozen prompt-level readouts; hidden-state",
+        "references and generation remain fixed.",
         "",
         "`C_B` is correctness available by the generation budget under the fixed",
         "decoding and extraction rule. It is the `full_population` row: an unparsed",
@@ -258,7 +387,26 @@ def write_report(payload: Mapping, path: Path) -> None:
 
     lines += [
         "",
-        "## 3. Capped traces that still carry an answer",
+        "## 3. Operational accuracy after abstention",
+        "",
+        "Accuracy among answered prompts on `full_population`. Each readout ranks all",
+        "500 prompts; the protocol abstains on the lowest-ranked fraction. Intervals",
+        "are pointwise prompt-bootstrap intervals with the fitted pipeline held fixed.",
+        "",
+        "| Model | Readout | 0% abstain | 20% abstain | 50% abstain |",
+        "|---|---|---:|---:|---:|",
+    ]
+    for model, body in payload["operational_curves"].items():
+        for method, curve in body["methods"].items():
+            values = dict(zip(curve["abstention_rates"], curve["accuracy"]))
+            lines.append(
+                f"| {model} | `{method}` | {values[0.0]:.3f} | "
+                f"{values[0.2]:.3f} | {values[0.5]:.3f} |"
+            )
+
+    lines += [
+        "",
+        "## 4. Capped traces that still carry an answer",
         "",
         "Their stopping time is censored; their answer at `B` is observed and is",
         "scored. Dropping them treats an observed outcome as missing.",
@@ -275,7 +423,7 @@ def write_report(payload: Mapping, path: Path) -> None:
         )
 
     case = payload.get("continuation_case_study")
-    lines += ["", "## 4. Continuation case study, C_{B->B'}", ""]
+    lines += ["", "## 5. Continuation case study, C_{B->B'}", ""]
     if case is None:
         lines.append("No continuation result on disk.")
     else:
@@ -321,10 +469,11 @@ def write_report(payload: Mapping, path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", default="results", type=Path)
+    parser.add_argument("--data", default="data", type=Path)
     parser.add_argument("--output", default="results/budget_outcomes", type=Path)
     args = parser.parse_args()
 
-    payload = build(args.results)
+    payload = build(args.results, args.data)
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "budget_outcomes.json").write_text(json.dumps(payload, indent=2, default=float))
     write_report(payload, args.output / "budget_outcomes_report.md")

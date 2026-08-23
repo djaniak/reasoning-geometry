@@ -17,18 +17,19 @@ name the conditional one as conditional.
 | File | What it is |
 |:---|:---|
 | `budget_outcomes.json` | every number below, machine-readable |
-| `budget_outcomes_report.md` | the four tables and the reporting rule |
+| `budget_outcomes_report.md` | population, operating-point, cap, and continuation tables |
 
 ```
 uv run python -m analysis.budget_outcomes
 ```
 
-Nothing here is fitted. `analysis/budget_outcomes.py` reads the committed
-`incremental_abstention`, `continue_capped` and OOF artifacts, re-indexes them
-by population, and writes the tables; it loads no model and runs no bootstrap
-of its own. The paired deltas are the ones already stored in the locked
-artifact, so any disagreement between this report and that artifact is a bug
-here, not a new result.
+`analysis/budget_outcomes.py` reads the committed `incremental_abstention`,
+`continue_capped` and OOF artifacts. It re-indexes the stored deltas by
+population and rebuilds the frozen prompt-level `B0` and `B1` logistic readouts
+for the operating-point curves. A runtime assertion requires their AURCs to
+match the locked artifact. The pointwise bands use 1,000 prompt-bootstrap draws
+with the readouts fixed. The script does not refit hidden-state references or
+run a model.
 
 ## What it establishes
 
@@ -44,6 +45,9 @@ here, not a new result.
    mechanism the complete-case filter was silently exploiting.
 4. **`C_{B->B'}` is one model's case study.** 50 resumed DeepSeek traces, never
    a label for the other models, the unsampled capped traces, or the dataset.
+5. **The integrated gain has an operational counterpart.** At 50% abstention,
+   `B1` reaches 0.876 / 0.880 / 0.796 accuracy on answered prompts, compared
+   with 0.780 / 0.836 / 0.736 for `B0`.
 
 ## One denominator to state explicitly
 

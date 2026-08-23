@@ -83,6 +83,19 @@ def test_region_indices_are_deterministic_and_keep_at_least_one_token():
     )
 
 
+def test_region_indices_support_fixed_tail_sensitivity_windows():
+    entropies = np.arange(10, dtype=float)
+
+    assert np.array_equal(region_indices(entropies, "tail_q10"), np.asarray([9]))
+    assert np.array_equal(
+        region_indices(entropies, "tail_q50"), np.arange(5, 10)
+    )
+    with pytest.raises(ValueError, match="tail percentage"):
+        region_indices(entropies, "tail_q0")
+    with pytest.raises(ValueError, match="tail percentage"):
+        region_indices(entropies, "tail_q101")
+
+
 def test_random_region_is_exact_trace_specific_and_reproducible():
     entropies = np.linspace(0.0, 1.0, 21)
 

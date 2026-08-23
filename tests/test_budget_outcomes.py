@@ -6,7 +6,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from analysis.budget_outcomes import cap_accounting, continuation_case, population_table
+from analysis.budget_outcomes import (
+    cap_accounting,
+    continuation_case,
+    operational_curve,
+    population_table,
+)
 
 
 def _write_oof(directory: Path, rows: list[dict], layers=(7, 14, 21)) -> None:
@@ -130,3 +135,21 @@ def test_continuation_accuracy_discrepancy_is_carried_not_hidden(tmp_path):
     assert case["n_completed"] == 34
     assert case["accuracy_of_completions_recomputed"] == pytest.approx(16 / 34)
     assert case["accuracy_of_completions_as_stored"] == pytest.approx(0.4571)
+
+
+def test_operational_curve_reports_accuracy_at_fixed_abstention_rates():
+    scores = [0.9, 0.8, 0.2, 0.1]
+    outcomes = [1, 1, 0, 0]
+
+    curve = operational_curve(
+        scores,
+        outcomes,
+        abstention_rates=(0.0, 0.5),
+        n_bootstrap=20,
+        seed=7,
+    )
+
+    assert curve["abstention_rates"] == [0.0, 0.5]
+    assert curve["accuracy"] == pytest.approx([0.5, 1.0])
+    assert len(curve["ci_low"]) == 2
+    assert len(curve["ci_high"]) == 2

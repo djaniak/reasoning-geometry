@@ -1,6 +1,8 @@
 # Budget-indexed outcomes for the RMD prompt-level result
 
-Built by `analysis/budget_outcomes.py` from committed result JSONs. No refit.
+Built by `analysis/budget_outcomes.py` from committed results and OOF rows.
+The operating points rebuild the frozen prompt-level readouts; hidden-state
+references and generation remain fixed.
 
 `C_B` is correctness available by the generation budget under the fixed
 decoding and extraction rule. It is the `full_population` row: an unparsed
@@ -48,7 +50,28 @@ estimate. Below 100% means the headline population overstates the increment.
 | deepseek_llama | `cap_free_valid_plurality` | -0.0560 | [-0.0910, -0.0232] | 0.0000 | yes | 100% |
 | deepseek_llama | `all_eight_parseable` | -0.0547 | [-0.0915, -0.0206] | 0.0000 | yes | 98% |
 
-## 3. Capped traces that still carry an answer
+## 3. Operational accuracy after abstention
+
+Accuracy among answered prompts on `full_population`. Each readout ranks all
+500 prompts; the protocol abstains on the lowest-ranked fraction. Intervals
+are pointwise prompt-bootstrap intervals with the fitted pipeline held fixed.
+
+| Model | Readout | 0% abstain | 20% abstain | 50% abstain |
+|---|---|---:|---:|---:|
+| qwen | `B0` | 0.620 | 0.713 | 0.780 |
+| qwen | `B1` | 0.620 | 0.730 | 0.876 |
+| qwen | `entropy` | 0.620 | 0.670 | 0.684 |
+| qwen | `length` | 0.620 | 0.690 | 0.744 |
+| deepseek | `B0` | 0.750 | 0.805 | 0.836 |
+| deepseek | `B1` | 0.750 | 0.818 | 0.880 |
+| deepseek | `entropy` | 0.750 | 0.777 | 0.796 |
+| deepseek | `length` | 0.750 | 0.797 | 0.828 |
+| deepseek_llama | `B0` | 0.634 | 0.693 | 0.736 |
+| deepseek_llama | `B1` | 0.634 | 0.703 | 0.796 |
+| deepseek_llama | `entropy` | 0.634 | 0.647 | 0.656 |
+| deepseek_llama | `length` | 0.634 | 0.657 | 0.696 |
+
+## 4. Capped traces that still carry an answer
 
 Their stopping time is censored; their answer at `B` is observed and is
 scored. Dropping them treats an observed outcome as missing.
@@ -59,7 +82,7 @@ scored. Dropping them treats an observed outcome as missing.
 | deepseek | 8192 | confirmed by dvc.lock, dvc.yaml/params.yaml | 4000 | 374 | 38 | 336 | 0.553 | 0.771 |
 | deepseek_llama | 12288 | confirmed by dvc.lock, dvc.yaml/params.yaml | 4000 | 250 | 21 | 229 | 0.286 | 0.587 |
 
-## 4. Continuation case study, C_{B->B'}
+## 5. Continuation case study, C_{B->B'}
 
 DeepSeek only. 50 traces sampled from the capped
 population and resumed from 8192 for a further
