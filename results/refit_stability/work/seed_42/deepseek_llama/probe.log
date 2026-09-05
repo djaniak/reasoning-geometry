@@ -1,0 +1,8 @@
+[deepseek_llama] last-token states from data/deepseek_llama_bestofn_full/math500
+  reusing results/last_token_probe/cache/deepseek_llama_last_token.npz
+  joined ['probe_hidden_tail_q20', 'rmd_tail_q20'] from results/refit_stability/work/seed_42/deepseek_llama/decomposition/math500_prompt_decomposition_oof.csv at layer 24
+  [parseable] 3771 traces, 499 prompts
+  [parseable] bootstrapping 200 prompt resamples
+  [all_traces] 4000 traces, 500 prompts
+  [all_traces] bootstrapping 200 prompt resamples
+wrote results/refit_stability/work/seed_42/deepseek_llama/probe in 1218.1s

@@ -1,0 +1,20 @@
+{
+  "cmd": [
+    "/home/djaniak/projects/reasoning-geometry-probe/.venv/bin/python3",
+    "-u",
+    "-m",
+    "controls.last_token_probe",
+    "--model",
+    "qwen:data/qwen_bestofn_full/math500:7,14,21",
+    "--oof",
+    "qwen:results/refit_stability/work/seed_42/qwen/decomposition/math500_prompt_decomposition_oof.csv:21",
+    "--n_bootstrap",
+    "200",
+    "--seed",
+    "42",
+    "--output_dir",
+    "results/refit_stability/work/seed_42/qwen/probe"
+  ],
+  "elapsed_seconds": 1135.9,
+  "finished": 1787494054.1314316
+}

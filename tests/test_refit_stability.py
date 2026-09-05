@@ -82,6 +82,17 @@ def test_seeds_get_separate_working_directories(tmp_path):
     assert a.marker != b.marker
 
 
+def test_decomposition_piggybacks_registered_window_sensitivity(tmp_path):
+    step = next(
+        s for s in _plan(tmp_path, seed=42) if s.name == "decomposition/qwen"
+    )
+
+    regions = step.cmd[step.cmd.index("--localized_rmd_regions") + 1]
+    assert regions == (
+        "tail_q10,tail_q20,tail_q50,high_entropy_q20,random_q20"
+    )
+
+
 def _step(tmp_path, cmd, produces="out.json"):
     return Step(
         name="probe/fake",

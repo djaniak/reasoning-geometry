@@ -1,0 +1,4933 @@
+{
+  "dataset": "math500",
+  "model": "deepseek",
+  "data": {
+    "partial_data": false,
+    "expected_prompts": 500,
+    "observed_prompts": 500,
+    "observed_complete_prompts": 500,
+    "n": 8,
+    "excluded_prompt_ids": [],
+    "invalid_sample_id_prompt_ids": [],
+    "duplicate_trace_ids": [],
+    "missing_prompt_ids": [],
+    "unexpected_prompt_ids": []
+  },
+  "settings": {
+    "layers": [
+      21
+    ],
+    "pca_dim": 128,
+    "n": 8,
+    "expected_prompts": 500,
+    "n_splits": 5,
+    "seed": 42,
+    "region_seed": 42,
+    "n_bootstrap": 200,
+    "score_orientation": "higher predicts correctness",
+    "raw_score": "-mean(raw Mahalanobis token distance)",
+    "rmd_score": "-mean(relative Mahalanobis token distance)",
+    "score_definitions": {
+      "entropy": "-mean(token entropy)",
+      "logprob": "mean token log-probability",
+      "length": "-log1p(token count)",
+      "activation_norm": "-mean(token hidden-state L2 norm)",
+      "centroid": "-mean Euclidean distance to the correct-trace PCA centroid",
+      "raw": "-mean(raw Mahalanobis token distance)",
+      "rmd": "-mean(relative Mahalanobis token distance)",
+      "rmd_high_entropy_q20": "-mean(relative Mahalanobis token distance over the highest-entropy 20% of tokens)",
+      "rmd_tail_q20": "-mean(relative Mahalanobis token distance over the final 20% of tokens)",
+      "rmd_random_q20": "-mean(relative Mahalanobis token distance over a deterministic random 20% of tokens)",
+      "entropy_he": "mean(token entropy over the highest-entropy 20% of tokens)",
+      "logprob_he": "mean(token log-probability over the highest-entropy 20% of tokens)",
+      "prompt_local_rmd": "mean(leave-one-trace-out prompt-local background distance - raw Mahalanobis distance)",
+      "contrast_full": "projection onto the prompt-contrastive full-trace direction",
+      "contrast_high_entropy_q20": "projection onto the prompt-contrastive highest-entropy 20% direction",
+      "contrast_tail_q20": "projection onto the prompt-contrastive final-20% direction",
+      "contrast_random_q20": "projection onto the prompt-contrastive deterministic random-20% direction",
+      "probe_outputs": "cross-fitted logistic probability from prompt-centered log-probability, entropy, and length",
+      "probe_outputs_plus_rmd_high_entropy_q20": "cross-fitted output probe plus localized high-entropy RMD",
+      "probe_outputs_plus_contrast_high_entropy_q20": "cross-fitted output probe plus localized high-entropy contrast",
+      "probe_b0": "cross-fitted B0 output probe: length, global entropy, and global log-probability",
+      "probe_b1": "cross-fitted B1 output probe plus same-token entropy and log-probability",
+      "probe_g_he": "cross-fitted B1 probe plus high-entropy localized RMD",
+      "probe_g_random": "cross-fitted B1 probe plus random-20% localized RMD"
+    },
+    "no_layer_selection": true
+  },
+  "leakage_protocol": "All trace scores are out-of-fold by prompt. PCA, correct-manifold, and background-manifold parameters use training prompts only.",
+  "truncation": {
+    "n_traces": 4000,
+    "max_new_tokens": 8192,
+    "cap_provenance": "confirmed by dvc.lock, dvc.yaml/params.yaml",
+    "n_unparsed": 351,
+    "unparsed_rate": 0.08775,
+    "n_capped": 374,
+    "capped_rate": 0.0935,
+    "n_unparsed_and_incorrect": 351,
+    "unparsed_share_of_incorrect": 0.29347826086956524
+  },
+  "truncation_caveat": "Unparsed traces (no final answer) are auto-labeled incorrect upstream and are typically length-capped, not wrong-answer. They confound the within-prompt decomposition. See each layer's parseable_only block for within-prompt metrics restricted to traces that emitted an answer.",
+  "layers": {
+    "21": {
+      "methods": {
+        "entropy": {
+          "metrics": {
+            "pooled_auc": 0.6094321776344352,
+            "prompt_centered_auc": 0.561232092439611,
+            "within_prompt_macro": 0.5931605975723623,
+            "within_prompt_pair_weighted": 0.5867924528301887,
+            "score_icc": 0.6684487420197892,
+            "prompt_score_pass_rate_spearman": 0.2552657180163408,
+            "prompt_score_pass_rate_pearson": 0.23106777157688319,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.05170794882382103,
+              "ms_within": 0.0030187373220811053,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.5708837736435837,
+              "ci_high": 0.6557277084282293,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5144617147471037,
+              "ci_high": 0.6108013673798662,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.5230098342989304,
+              "ci_high": 0.6515789876920022,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.531954394010728,
+              "ci_high": 0.6442004957127545,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.6140887889651557,
+              "ci_high": 0.7096063155441631,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.17169735412457948,
+              "ci_high": 0.3384947802677666,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.14978596621969173,
+              "ci_high": 0.31750311573645434,
+              "n_valid": 200
+            }
+          }
+        },
+        "logprob": {
+          "metrics": {
+            "pooled_auc": 0.6108572202157454,
+            "prompt_centered_auc": 0.5585459583812611,
+            "within_prompt_macro": 0.5957107843137255,
+            "within_prompt_pair_weighted": 0.5924528301886792,
+            "score_icc": 0.6597544608637725,
+            "prompt_score_pass_rate_spearman": 0.26115309179957996,
+            "prompt_score_pass_rate_pearson": 0.23610749199457048,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.0235704499915211,
+              "ms_within": 0.0014274366380716203,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.573859158278924,
+              "ci_high": 0.6560272532787195,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5091523247243102,
+              "ci_high": 0.607886421012912,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.53157896680748,
+              "ci_high": 0.6547295817669173,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.5371919579609447,
+              "ci_high": 0.6512115700306006,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.6060059457362691,
+              "ci_high": 0.6979090565671779,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.18161716594291985,
+              "ci_high": 0.3451053766119744,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.15411324098346157,
+              "ci_high": 0.32205987114116696,
+              "n_valid": 200
+            }
+          }
+        },
+        "length": {
+          "metrics": {
+            "pooled_auc": 0.7012639313641764,
+            "prompt_centered_auc": 0.6399534664854125,
+            "within_prompt_macro": 0.7310866013071895,
+            "within_prompt_pair_weighted": 0.7320754716981132,
+            "score_icc": 0.8069875308259633,
+            "prompt_score_pass_rate_spearman": 0.4099955744898318,
+            "prompt_score_pass_rate_pearson": 0.3578631285989491,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 4.47615371466036,
+              "ms_within": 0.1299390618887909,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.6536944174986054,
+              "ci_high": 0.7393362653785739,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5795437430867568,
+              "ci_high": 0.6895594070884139,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.6643477382532068,
+              "ci_high": 0.7965550424715342,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.6636607758620691,
+              "ci_high": 0.7911618708607338,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.7851124944444389,
+              "ci_high": 0.8320074181913845,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.33159783002808446,
+              "ci_high": 0.4763530837031501,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.27628995455447053,
+              "ci_high": 0.4255738063371735,
+              "n_valid": 200
+            }
+          }
+        },
+        "activation_norm": {
+          "metrics": {
+            "pooled_auc": 0.34307788324371774,
+            "prompt_centered_auc": 0.3877705740876294,
+            "within_prompt_macro": 0.38481559290382816,
+            "within_prompt_pair_weighted": 0.3858490566037736,
+            "score_icc": 0.8118330841279052,
+            "prompt_score_pass_rate_spearman": -0.3409343971878485,
+            "prompt_score_pass_rate_pearson": -0.2835644780815716,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 739.5202075032062,
+              "ms_within": 20.822496395419684,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.29718993080350753,
+              "ci_high": 0.3873105503571542,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.33502529630443706,
+              "ci_high": 0.4330374454523578,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.3163358887207145,
+              "ci_high": 0.44064341702027343,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.31931253056291115,
+              "ci_high": 0.4438774812987497,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.7843266470365398,
+              "ci_high": 0.8363669594289193,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.41446024213094274,
+              "ci_high": -0.25935717780459694,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.3577039821200305,
+              "ci_high": -0.19704822587813134,
+              "n_valid": 200
+            }
+          }
+        },
+        "centroid": {
+          "metrics": {
+            "pooled_auc": 0.3245867704521491,
+            "prompt_centered_auc": 0.5126594687859458,
+            "within_prompt_macro": 0.5301353874883286,
+            "within_prompt_pair_weighted": 0.5320754716981132,
+            "score_icc": 0.868831227405461,
+            "prompt_score_pass_rate_spearman": -0.38888768910128096,
+            "prompt_score_pass_rate_pearson": -0.3179430339519353,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 304.1663219119055,
+              "ms_within": 5.633739779180639,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.28299933339811884,
+              "ci_high": 0.36634818908405714,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.46060955607356097,
+              "ci_high": 0.5561959691128131,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.46319731864708497,
+              "ci_high": 0.578926534433,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.46173299429256703,
+              "ci_high": 0.5838948557200736,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8530051794563887,
+              "ci_high": 0.8844721353366252,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.45033576375906337,
+              "ci_high": -0.3119363386604417,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.37880356753620764,
+              "ci_high": -0.24337594644400712,
+              "n_valid": 200
+            }
+          }
+        },
+        "raw": {
+          "metrics": {
+            "pooled_auc": 0.343727188583915,
+            "prompt_centered_auc": 0.5848125588204538,
+            "within_prompt_macro": 0.616625816993464,
+            "within_prompt_pair_weighted": 0.6169811320754717,
+            "score_icc": 0.8952752536757519,
+            "prompt_score_pass_rate_spearman": -0.3514213704722862,
+            "prompt_score_pass_rate_pearson": -0.27467015331711553,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 1.2029938230186237,
+              "ms_within": 0.017336520214572083,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.30141797183128294,
+              "ci_high": 0.39096165515515835,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5381441971742421,
+              "ci_high": 0.6397467878619763,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.5586551819335914,
+              "ci_high": 0.6766529801065164,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.5629171911679651,
+              "ci_high": 0.6774902935857888,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8800724676501555,
+              "ci_high": 0.9084893187825475,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.4195218732670017,
+              "ci_high": -0.273550369348514,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.3430498478908081,
+              "ci_high": -0.19546374732651592,
+              "n_valid": 200
+            }
+          }
+        },
+        "rmd": {
+          "metrics": {
+            "pooled_auc": 0.7566973124871779,
+            "prompt_centered_auc": 0.676003869078741,
+            "within_prompt_macro": 0.7410305788982261,
+            "within_prompt_pair_weighted": 0.7433962264150943,
+            "score_icc": 0.8980627889857933,
+            "prompt_score_pass_rate_spearman": 0.5033711281502917,
+            "prompt_score_pass_rate_pearson": 0.45786023280749377,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.2186403116196273,
+              "ms_within": 0.0030587756217195262,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.7155802040405892,
+              "ci_high": 0.7903044880630281,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.6028700085511494,
+              "ci_high": 0.737657272629469,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.6674119090961629,
+              "ci_high": 0.8052944838649746,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.6694470687683357,
+              "ci_high": 0.8014644592392886,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.880466399326084,
+              "ci_high": 0.9113061686736712,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.44069792354563053,
+              "ci_high": 0.5585189780688458,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.3888956249721739,
+              "ci_high": 0.5206984012967306,
+              "n_valid": 200
+            }
+          }
+        },
+        "rmd_high_entropy_q20": {
+          "metrics": {
+            "pooled_auc": 0.7297702994766195,
+            "prompt_centered_auc": 0.6542076231308167,
+            "within_prompt_macro": 0.7290324463118583,
+            "within_prompt_pair_weighted": 0.7311320754716981,
+            "score_icc": 0.885660077051094,
+            "prompt_score_pass_rate_spearman": 0.4626922581609659,
+            "prompt_score_pass_rate_pearson": 0.422271108817994,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.32358661286198714,
+              "ms_within": 0.0051390025598818745,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.6854467312996857,
+              "ci_high": 0.7692179651026501,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5890075583830501,
+              "ci_high": 0.7126568612029017,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.6682535028814948,
+              "ci_high": 0.7860777181635367,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.6683897659482203,
+              "ci_high": 0.7838139461222116,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8690476024145244,
+              "ci_high": 0.9015805362224126,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.39197496979809626,
+              "ci_high": 0.5217826225965716,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.34500847392998896,
+              "ci_high": 0.4926929126799434,
+              "n_valid": 200
+            }
+          }
+        },
+        "rmd_tail_q20": {
+          "metrics": {
+            "pooled_auc": 0.7615562932075057,
+            "prompt_centered_auc": 0.7415167834361601,
+            "within_prompt_macro": 0.7608718487394958,
+            "within_prompt_pair_weighted": 0.7641509433962265,
+            "score_icc": 0.8333423182266406,
+            "prompt_score_pass_rate_spearman": 0.5183584806517687,
+            "prompt_score_pass_rate_pearson": 0.49350277286507116,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.29391028050318635,
+              "ms_within": 0.0071680909999447115,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.7248917669048242,
+              "ci_high": 0.7948753425350299,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.6881704200137708,
+              "ci_high": 0.7886618038277017,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.6875843398876404,
+              "ci_high": 0.8172220621647577,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.7002216108242566,
+              "ci_high": 0.8233935213819658,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8063770933519039,
+              "ci_high": 0.8543459871287813,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.4527215945593971,
+              "ci_high": 0.570019167195948,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.42859674007312293,
+              "ci_high": 0.5501325715309511,
+              "n_valid": 200
+            }
+          }
+        },
+        "rmd_random_q20": {
+          "metrics": {
+            "pooled_auc": 0.7572382263274158,
+            "prompt_centered_auc": 0.6770561016417442,
+            "within_prompt_macro": 0.7401143790849674,
+            "within_prompt_pair_weighted": 0.7405660377358491,
+            "score_icc": 0.8946686762832804,
+            "prompt_score_pass_rate_spearman": 0.5049292402043996,
+            "prompt_score_pass_rate_pearson": 0.4586032895423012,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.21927449015668146,
+              "ms_within": 0.0031801580093478274,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.7158184145720176,
+              "ci_high": 0.7908086250697882,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.6045525882089521,
+              "ci_high": 0.738120763584608,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.6709227620781322,
+              "ci_high": 0.8033424887990481,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.6700682571879327,
+              "ci_high": 0.8007086816533158,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8764109247308677,
+              "ci_high": 0.9084325400496212,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.44084452243925865,
+              "ci_high": 0.5621761041868113,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.3896022901169308,
+              "ci_high": 0.521957554164185,
+              "n_valid": 200
+            }
+          }
+        },
+        "entropy_he": {
+          "metrics": {
+            "pooled_auc": 0.36846669115787767,
+            "prompt_centered_auc": 0.43117353341001774,
+            "within_prompt_macro": 0.38910480859010277,
+            "within_prompt_pair_weighted": 0.39339622641509436,
+            "score_icc": 0.6184768442986825,
+            "prompt_score_pass_rate_spearman": -0.3085227948602327,
+            "prompt_score_pass_rate_pearson": -0.2689329543486002,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.32789971854973776,
+              "ms_within": 0.023474085803003406,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.3262074532469529,
+              "ci_high": 0.407695293156331,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.3824014019380658,
+              "ci_high": 0.47956279947129854,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.32911135161135163,
+              "ci_high": 0.456091392094468,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.3347109532336353,
+              "ci_high": 0.44620782381243895,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.5733820417425017,
+              "ci_high": 0.6563170092549939,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.3839469729376998,
+              "ci_high": -0.2346379229656086,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.34679957890727064,
+              "ci_high": -0.1909650784123767,
+              "n_valid": 200
+            }
+          }
+        },
+        "logprob_he": {
+          "metrics": {
+            "pooled_auc": 0.6287148316547311,
+            "prompt_centered_auc": 0.5631143469622504,
+            "within_prompt_macro": 0.6076680672268907,
+            "within_prompt_pair_weighted": 0.6018867924528302,
+            "score_icc": 0.6036328099008277,
+            "prompt_score_pass_rate_spearman": 0.30468695581852445,
+            "prompt_score_pass_rate_pearson": 0.2645871429871047,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 0.17984588039694727,
+              "ms_within": 0.013641941577087594,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.5921573014996689,
+              "ci_high": 0.6728449669937598,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5142586754998736,
+              "ci_high": 0.612981084368349,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.543446625112309,
+              "ci_high": 0.6666201857005428,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.5446821152703505,
+              "ci_high": 0.6650386757999838,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.5597074791003792,
+              "ci_high": 0.6400680089744912,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": 0.23604285798627045,
+              "ci_high": 0.3825486195667842,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": 0.18780642179025414,
+              "ci_high": 0.34162208456311727,
+              "n_valid": 200
+            }
+          }
+        },
+        "prompt_local_rmd": {
+          "metrics": {
+            "pooled_auc": 0.3386210096422216,
+            "prompt_centered_auc": 0.5615261947087734,
+            "within_prompt_macro": 0.5451972455648927,
+            "within_prompt_pair_weighted": 0.5650943396226416,
+            "score_icc": 0.8856212518098258,
+            "prompt_score_pass_rate_spearman": -0.35796701619476207,
+            "prompt_score_pass_rate_pearson": -0.27648778826602355,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 1.1610366488981256,
+              "ms_within": 0.018445823765683825,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.2956617949849439,
+              "ci_high": 0.3860428471194535,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.5136958231957027,
+              "ci_high": 0.6122342707772985,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.47786425116921766,
+              "ci_high": 0.6050412220556873,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.5036223536033723,
+              "ci_high": 0.6201377720914074,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.8513008308467884,
+              "ci_high": 0.9184101385473056,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.422500356353848,
+              "ci_high": -0.2810202599160233,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.3449333794575672,
+              "ci_high": -0.19733481132330039,
+              "n_valid": 200
+            }
+          }
+        },
+        "contrast_tail_q20": {
+          "metrics": {
+            "pooled_auc": 0.4693262491710361,
+            "prompt_centered_auc": 0.43595759698839276,
+            "within_prompt_macro": 0.3876167133520075,
+            "within_prompt_pair_weighted": 0.38207547169811323,
+            "score_icc": 0.5881023668915465,
+            "prompt_score_pass_rate_spearman": -0.06447930886472454,
+            "prompt_score_pass_rate_pearson": -0.0909587180921478,
+            "counts": {
+              "n_traces": 4000,
+              "n_prompts": 500,
+              "n_mixed_prompts": 102,
+              "n_within_prompt_pairs": 1060
+            },
+            "icc_components": {
+              "ms_between": 1816.5115582060093,
+              "ms_within": 146.22987248958526,
+              "group_size": 8
+            }
+          },
+          "confidence_intervals": {
+            "pooled_auc": {
+              "ci_low": 0.4277982047013898,
+              "ci_high": 0.5074163899122802,
+              "n_valid": 200
+            },
+            "prompt_centered_auc": {
+              "ci_low": 0.3701845560389085,
+              "ci_high": 0.5015781378886565,
+              "n_valid": 200
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.314661804679737,
+              "ci_high": 0.45633168414154657,
+              "n_valid": 200
+            },
+            "within_prompt_pair_weighted": {
+              "ci_low": 0.3116440377804014,
+              "ci_high": 0.4469635732576497,
+              "n_valid": 200
+            },
+            "score_icc": {
+              "ci_low": 0.5370902160808565,
+              "ci_high": 0.6397879588427418,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_spearman": {
+              "ci_low": -0.14349768647013691,
+              "ci_high": 0.020264764748275786,
+              "n_valid": 200
+            },
+            "prompt_score_pass_rate_pearson": {
+              "ci_low": -0.16573737170129837,
+              "ci_high": -0.018132462481316614,
+              "n_valid": 200
+            }
+          }
+        }
+      },
+      "paired_rmd_minus_baseline": {
+        "entropy": {
+          "pooled_auc": {
+            "ci_low": 0.11124848055076289,
+            "ci_high": 0.1862686064805886,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.14726513485274262
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.07802058055173765,
+            "ci_high": 0.1582777393041328,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.11477177663912996
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.1005559539088829,
+            "ci_high": 0.20745779729902727,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.14786998132586382
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.10794761012183691,
+            "ci_high": 0.20439501011709094,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.15660377358490563
+          },
+          "score_icc": {
+            "ci_low": 0.19404703971118642,
+            "ci_high": 0.2822079738298653,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.22961404696600407
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.16806506066799892,
+            "ci_high": 0.33132327327549915,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.24810541013395093
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.15180539664956846,
+            "ci_high": 0.30170223630897847,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.2267924612306106
+          }
+        },
+        "logprob": {
+          "pooled_auc": {
+            "ci_low": 0.10988734168779125,
+            "ci_high": 0.1831708194571986,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.14584009227143246
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.074465631277223,
+            "ci_high": 0.1615555590074743,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.1174579106974799
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.09172535159897295,
+            "ci_high": 0.206824112457483,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.14531979458450062
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.10185064935064934,
+            "ci_high": 0.20323246950379112,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.15094339622641506
+          },
+          "score_icc": {
+            "ci_low": 0.20339780148495137,
+            "ci_high": 0.2897804642452191,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.23830832812202074
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.16212870090507922,
+            "ci_high": 0.3228911820068009,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.24221803635071176
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.1494913987258721,
+            "ci_high": 0.29420620104885037,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.2217527408129233
+          }
+        },
+        "length": {
+          "pooled_auc": {
+            "ci_low": 0.03211343541063762,
+            "ci_high": 0.08222327706417384,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.055433381123001446
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.015238712797991983,
+            "ci_high": 0.05723816206629828,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.03605040259332848
+          },
+          "within_prompt_macro": {
+            "ci_low": -0.01618686025812199,
+            "ci_high": 0.0355995119679934,
+            "n_valid": 200,
+            "p_two_sided": 0.5,
+            "point_estimate": 0.009943977591036601
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": -0.01598498108865688,
+            "ci_high": 0.03872730935421994,
+            "n_valid": 200,
+            "p_two_sided": 0.49,
+            "point_estimate": 0.01132075471698113
+          },
+          "score_icc": {
+            "ci_low": 0.07502343579403138,
+            "ci_high": 0.10822884642278098,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.09107525815982997
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.05685409443817486,
+            "ci_high": 0.13672585957280625,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.09337555366045991
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.059707009074330346,
+            "ci_high": 0.1448752152354718,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.09999710420854468
+          }
+        },
+        "activation_norm": {
+          "pooled_auc": {
+            "ci_low": 0.3391732570889643,
+            "ci_high": 0.48256711852837375,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.4136194292434601
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.20729291157914387,
+            "ci_high": 0.36980549045962635,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.2882332949911116
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.2523952196858125,
+            "ci_high": 0.44891759526391206,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.35621498599439794
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.2595497396218053,
+            "ci_high": 0.4495337781883043,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.3575471698113207
+          },
+          "score_icc": {
+            "ci_low": 0.06304083865065212,
+            "ci_high": 0.11441758548298918,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.08622970485788806
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.7155319100224674,
+            "ci_high": 0.9509885045254557,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.8443055253381402
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.5980241865617386,
+            "ci_high": 0.8556067135146489,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.7414247108890654
+          }
+        },
+        "centroid": {
+          "pooled_auc": {
+            "ci_low": 0.35347606744774496,
+            "ci_high": 0.5058954318576387,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.43211054203502874
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.11431913129977608,
+            "ci_high": 0.22181006711990203,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.16334440029279518
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.15137766595680424,
+            "ci_high": 0.28680774478657556,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.21089519140989754
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.1603258277508193,
+            "ci_high": 0.27687944780713813,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.21132075471698109
+          },
+          "score_icc": {
+            "ci_low": 0.013849436111698449,
+            "ci_high": 0.046032323999268245,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.029231561580332244
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.7619086323730039,
+            "ci_high": 1.0013207505144903,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.8922588172515726
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.6408511619829748,
+            "ci_high": 0.8867653550485219,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.775803266759429
+          }
+        },
+        "raw": {
+          "pooled_auc": {
+            "ci_low": 0.33270389508983855,
+            "ci_high": 0.4825192136183028,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.4129701239032629
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.014766897988057855,
+            "ci_high": 0.1624535288929771,
+            "n_valid": 200,
+            "p_two_sided": 0.03,
+            "point_estimate": 0.0911913102582872
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.0441674312492532,
+            "ci_high": 0.20273884952917345,
+            "n_valid": 200,
+            "p_two_sided": 0.01,
+            "point_estimate": 0.12440476190476213
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.05133972890805206,
+            "ci_high": 0.19564147697139014,
+            "n_valid": 200,
+            "p_two_sided": 0.01,
+            "point_estimate": 0.1264150943396226
+          },
+          "score_icc": {
+            "ci_low": -0.012808228247911502,
+            "ci_high": 0.019253840949888173,
+            "n_valid": 200,
+            "p_two_sided": 0.69,
+            "point_estimate": 0.002787535310041389
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.7214338635390009,
+            "ci_high": 0.9732639402007688,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.8547924986225779
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.593758075266371,
+            "ci_high": 0.8613238307769764,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.7325303861246093
+          }
+        },
+        "rmd_high_entropy_q20": {
+          "pooled_auc": {
+            "ci_low": 0.017702648051944825,
+            "ci_high": 0.03514258896061543,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.02692701301055833
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.008205446961490798,
+            "ci_high": 0.03893934965054255,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.021796245947924286
+          },
+          "within_prompt_macro": {
+            "ci_low": -0.01612490530303016,
+            "ci_high": 0.04610333450814544,
+            "n_valid": 200,
+            "p_two_sided": 0.41,
+            "point_estimate": 0.011998132586367838
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": -0.01092104185623303,
+            "ci_high": 0.033220658536200556,
+            "n_valid": 200,
+            "p_two_sided": 0.32,
+            "point_estimate": 0.012264150943396168
+          },
+          "score_icc": {
+            "ci_low": 0.00807594035531022,
+            "ci_high": 0.016610660992279962,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.012402711934699329
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.020953594500237472,
+            "ci_high": 0.057301609680006506,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.04067886998932585
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.02017072722252285,
+            "ci_high": 0.04891542779767152,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.03558912398949976
+          }
+        },
+        "rmd_tail_q20": {
+          "pooled_auc": {
+            "ci_low": -0.019128065148278833,
+            "ci_high": 0.009179277550175181,
+            "n_valid": 200,
+            "p_two_sided": 0.53,
+            "point_estimate": -0.004858980720327866
+          },
+          "prompt_centered_auc": {
+            "ci_low": -0.08888275402493187,
+            "ci_high": -0.04370643375922692,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": -0.06551291435741913
+          },
+          "within_prompt_macro": {
+            "ci_low": -0.04812059054764086,
+            "ci_high": 0.010839012390670364,
+            "n_valid": 200,
+            "p_two_sided": 0.18,
+            "point_estimate": -0.01984126984126966
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": -0.043477406787648304,
+            "ci_high": 0.004610850773430389,
+            "n_valid": 200,
+            "p_two_sided": 0.1,
+            "point_estimate": -0.020754716981132182
+          },
+          "score_icc": {
+            "ci_low": 0.05135594943512429,
+            "ci_high": 0.0835202041088802,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.06472047075915266
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": -0.04008918587871643,
+            "ci_high": 0.010359782397493729,
+            "n_valid": 200,
+            "p_two_sided": 0.23,
+            "point_estimate": -0.01498735250147698
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": -0.05812333377834266,
+            "ci_high": -0.011528301258365601,
+            "n_valid": 200,
+            "p_two_sided": 0.01,
+            "point_estimate": -0.03564254005757739
+          }
+        },
+        "rmd_random_q20": {
+          "pooled_auc": {
+            "ci_low": -0.0017817847684596128,
+            "ci_high": 0.0008996484530311464,
+            "n_valid": 200,
+            "p_two_sided": 0.4,
+            "point_estimate": -0.000540913840237911
+          },
+          "prompt_centered_auc": {
+            "ci_low": -0.006314537076656098,
+            "ci_high": 0.0034866512247297026,
+            "n_valid": 200,
+            "p_two_sided": 0.71,
+            "point_estimate": -0.0010522325630032414
+          },
+          "within_prompt_macro": {
+            "ci_low": -0.009012926706827337,
+            "ci_high": 0.012858721139971021,
+            "n_valid": 200,
+            "p_two_sided": 0.93,
+            "point_estimate": 0.0009161998132587446
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": -0.009148452157598509,
+            "ci_high": 0.01655098960137474,
+            "n_valid": 200,
+            "p_two_sided": 0.74,
+            "point_estimate": 0.002830188679245227
+          },
+          "score_icc": {
+            "ci_low": 0.0021212466513463703,
+            "ci_high": 0.004784828523018797,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.003394112702512886
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": -0.004089174897223359,
+            "ci_high": 0.0013261434645938169,
+            "n_valid": 200,
+            "p_two_sided": 0.24,
+            "point_estimate": -0.0015581120541078297
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": -0.002301177593009475,
+            "ci_high": 0.0011527220851396847,
+            "n_valid": 200,
+            "p_two_sided": 0.38,
+            "point_estimate": -0.0007430567348074013
+          }
+        },
+        "entropy_he": {
+          "pooled_auc": {
+            "ci_low": 0.31152967026538103,
+            "ci_high": 0.4495746399236776,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.3882306213293002
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.13243300580305384,
+            "ci_high": 0.3492631131789871,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.24483033566872325
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.23862529903784035,
+            "ci_high": 0.4657232392957182,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.35192577030812333
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.2356270700636942,
+            "ci_high": 0.45701782568345556,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.3499999999999999
+          },
+          "score_icc": {
+            "ci_low": 0.2457107346692751,
+            "ci_high": 0.3212094979841268,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.27958594468711073
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.6787860775093388,
+            "ci_high": 0.9368560438648986,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.8118939230105244
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.5885555933163231,
+            "ci_high": 0.8540655552473043,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.726793187156094
+          }
+        },
+        "logprob_he": {
+          "pooled_auc": {
+            "ci_low": 0.09612550472135242,
+            "ci_high": 0.16219505523380204,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.1279824808324468
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.06965682141179058,
+            "ci_high": 0.1600506420775191,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.11288952211649061
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.08233672810209351,
+            "ci_high": 0.19486225448525793,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.1333625116713354
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.08996421075558375,
+            "ci_high": 0.1922921033905802,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.14150943396226412
+          },
+          "score_icc": {
+            "ci_low": 0.26049179439505676,
+            "ci_high": 0.3353235002521113,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.2944299790849656
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.12810388672554285,
+            "ci_high": 0.2736041111223887,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.19868417233176727
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.12931260894607619,
+            "ci_high": 0.26103411557467837,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.1932730898203891
+          }
+        },
+        "prompt_local_rmd": {
+          "pooled_auc": {
+            "ci_low": 0.3356642105633666,
+            "ci_high": 0.4942395039760385,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.4180763028449563
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.043702027704414524,
+            "ci_high": 0.19357152658863283,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.11447767436996759
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.11251577572248059,
+            "ci_high": 0.2878866368701953,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.19583333333333341
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.10757637776191946,
+            "ci_high": 0.2614608845258578,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.17830188679245274
+          },
+          "score_icc": {
+            "ci_low": -0.025397138861744203,
+            "ci_high": 0.04878573204859573,
+            "n_valid": 200,
+            "p_two_sided": 0.51,
+            "point_estimate": 0.01244153717596752
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.7216178192013727,
+            "ci_high": 0.9826666104705644,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.8613381443450538
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.5947218160752675,
+            "ci_high": 0.8608326833357501,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.7343480210735174
+          }
+        },
+        "contrast_tail_q20": {
+          "pooled_auc": {
+            "ci_low": 0.22499312932384144,
+            "ci_high": 0.3358373804560137,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.28737106331614176
+          },
+          "prompt_centered_auc": {
+            "ci_low": 0.123749564381692,
+            "ci_high": 0.3574628871807237,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.24004627209034823
+          },
+          "within_prompt_macro": {
+            "ci_low": 0.24064915319782404,
+            "ci_high": 0.47440590281056244,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.3534138655462186
+          },
+          "within_prompt_pair_weighted": {
+            "ci_low": 0.24183286993170658,
+            "ci_high": 0.46909095265308154,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.36132075471698105
+          },
+          "score_icc": {
+            "ci_low": 0.2641936778622901,
+            "ci_high": 0.3581285543510356,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.3099604220942468
+          },
+          "prompt_score_pass_rate_spearman": {
+            "ci_low": 0.4460416579564205,
+            "ci_high": 0.6620026817844747,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.5678504370150163
+          },
+          "prompt_score_pass_rate_pearson": {
+            "ci_low": 0.43928870547570736,
+            "ci_high": 0.647197010397358,
+            "n_valid": 200,
+            "p_two_sided": 0.0,
+            "point_estimate": 0.5488189508996416
+          }
+        }
+      },
+      "paired_rmd_minus_raw": {
+        "pooled_auc": {
+          "ci_low": 0.33270389508983855,
+          "ci_high": 0.4825192136183028,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.4129701239032629
+        },
+        "prompt_centered_auc": {
+          "ci_low": 0.014766897988057855,
+          "ci_high": 0.1624535288929771,
+          "n_valid": 200,
+          "p_two_sided": 0.03,
+          "point_estimate": 0.0911913102582872
+        },
+        "within_prompt_macro": {
+          "ci_low": 0.0441674312492532,
+          "ci_high": 0.20273884952917345,
+          "n_valid": 200,
+          "p_two_sided": 0.01,
+          "point_estimate": 0.12440476190476213
+        },
+        "within_prompt_pair_weighted": {
+          "ci_low": 0.05133972890805206,
+          "ci_high": 0.19564147697139014,
+          "n_valid": 200,
+          "p_two_sided": 0.01,
+          "point_estimate": 0.1264150943396226
+        },
+        "score_icc": {
+          "ci_low": -0.012808228247911502,
+          "ci_high": 0.019253840949888173,
+          "n_valid": 200,
+          "p_two_sided": 0.69,
+          "point_estimate": 0.002787535310041389
+        },
+        "prompt_score_pass_rate_spearman": {
+          "ci_low": 0.7214338635390009,
+          "ci_high": 0.9732639402007688,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.8547924986225779
+        },
+        "prompt_score_pass_rate_pearson": {
+          "ci_low": 0.593758075266371,
+          "ci_high": 0.8613238307769764,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.7325303861246093
+        }
+      },
+      "paired_rmd_minus_length": {
+        "pooled_auc": {
+          "ci_low": 0.03211343541063762,
+          "ci_high": 0.08222327706417384,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.055433381123001446
+        },
+        "prompt_centered_auc": {
+          "ci_low": 0.015238712797991983,
+          "ci_high": 0.05723816206629828,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.03605040259332848
+        },
+        "within_prompt_macro": {
+          "ci_low": -0.01618686025812199,
+          "ci_high": 0.0355995119679934,
+          "n_valid": 200,
+          "p_two_sided": 0.5,
+          "point_estimate": 0.009943977591036601
+        },
+        "within_prompt_pair_weighted": {
+          "ci_low": -0.01598498108865688,
+          "ci_high": 0.03872730935421994,
+          "n_valid": 200,
+          "p_two_sided": 0.49,
+          "point_estimate": 0.01132075471698113
+        },
+        "score_icc": {
+          "ci_low": 0.07502343579403138,
+          "ci_high": 0.10822884642278098,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.09107525815982997
+        },
+        "prompt_score_pass_rate_spearman": {
+          "ci_low": 0.05685409443817486,
+          "ci_high": 0.13672585957280625,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.09337555366045991
+        },
+        "prompt_score_pass_rate_pearson": {
+          "ci_low": 0.059707009074330346,
+          "ci_high": 0.1448752152354718,
+          "n_valid": 200,
+          "p_two_sided": 0.0,
+          "point_estimate": 0.09999710420854468
+        }
+      },
+      "truncation": {
+        "n_traces": 4000,
+        "max_new_tokens": 8192,
+        "cap_provenance": "confirmed by dvc.lock, dvc.yaml/params.yaml",
+        "n_unparsed": 351,
+        "unparsed_rate": 0.08775,
+        "n_capped": 374,
+        "capped_rate": 0.0935,
+        "n_unparsed_and_incorrect": 351,
+        "unparsed_share_of_incorrect": 0.29347826086956524
+      },
+      "parseable_only": {
+        "n_parseable_traces": 3649,
+        "methods": {
+          "entropy": {
+            "within_prompt_macro": 0.4684037900874635,
+            "within_prompt_pair_weighted": 0.4621026894865526,
+            "prompt_centered_auc": 0.4588018810059292,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "logprob": {
+            "within_prompt_macro": 0.4784013605442176,
+            "within_prompt_pair_weighted": 0.4767726161369193,
+            "prompt_centered_auc": 0.46156205274994894,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "length": {
+            "within_prompt_macro": 0.4365281827016521,
+            "within_prompt_pair_weighted": 0.43643031784841074,
+            "prompt_centered_auc": 0.4409629932529135,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "activation_norm": {
+            "within_prompt_macro": 0.47439261418853257,
+            "within_prompt_pair_weighted": 0.4547677261613692,
+            "prompt_centered_auc": 0.42251073400122674,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "centroid": {
+            "within_prompt_macro": 0.4422133138969874,
+            "within_prompt_pair_weighted": 0.4229828850855746,
+            "prompt_centered_auc": 0.4290192871260138,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "raw": {
+            "within_prompt_macro": 0.5625971817298347,
+            "within_prompt_pair_weighted": 0.5623471882640587,
+            "prompt_centered_auc": 0.5416751857152593,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "rmd": {
+            "within_prompt_macro": 0.4733236151603499,
+            "within_prompt_pair_weighted": 0.4718826405867971,
+            "prompt_centered_auc": 0.4467048320043618,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "rmd_high_entropy_q20": {
+            "within_prompt_macro": 0.5074708454810495,
+            "within_prompt_pair_weighted": 0.49877750611246946,
+            "prompt_centered_auc": 0.45113473727254144,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "rmd_tail_q20": {
+            "within_prompt_macro": 0.4609815354713314,
+            "within_prompt_pair_weighted": 0.4621026894865526,
+            "prompt_centered_auc": 0.466912015266135,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "rmd_random_q20": {
+            "within_prompt_macro": 0.45637755102040817,
+            "within_prompt_pair_weighted": 0.4547677261613692,
+            "prompt_centered_auc": 0.45014652763579366,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "entropy_he": {
+            "within_prompt_macro": 0.5277696793002916,
+            "within_prompt_pair_weighted": 0.5281173594132029,
+            "prompt_centered_auc": 0.5389150139712396,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "logprob_he": {
+            "within_prompt_macro": 0.4842322643343051,
+            "within_prompt_pair_weighted": 0.49144254278728605,
+            "prompt_centered_auc": 0.4600627001976419,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "prompt_local_rmd": {
+            "within_prompt_macro": 0.5046161321671525,
+            "within_prompt_pair_weighted": 0.4767726161369193,
+            "prompt_centered_auc": 0.5094391058406598,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "contrast_tail_q20": {
+            "within_prompt_macro": 0.47713799805636536,
+            "within_prompt_pair_weighted": 0.4938875305623472,
+            "prompt_centered_auc": 0.5360866898384788,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_outputs": {
+            "within_prompt_macro": 0.4744533527696793,
+            "within_prompt_pair_weighted": 0.4792176039119804,
+            "prompt_centered_auc": 0.48357527431336467,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_outputs_plus_rmd_high_entropy_q20": {
+            "within_prompt_macro": 0.45059523809523805,
+            "within_prompt_pair_weighted": 0.46943765281173594,
+            "prompt_centered_auc": 0.47386355891774,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_b0": {
+            "within_prompt_macro": 0.4744533527696793,
+            "within_prompt_pair_weighted": 0.4792176039119804,
+            "prompt_centered_auc": 0.48357527431336467,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_b1": {
+            "within_prompt_macro": 0.45607385811467444,
+            "within_prompt_pair_weighted": 0.46454767726161367,
+            "prompt_centered_auc": 0.4737954065289989,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_g_he": {
+            "within_prompt_macro": 0.43192419825072886,
+            "within_prompt_pair_weighted": 0.45232273838630804,
+            "prompt_centered_auc": 0.4632658624684795,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_g_random": {
+            "within_prompt_macro": 0.4225340136054422,
+            "within_prompt_pair_weighted": 0.43765281173594134,
+            "prompt_centered_auc": 0.46490151979826894,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          },
+          "probe_hidden_tail_q20": {
+            "within_prompt_macro": 0.5713556851311953,
+            "within_prompt_pair_weighted": 0.5501222493887531,
+            "prompt_centered_auc": 0.5406869760785116,
+            "n_mixed_prompts": 49,
+            "n_within_prompt_pairs": 409
+          }
+        },
+        "paired_score_deltas": {
+          "rmd_high_entropy_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.018622937109274835,
+              "ci_high": 0.02585627780306717,
+              "n_valid": 200,
+              "point_estimate": 0.004429905268179657,
+              "p_two_sided": 0.73
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.003593061317085843,
+              "ci_high": 0.07659813433688153,
+              "n_valid": 200,
+              "point_estimate": 0.034147230320699606,
+              "p_two_sided": 0.09
+            }
+          },
+          "rmd_tail_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.01579866239296423,
+              "ci_high": 0.058535817568920324,
+              "n_valid": 200,
+              "point_estimate": 0.02020718326177323,
+              "p_two_sided": 0.31
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.06891931216931214,
+              "ci_high": 0.045406746031746076,
+              "n_valid": 200,
+              "point_estimate": -0.01234207968901846,
+              "p_two_sided": 0.55
+            }
+          },
+          "contrast_tail_q20_minus_rmd_tail_q20": {
+            "prompt_centered_auc": {
+              "ci_low": -0.08045150550541556,
+              "ci_high": 0.21863547815295092,
+              "n_valid": 200,
+              "point_estimate": 0.06917467457234383,
+              "p_two_sided": 0.42
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.1488794201472963,
+              "ci_high": 0.1613280573593073,
+              "n_valid": 200,
+              "point_estimate": 0.01615646258503395,
+              "p_two_sided": 0.94
+            }
+          },
+          "rmd_high_entropy_q20_minus_rmd_random_q20": {
+            "prompt_centered_auc": {
+              "ci_low": -0.023659939943469592,
+              "ci_high": 0.024412325841909943,
+              "n_valid": 200,
+              "point_estimate": 0.0009882096367477833,
+              "p_two_sided": 0.98
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.010390944839474215,
+              "ci_high": 0.09220622579175214,
+              "n_valid": 200,
+              "point_estimate": 0.051093294460641314,
+              "p_two_sided": 0.01
+            }
+          },
+          "rmd_high_entropy_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.048507178326323175,
+              "ci_high": 0.04071957770504945,
+              "n_valid": 200,
+              "point_estimate": -0.010427315477407495,
+              "p_two_sided": 0.68
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.0260825027685493,
+              "ci_high": 0.08868055555555551,
+              "n_valid": 200,
+              "point_estimate": 0.02906948493683187,
+              "p_two_sided": 0.32
+            }
+          },
+          "rmd_tail_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.049175550081268574,
+              "ci_high": 0.067285578129356,
+              "n_valid": 200,
+              "point_estimate": 0.00534996251618608,
+              "p_two_sided": 0.79
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.10140722049689424,
+              "ci_high": 0.07549453043929442,
+              "n_valid": 200,
+              "point_estimate": -0.017419825072886197,
+              "p_two_sided": 0.71
+            }
+          },
+          "contrast_tail_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.0835251070102026,
+              "ci_high": 0.23642185983190164,
+              "n_valid": 200,
+              "point_estimate": 0.07452463708852991,
+              "p_two_sided": 0.41
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.18005314625850335,
+              "ci_high": 0.16911949303530954,
+              "n_valid": 200,
+              "point_estimate": -0.0012633624878522487,
+              "p_two_sided": 0.94
+            }
+          },
+          "probe_outputs_plus_rmd_high_entropy_q20_minus_probe_outputs": {
+            "prompt_centered_auc": {
+              "ci_low": -0.028280291311821287,
+              "ci_high": 0.004877104775344646,
+              "n_valid": 200,
+              "point_estimate": -0.009711715395624654,
+              "p_two_sided": 0.21
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.05671083603896111,
+              "ci_high": 0.008037524131274102,
+              "n_valid": 200,
+              "point_estimate": -0.023858114674441266,
+              "p_two_sided": 0.18
+            }
+          },
+          "contrast_tail_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.08341159738776645,
+              "ci_high": 0.26208167777644953,
+              "n_valid": 200,
+              "point_estimate": 0.08938185783411706,
+              "p_two_sided": 0.37
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.17860895445134584,
+              "ci_high": 0.16413581210456232,
+              "n_valid": 200,
+              "point_estimate": 0.003814382896015489,
+              "p_two_sided": 0.96
+            }
+          },
+          "rmd_random_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.006836968547494942,
+              "ci_high": 0.015396328671066179,
+              "n_valid": 200,
+              "point_estimate": 0.0034416956314318736,
+              "p_two_sided": 0.58
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.038076339285714314,
+              "ci_high": 0.005921111626468785,
+              "n_valid": 200,
+              "point_estimate": -0.016946064139941708,
+              "p_two_sided": 0.14
+            }
+          },
+          "rmd_random_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.05212111801242235,
+              "ci_high": 0.03717068173907193,
+              "n_valid": 200,
+              "point_estimate": -0.011415525114155278,
+              "p_two_sided": 0.74
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.08373124189018634,
+              "ci_high": 0.04479190716690718,
+              "n_valid": 200,
+              "point_estimate": -0.022023809523809446,
+              "p_two_sided": 0.6
+            }
+          }
+        },
+        "e2_paired_score_deltas": {
+          "probe_g_he_minus_probe_b1": {
+            "prompt_centered_auc": {
+              "ci_low": -0.02596075881680168,
+              "ci_high": 0.009096151777223355,
+              "n_valid": 200,
+              "point_estimate": -0.010529544060519369,
+              "p_two_sided": 0.24
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.06620673635307776,
+              "ci_high": 0.009436079309772697,
+              "n_valid": 200,
+              "point_estimate": -0.024149659863945572,
+              "p_two_sided": 0.2
+            }
+          },
+          "probe_g_he_minus_probe_g_random": {
+            "prompt_centered_auc": {
+              "ci_low": -0.01740845418802769,
+              "ci_high": 0.01367244509847807,
+              "n_valid": 200,
+              "point_estimate": -0.0016356573297894306,
+              "p_two_sided": 0.86
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.03884706857755474,
+              "ci_high": 0.04309341593780373,
+              "n_valid": 200,
+              "point_estimate": 0.009390184645286681,
+              "p_two_sided": 0.69
+            }
+          }
+        },
+        "hidden_probe_paired_deltas": {
+          "probe_hidden_tail_q20_minus_rmd_tail_q20": {
+            "prompt_centered_auc": {
+              "ci_low": 0.008118222243448105,
+              "ci_high": 0.14617055798046777,
+              "n_valid": 200,
+              "point_estimate": 0.07377496081237656,
+              "p_two_sided": 0.03
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.00299875192012288,
+              "ci_high": 0.20972328664552511,
+              "n_valid": 200,
+              "point_estimate": 0.11037414965986386,
+              "p_two_sided": 0.07
+            }
+          },
+          "probe_hidden_tail_q20_minus_length": {
+            "prompt_centered_auc": {
+              "ci_low": 0.026549956554641645,
+              "ci_high": 0.18166099803902083,
+              "n_valid": 200,
+              "point_estimate": 0.09972398282559808,
+              "p_two_sided": 0.0
+            },
+            "within_prompt_macro": {
+              "ci_low": 0.02813525747508306,
+              "ci_high": 0.2486190233566252,
+              "n_valid": 200,
+              "point_estimate": 0.13482750242954317,
+              "p_two_sided": 0.01
+            }
+          }
+        },
+        "length_collapse": {
+          "probe_hidden_tail_q20": {
+            "spearman": 0.2226508822490066,
+            "pearson": 0.1866748471126033,
+            "n": 3649
+          },
+          "rmd": {
+            "spearman": 0.8198976734859861,
+            "pearson": 0.8403558566587889,
+            "n": 3649
+          },
+          "rmd_tail_q20": {
+            "spearman": 0.8047628650989562,
+            "pearson": 0.8272560107966545,
+            "n": 3649
+          },
+          "rmd_high_entropy_q20": {
+            "spearman": 0.8078951246810074,
+            "pearson": 0.8231100618279569,
+            "n": 3649
+          },
+          "entropy": {
+            "spearman": 0.35027982533386476,
+            "pearson": 0.4002730054424997,
+            "n": 3649
+          },
+          "logprob": {
+            "spearman": 0.3689765039265069,
+            "pearson": 0.41969427984068053,
+            "n": 3649
+          }
+        },
+        "paired_contrastive_deltas": {
+          "rmd_high_entropy_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.018622937109274835,
+              "ci_high": 0.02585627780306717,
+              "n_valid": 200,
+              "point_estimate": 0.004429905268179657,
+              "p_two_sided": 0.73
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.003593061317085843,
+              "ci_high": 0.07659813433688153,
+              "n_valid": 200,
+              "point_estimate": 0.034147230320699606,
+              "p_two_sided": 0.09
+            }
+          },
+          "rmd_tail_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.01579866239296423,
+              "ci_high": 0.058535817568920324,
+              "n_valid": 200,
+              "point_estimate": 0.02020718326177323,
+              "p_two_sided": 0.31
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.06891931216931214,
+              "ci_high": 0.045406746031746076,
+              "n_valid": 200,
+              "point_estimate": -0.01234207968901846,
+              "p_two_sided": 0.55
+            }
+          },
+          "contrast_tail_q20_minus_rmd_tail_q20": {
+            "prompt_centered_auc": {
+              "ci_low": -0.08045150550541556,
+              "ci_high": 0.21863547815295092,
+              "n_valid": 200,
+              "point_estimate": 0.06917467457234383,
+              "p_two_sided": 0.42
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.1488794201472963,
+              "ci_high": 0.1613280573593073,
+              "n_valid": 200,
+              "point_estimate": 0.01615646258503395,
+              "p_two_sided": 0.94
+            }
+          },
+          "rmd_high_entropy_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.048507178326323175,
+              "ci_high": 0.04071957770504945,
+              "n_valid": 200,
+              "point_estimate": -0.010427315477407495,
+              "p_two_sided": 0.68
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.0260825027685493,
+              "ci_high": 0.08868055555555551,
+              "n_valid": 200,
+              "point_estimate": 0.02906948493683187,
+              "p_two_sided": 0.32
+            }
+          },
+          "rmd_tail_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.049175550081268574,
+              "ci_high": 0.067285578129356,
+              "n_valid": 200,
+              "point_estimate": 0.00534996251618608,
+              "p_two_sided": 0.79
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.10140722049689424,
+              "ci_high": 0.07549453043929442,
+              "n_valid": 200,
+              "point_estimate": -0.017419825072886197,
+              "p_two_sided": 0.71
+            }
+          },
+          "contrast_tail_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.0835251070102026,
+              "ci_high": 0.23642185983190164,
+              "n_valid": 200,
+              "point_estimate": 0.07452463708852991,
+              "p_two_sided": 0.41
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.18005314625850335,
+              "ci_high": 0.16911949303530954,
+              "n_valid": 200,
+              "point_estimate": -0.0012633624878522487,
+              "p_two_sided": 0.94
+            }
+          },
+          "contrast_tail_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.08341159738776645,
+              "ci_high": 0.26208167777644953,
+              "n_valid": 200,
+              "point_estimate": 0.08938185783411706,
+              "p_two_sided": 0.37
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.17860895445134584,
+              "ci_high": 0.16413581210456232,
+              "n_valid": 200,
+              "point_estimate": 0.003814382896015489,
+              "p_two_sided": 0.96
+            }
+          },
+          "rmd_random_q20_minus_rmd": {
+            "prompt_centered_auc": {
+              "ci_low": -0.006836968547494942,
+              "ci_high": 0.015396328671066179,
+              "n_valid": 200,
+              "point_estimate": 0.0034416956314318736,
+              "p_two_sided": 0.58
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.038076339285714314,
+              "ci_high": 0.005921111626468785,
+              "n_valid": 200,
+              "point_estimate": -0.016946064139941708,
+              "p_two_sided": 0.14
+            }
+          },
+          "rmd_random_q20_minus_logprob": {
+            "prompt_centered_auc": {
+              "ci_low": -0.05212111801242235,
+              "ci_high": 0.03717068173907193,
+              "n_valid": 200,
+              "point_estimate": -0.011415525114155278,
+              "p_two_sided": 0.74
+            },
+            "within_prompt_macro": {
+              "ci_low": -0.08373124189018634,
+              "ci_high": 0.04479190716690718,
+              "n_valid": 200,
+              "point_estimate": -0.022023809523809446,
+              "p_two_sided": 0.6
+            }
+          }
+        }
+      }
+    }
+  },
+  "contrastive": {
+    "regions": [
+      "tail_q20"
+    ],
+    "n_alignment_shuffles": 0,
+    "alignment_seed": 42,
+    "region_seed": 42,
+    "alignment_diagnostics": [
+      {
+        "fold": 0,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_prompt_vectors": 40,
+        "skipped_prompts": {
+          "1": "no_parseable_incorrect",
+          "3": "no_incorrect",
+          "4": "no_correct",
+          "6": "no_incorrect",
+          "7": "no_correct",
+          "8": "no_incorrect",
+          "10": "no_parseable_incorrect",
+          "12": "no_incorrect",
+          "13": "no_incorrect",
+          "14": "no_incorrect",
+          "16": "no_incorrect",
+          "17": "no_parseable_incorrect",
+          "19": "no_incorrect",
+          "20": "no_incorrect",
+          "21": "no_parseable_incorrect",
+          "23": "no_correct",
+          "24": "no_incorrect",
+          "25": "no_correct",
+          "26": "no_correct",
+          "27": "no_incorrect",
+          "28": "no_incorrect",
+          "29": "no_incorrect",
+          "31": "no_correct",
+          "32": "no_parseable_incorrect",
+          "34": "no_incorrect",
+          "35": "no_incorrect",
+          "36": "no_correct",
+          "37": "no_incorrect",
+          "40": "no_incorrect",
+          "41": "no_parseable_incorrect",
+          "42": "no_incorrect",
+          "44": "no_incorrect",
+          "45": "no_incorrect",
+          "47": "no_incorrect",
+          "49": "no_parseable_incorrect",
+          "50": "no_incorrect",
+          "51": "no_incorrect",
+          "52": "no_incorrect",
+          "54": "no_incorrect",
+          "56": "no_incorrect",
+          "57": "no_incorrect",
+          "58": "no_incorrect",
+          "59": "no_incorrect",
+          "60": "no_incorrect",
+          "61": "no_parseable_incorrect",
+          "62": "no_incorrect",
+          "64": "no_correct",
+          "65": "no_incorrect",
+          "66": "no_incorrect",
+          "67": "no_correct",
+          "74": "no_incorrect",
+          "80": "no_parseable_incorrect",
+          "81": "no_incorrect",
+          "83": "no_incorrect",
+          "85": "no_incorrect",
+          "87": "no_incorrect",
+          "89": "no_incorrect",
+          "91": "no_incorrect",
+          "92": "no_correct",
+          "94": "no_correct",
+          "95": "no_incorrect",
+          "96": "no_correct",
+          "98": "no_incorrect",
+          "99": "no_correct",
+          "100": "no_correct",
+          "102": "no_incorrect",
+          "103": "no_parseable_incorrect",
+          "105": "no_incorrect",
+          "106": "no_correct",
+          "107": "no_incorrect",
+          "108": "no_parseable_incorrect",
+          "109": "no_correct",
+          "110": "no_correct",
+          "111": "no_incorrect",
+          "112": "no_incorrect",
+          "113": "no_incorrect",
+          "114": "no_incorrect",
+          "115": "no_incorrect",
+          "116": "no_incorrect",
+          "117": "no_incorrect",
+          "118": "no_incorrect",
+          "119": "no_parseable_incorrect",
+          "120": "no_correct",
+          "121": "no_incorrect",
+          "122": "no_incorrect",
+          "123": "no_incorrect",
+          "125": "no_incorrect",
+          "126": "no_parseable_incorrect",
+          "127": "no_correct",
+          "129": "no_correct",
+          "130": "no_incorrect",
+          "132": "no_incorrect",
+          "133": "no_incorrect",
+          "134": "no_incorrect",
+          "135": "no_incorrect",
+          "136": "no_parseable_incorrect",
+          "137": "no_incorrect",
+          "138": "no_correct",
+          "139": "no_parseable_incorrect",
+          "140": "no_incorrect",
+          "142": "no_incorrect",
+          "143": "no_incorrect",
+          "144": "no_incorrect",
+          "146": "no_correct",
+          "147": "no_parseable_incorrect",
+          "149": "no_parseable_incorrect",
+          "150": "no_incorrect",
+          "151": "no_incorrect",
+          "152": "no_parseable_incorrect",
+          "153": "no_correct",
+          "156": "no_correct",
+          "157": "no_correct",
+          "158": "no_incorrect",
+          "159": "no_incorrect",
+          "160": "no_incorrect",
+          "161": "no_incorrect",
+          "162": "no_incorrect",
+          "163": "no_correct",
+          "164": "no_parseable_incorrect",
+          "165": "no_correct",
+          "166": "no_correct",
+          "167": "no_incorrect",
+          "169": "no_incorrect",
+          "170": "no_parseable_incorrect",
+          "174": "no_incorrect",
+          "175": "no_incorrect",
+          "176": "no_correct",
+          "177": "no_correct",
+          "178": "no_incorrect",
+          "179": "no_incorrect",
+          "181": "no_correct",
+          "183": "no_incorrect",
+          "186": "no_incorrect",
+          "187": "no_incorrect",
+          "188": "no_incorrect",
+          "189": "no_parseable_incorrect",
+          "190": "no_correct",
+          "191": "no_incorrect",
+          "192": "no_incorrect",
+          "195": "no_incorrect",
+          "196": "no_incorrect",
+          "197": "no_incorrect",
+          "198": "no_correct",
+          "199": "no_incorrect",
+          "200": "no_parseable_incorrect",
+          "201": "no_incorrect",
+          "202": "no_correct",
+          "203": "no_incorrect",
+          "205": "no_incorrect",
+          "206": "no_correct",
+          "207": "no_incorrect",
+          "208": "no_incorrect",
+          "210": "no_incorrect",
+          "212": "no_incorrect",
+          "213": "no_parseable_incorrect",
+          "215": "no_incorrect",
+          "217": "no_correct",
+          "218": "no_incorrect",
+          "219": "no_correct",
+          "220": "no_correct",
+          "221": "no_incorrect",
+          "222": "no_parseable_incorrect",
+          "223": "no_incorrect",
+          "224": "no_correct",
+          "225": "no_incorrect",
+          "226": "no_incorrect",
+          "227": "no_correct",
+          "229": "no_incorrect",
+          "230": "no_correct",
+          "231": "no_incorrect",
+          "232": "no_correct",
+          "233": "no_correct",
+          "234": "no_incorrect",
+          "235": "no_correct",
+          "236": "no_correct",
+          "237": "no_incorrect",
+          "239": "no_incorrect",
+          "240": "no_correct",
+          "241": "no_incorrect",
+          "242": "no_correct",
+          "243": "no_incorrect",
+          "244": "no_incorrect",
+          "245": "no_incorrect",
+          "247": "no_correct",
+          "248": "no_incorrect",
+          "249": "no_incorrect",
+          "250": "no_incorrect",
+          "251": "no_incorrect",
+          "252": "no_incorrect",
+          "253": "no_correct",
+          "254": "no_incorrect",
+          "255": "no_correct",
+          "256": "no_correct",
+          "257": "no_correct",
+          "258": "no_incorrect",
+          "259": "no_incorrect",
+          "260": "no_correct",
+          "261": "no_correct",
+          "263": "no_incorrect",
+          "264": "no_correct",
+          "265": "no_incorrect",
+          "266": "no_incorrect",
+          "267": "no_correct",
+          "269": "no_incorrect",
+          "270": "no_incorrect",
+          "271": "no_incorrect",
+          "273": "no_incorrect",
+          "274": "no_parseable_incorrect",
+          "275": "no_incorrect",
+          "276": "no_incorrect",
+          "279": "no_incorrect",
+          "281": "no_correct",
+          "282": "no_incorrect",
+          "283": "no_incorrect",
+          "284": "no_correct",
+          "285": "no_parseable_incorrect",
+          "286": "no_correct",
+          "287": "no_incorrect",
+          "288": "no_incorrect",
+          "289": "no_incorrect",
+          "291": "no_incorrect",
+          "292": "no_incorrect",
+          "294": "no_incorrect",
+          "296": "no_correct",
+          "297": "no_incorrect",
+          "298": "no_incorrect",
+          "299": "no_parseable_incorrect",
+          "300": "no_incorrect",
+          "301": "no_correct",
+          "302": "no_parseable_incorrect",
+          "305": "no_correct",
+          "307": "no_incorrect",
+          "308": "no_parseable_incorrect",
+          "309": "no_parseable_incorrect",
+          "310": "no_incorrect",
+          "311": "no_incorrect",
+          "313": "no_incorrect",
+          "315": "no_incorrect",
+          "319": "no_incorrect",
+          "320": "no_correct",
+          "322": "no_incorrect",
+          "325": "no_incorrect",
+          "326": "no_correct",
+          "327": "no_parseable_incorrect",
+          "328": "no_incorrect",
+          "330": "no_incorrect",
+          "331": "no_correct",
+          "332": "no_parseable_incorrect",
+          "335": "no_incorrect",
+          "337": "no_incorrect",
+          "339": "no_incorrect",
+          "340": "no_correct",
+          "342": "no_incorrect",
+          "343": "no_correct",
+          "344": "no_incorrect",
+          "345": "no_incorrect",
+          "346": "no_incorrect",
+          "348": "no_incorrect",
+          "349": "no_parseable_incorrect",
+          "350": "no_incorrect",
+          "351": "no_correct",
+          "353": "no_incorrect",
+          "354": "no_incorrect",
+          "355": "no_incorrect",
+          "357": "no_incorrect",
+          "359": "no_incorrect",
+          "360": "no_correct",
+          "363": "no_incorrect",
+          "364": "no_incorrect",
+          "365": "no_parseable_incorrect",
+          "366": "no_incorrect",
+          "367": "no_incorrect",
+          "368": "no_incorrect",
+          "370": "no_incorrect",
+          "373": "no_incorrect",
+          "375": "no_incorrect",
+          "376": "no_incorrect",
+          "378": "no_incorrect",
+          "380": "no_incorrect",
+          "382": "no_correct",
+          "383": "no_correct",
+          "386": "no_incorrect",
+          "387": "no_incorrect",
+          "389": "no_correct",
+          "390": "no_incorrect",
+          "392": "no_correct",
+          "393": "no_correct",
+          "395": "no_incorrect",
+          "396": "no_incorrect",
+          "397": "no_incorrect",
+          "398": "no_correct",
+          "399": "no_incorrect",
+          "400": "no_correct",
+          "401": "no_correct",
+          "402": "no_incorrect",
+          "403": "no_incorrect",
+          "404": "no_incorrect",
+          "405": "no_incorrect",
+          "407": "no_incorrect",
+          "411": "no_incorrect",
+          "412": "no_parseable_incorrect",
+          "413": "no_incorrect",
+          "416": "no_correct",
+          "417": "no_incorrect",
+          "418": "no_incorrect",
+          "419": "no_incorrect",
+          "420": "no_correct",
+          "421": "no_parseable_incorrect",
+          "422": "no_correct",
+          "423": "no_incorrect",
+          "424": "no_incorrect",
+          "426": "no_incorrect",
+          "427": "no_parseable_incorrect",
+          "428": "no_incorrect",
+          "429": "no_incorrect",
+          "430": "no_incorrect",
+          "432": "no_parseable_incorrect",
+          "433": "no_correct",
+          "434": "no_incorrect",
+          "435": "no_incorrect",
+          "436": "no_incorrect",
+          "437": "no_incorrect",
+          "439": "no_incorrect",
+          "442": "no_incorrect",
+          "443": "no_incorrect",
+          "444": "no_correct",
+          "445": "no_parseable_incorrect",
+          "446": "no_incorrect",
+          "447": "no_parseable_incorrect",
+          "448": "no_incorrect",
+          "449": "no_incorrect",
+          "452": "no_incorrect",
+          "453": "no_incorrect",
+          "454": "no_incorrect",
+          "456": "no_correct",
+          "457": "no_incorrect",
+          "458": "no_incorrect",
+          "459": "no_correct",
+          "460": "no_correct",
+          "462": "no_incorrect",
+          "463": "no_incorrect",
+          "464": "no_incorrect",
+          "467": "no_correct",
+          "469": "no_incorrect",
+          "470": "no_incorrect",
+          "471": "no_incorrect",
+          "473": "no_parseable_incorrect",
+          "474": "no_incorrect",
+          "478": "no_correct",
+          "479": "no_incorrect",
+          "480": "no_incorrect",
+          "481": "no_parseable_incorrect",
+          "484": "no_incorrect",
+          "486": "no_parseable_incorrect",
+          "487": "no_incorrect",
+          "488": "no_correct",
+          "489": "no_incorrect",
+          "492": "no_incorrect",
+          "493": "no_incorrect",
+          "496": "no_correct"
+        },
+        "observed_alignment": 0.18014068274524833,
+        "observed_pairwise_cosine": 0.007641708287101755,
+        "null": {
+          "mean": null,
+          "ci_low": null,
+          "ci_high": null,
+          "p_value": null,
+          "n_valid": 0
+        }
+      },
+      {
+        "fold": 1,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_prompt_vectors": 41,
+        "skipped_prompts": {
+          "0": "no_correct",
+          "1": "no_parseable_incorrect",
+          "2": "no_correct",
+          "4": "no_correct",
+          "6": "no_incorrect",
+          "8": "no_incorrect",
+          "10": "no_parseable_incorrect",
+          "11": "no_correct",
+          "12": "no_incorrect",
+          "13": "no_incorrect",
+          "14": "no_incorrect",
+          "15": "no_incorrect",
+          "18": "no_parseable_incorrect",
+          "20": "no_incorrect",
+          "21": "no_parseable_incorrect",
+          "22": "no_parseable_incorrect",
+          "27": "no_incorrect",
+          "28": "no_incorrect",
+          "30": "no_incorrect",
+          "32": "no_parseable_incorrect",
+          "33": "no_correct",
+          "34": "no_incorrect",
+          "35": "no_incorrect",
+          "36": "no_correct",
+          "39": "no_incorrect",
+          "40": "no_incorrect",
+          "41": "no_parseable_incorrect",
+          "44": "no_incorrect",
+          "46": "no_incorrect",
+          "47": "no_incorrect",
+          "49": "no_parseable_incorrect",
+          "50": "no_incorrect",
+          "51": "no_incorrect",
+          "52": "no_incorrect",
+          "54": "no_incorrect",
+          "55": "no_incorrect",
+          "58": "no_incorrect",
+          "59": "no_incorrect",
+          "61": "no_parseable_incorrect",
+          "62": "no_incorrect",
+          "63": "no_incorrect",
+          "64": "no_correct",
+          "65": "no_incorrect",
+          "68": "no_incorrect",
+          "69": "no_incorrect",
+          "70": "no_incorrect",
+          "72": "no_incorrect",
+          "73": "no_correct",
+          "74": "no_incorrect",
+          "75": "no_correct",
+          "76": "no_incorrect",
+          "77": "no_parseable_incorrect",
+          "78": "no_incorrect",
+          "79": "no_incorrect",
+          "80": "no_parseable_incorrect",
+          "81": "no_incorrect",
+          "82": "no_correct",
+          "83": "no_incorrect",
+          "84": "no_incorrect",
+          "85": "no_incorrect",
+          "86": "no_incorrect",
+          "87": "no_incorrect",
+          "89": "no_incorrect",
+          "91": "no_incorrect",
+          "93": "no_incorrect",
+          "95": "no_incorrect",
+          "96": "no_correct",
+          "98": "no_incorrect",
+          "99": "no_correct",
+          "100": "no_correct",
+          "102": "no_incorrect",
+          "103": "no_parseable_incorrect",
+          "104": "no_parseable_incorrect",
+          "105": "no_incorrect",
+          "106": "no_correct",
+          "107": "no_incorrect",
+          "111": "no_incorrect",
+          "112": "no_incorrect",
+          "115": "no_incorrect",
+          "119": "no_parseable_incorrect",
+          "120": "no_correct",
+          "121": "no_incorrect",
+          "122": "no_incorrect",
+          "123": "no_incorrect",
+          "124": "no_correct",
+          "125": "no_incorrect",
+          "127": "no_correct",
+          "129": "no_correct",
+          "130": "no_incorrect",
+          "131": "no_incorrect",
+          "133": "no_incorrect",
+          "134": "no_incorrect",
+          "135": "no_incorrect",
+          "136": "no_parseable_incorrect",
+          "138": "no_correct",
+          "139": "no_parseable_incorrect",
+          "142": "no_incorrect",
+          "143": "no_incorrect",
+          "146": "no_correct",
+          "147": "no_parseable_incorrect",
+          "148": "no_incorrect",
+          "149": "no_parseable_incorrect",
+          "150": "no_incorrect",
+          "151": "no_incorrect",
+          "154": "no_correct",
+          "155": "no_correct",
+          "156": "no_correct",
+          "158": "no_incorrect",
+          "159": "no_incorrect",
+          "160": "no_incorrect",
+          "161": "no_incorrect",
+          "162": "no_incorrect",
+          "163": "no_correct",
+          "164": "no_parseable_incorrect",
+          "165": "no_correct",
+          "166": "no_correct",
+          "167": "no_incorrect",
+          "169": "no_incorrect",
+          "170": "no_parseable_incorrect",
+          "172": "no_incorrect",
+          "173": "no_incorrect",
+          "174": "no_incorrect",
+          "177": "no_correct",
+          "178": "no_incorrect",
+          "179": "no_incorrect",
+          "180": "no_incorrect",
+          "182": "no_parseable_incorrect",
+          "183": "no_incorrect",
+          "185": "no_incorrect",
+          "186": "no_incorrect",
+          "187": "no_incorrect",
+          "188": "no_incorrect",
+          "189": "no_parseable_incorrect",
+          "190": "no_correct",
+          "191": "no_incorrect",
+          "193": "no_incorrect",
+          "194": "no_correct",
+          "196": "no_incorrect",
+          "197": "no_incorrect",
+          "198": "no_correct",
+          "199": "no_incorrect",
+          "200": "no_parseable_incorrect",
+          "201": "no_incorrect",
+          "202": "no_correct",
+          "204": "no_correct",
+          "205": "no_incorrect",
+          "206": "no_correct",
+          "207": "no_incorrect",
+          "209": "no_incorrect",
+          "211": "no_incorrect",
+          "212": "no_incorrect",
+          "213": "no_parseable_incorrect",
+          "215": "no_incorrect",
+          "217": "no_correct",
+          "219": "no_correct",
+          "221": "no_incorrect",
+          "223": "no_incorrect",
+          "224": "no_correct",
+          "225": "no_incorrect",
+          "226": "no_incorrect",
+          "230": "no_correct",
+          "232": "no_correct",
+          "233": "no_correct",
+          "234": "no_incorrect",
+          "235": "no_correct",
+          "236": "no_correct",
+          "238": "no_incorrect",
+          "239": "no_incorrect",
+          "240": "no_correct",
+          "241": "no_incorrect",
+          "242": "no_correct",
+          "243": "no_incorrect",
+          "244": "no_incorrect",
+          "245": "no_incorrect",
+          "250": "no_incorrect",
+          "251": "no_incorrect",
+          "252": "no_incorrect",
+          "254": "no_incorrect",
+          "255": "no_correct",
+          "256": "no_correct",
+          "257": "no_correct",
+          "258": "no_incorrect",
+          "259": "no_incorrect",
+          "260": "no_correct",
+          "262": "no_incorrect",
+          "263": "no_incorrect",
+          "264": "no_correct",
+          "267": "no_correct",
+          "268": "no_incorrect",
+          "269": "no_incorrect",
+          "270": "no_incorrect",
+          "273": "no_incorrect",
+          "274": "no_parseable_incorrect",
+          "276": "no_incorrect",
+          "277": "no_incorrect",
+          "278": "no_incorrect",
+          "279": "no_incorrect",
+          "280": "no_incorrect",
+          "282": "no_incorrect",
+          "283": "no_incorrect",
+          "284": "no_correct",
+          "285": "no_parseable_incorrect",
+          "286": "no_correct",
+          "287": "no_incorrect",
+          "288": "no_incorrect",
+          "289": "no_incorrect",
+          "290": "no_incorrect",
+          "291": "no_incorrect",
+          "292": "no_incorrect",
+          "294": "no_incorrect",
+          "296": "no_correct",
+          "297": "no_incorrect",
+          "298": "no_incorrect",
+          "299": "no_parseable_incorrect",
+          "300": "no_incorrect",
+          "302": "no_parseable_incorrect",
+          "304": "no_incorrect",
+          "305": "no_correct",
+          "307": "no_incorrect",
+          "308": "no_parseable_incorrect",
+          "309": "no_parseable_incorrect",
+          "310": "no_incorrect",
+          "311": "no_incorrect",
+          "312": "no_incorrect",
+          "313": "no_incorrect",
+          "315": "no_incorrect",
+          "316": "no_incorrect",
+          "317": "no_parseable_incorrect",
+          "319": "no_incorrect",
+          "321": "no_incorrect",
+          "323": "no_correct",
+          "324": "no_correct",
+          "325": "no_incorrect",
+          "326": "no_correct",
+          "327": "no_parseable_incorrect",
+          "328": "no_incorrect",
+          "330": "no_incorrect",
+          "333": "no_parseable_incorrect",
+          "334": "no_incorrect",
+          "337": "no_incorrect",
+          "339": "no_incorrect",
+          "340": "no_correct",
+          "341": "no_incorrect",
+          "342": "no_incorrect",
+          "343": "no_correct",
+          "344": "no_incorrect",
+          "345": "no_incorrect",
+          "346": "no_incorrect",
+          "347": "no_incorrect",
+          "348": "no_incorrect",
+          "349": "no_parseable_incorrect",
+          "350": "no_incorrect",
+          "351": "no_correct",
+          "352": "no_correct",
+          "353": "no_incorrect",
+          "354": "no_incorrect",
+          "355": "no_incorrect",
+          "356": "no_incorrect",
+          "359": "no_incorrect",
+          "360": "no_correct",
+          "361": "no_incorrect",
+          "362": "no_correct",
+          "363": "no_incorrect",
+          "364": "no_incorrect",
+          "366": "no_incorrect",
+          "368": "no_incorrect",
+          "370": "no_incorrect",
+          "371": "no_parseable_incorrect",
+          "374": "no_incorrect",
+          "376": "no_incorrect",
+          "377": "no_incorrect",
+          "378": "no_incorrect",
+          "380": "no_incorrect",
+          "381": "no_correct",
+          "382": "no_correct",
+          "383": "no_correct",
+          "384": "no_incorrect",
+          "386": "no_incorrect",
+          "387": "no_incorrect",
+          "389": "no_correct",
+          "391": "no_incorrect",
+          "392": "no_correct",
+          "393": "no_correct",
+          "394": "no_correct",
+          "395": "no_incorrect",
+          "396": "no_incorrect",
+          "397": "no_incorrect",
+          "398": "no_correct",
+          "399": "no_incorrect",
+          "401": "no_correct",
+          "402": "no_incorrect",
+          "403": "no_incorrect",
+          "406": "no_incorrect",
+          "407": "no_incorrect",
+          "408": "no_correct",
+          "409": "no_incorrect",
+          "410": "no_incorrect",
+          "411": "no_incorrect",
+          "412": "no_parseable_incorrect",
+          "413": "no_incorrect",
+          "414": "no_incorrect",
+          "415": "no_incorrect",
+          "416": "no_correct",
+          "418": "no_incorrect",
+          "419": "no_incorrect",
+          "420": "no_correct",
+          "421": "no_parseable_incorrect",
+          "422": "no_correct",
+          "424": "no_incorrect",
+          "427": "no_parseable_incorrect",
+          "429": "no_incorrect",
+          "430": "no_incorrect",
+          "431": "no_correct",
+          "432": "no_parseable_incorrect",
+          "434": "no_incorrect",
+          "435": "no_incorrect",
+          "436": "no_incorrect",
+          "438": "no_incorrect",
+          "439": "no_incorrect",
+          "440": "no_incorrect",
+          "442": "no_incorrect",
+          "443": "no_incorrect",
+          "444": "no_correct",
+          "445": "no_parseable_incorrect",
+          "446": "no_incorrect",
+          "447": "no_parseable_incorrect",
+          "448": "no_incorrect",
+          "449": "no_incorrect",
+          "450": "no_incorrect",
+          "451": "no_correct",
+          "452": "no_incorrect",
+          "455": "no_incorrect",
+          "456": "no_correct",
+          "457": "no_incorrect",
+          "458": "no_incorrect",
+          "459": "no_correct",
+          "460": "no_correct",
+          "461": "no_incorrect",
+          "463": "no_incorrect",
+          "465": "no_incorrect",
+          "467": "no_correct",
+          "469": "no_incorrect",
+          "473": "no_parseable_incorrect",
+          "474": "no_incorrect",
+          "475": "no_parseable_incorrect",
+          "477": "no_incorrect",
+          "478": "no_correct",
+          "480": "no_incorrect",
+          "481": "no_parseable_incorrect",
+          "483": "no_correct",
+          "484": "no_incorrect",
+          "486": "no_parseable_incorrect",
+          "487": "no_incorrect",
+          "488": "no_correct",
+          "490": "no_parseable_incorrect",
+          "492": "no_incorrect",
+          "494": "no_correct",
+          "496": "no_correct",
+          "497": "no_correct"
+        },
+        "observed_alignment": 0.14264053269310029,
+        "observed_pairwise_cosine": -0.004145020393854306,
+        "null": {
+          "mean": null,
+          "ci_low": null,
+          "ci_high": null,
+          "p_value": null,
+          "n_valid": 0
+        }
+      },
+      {
+        "fold": 2,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_prompt_vectors": 41,
+        "skipped_prompts": {
+          "0": "no_correct",
+          "1": "no_parseable_incorrect",
+          "2": "no_correct",
+          "3": "no_incorrect",
+          "4": "no_correct",
+          "7": "no_correct",
+          "8": "no_incorrect",
+          "11": "no_correct",
+          "12": "no_incorrect",
+          "13": "no_incorrect",
+          "14": "no_incorrect",
+          "15": "no_incorrect",
+          "16": "no_incorrect",
+          "17": "no_parseable_incorrect",
+          "18": "no_parseable_incorrect",
+          "19": "no_incorrect",
+          "20": "no_incorrect",
+          "21": "no_parseable_incorrect",
+          "22": "no_parseable_incorrect",
+          "23": "no_correct",
+          "24": "no_incorrect",
+          "25": "no_correct",
+          "26": "no_correct",
+          "27": "no_incorrect",
+          "28": "no_incorrect",
+          "29": "no_incorrect",
+          "30": "no_incorrect",
+          "31": "no_correct",
+          "32": "no_parseable_incorrect",
+          "33": "no_correct",
+          "34": "no_incorrect",
+          "35": "no_incorrect",
+          "37": "no_incorrect",
+          "39": "no_incorrect",
+          "40": "no_incorrect",
+          "41": "no_parseable_incorrect",
+          "42": "no_incorrect",
+          "44": "no_incorrect",
+          "45": "no_incorrect",
+          "46": "no_incorrect",
+          "47": "no_incorrect",
+          "49": "no_parseable_incorrect",
+          "50": "no_incorrect",
+          "51": "no_incorrect",
+          "52": "no_incorrect",
+          "54": "no_incorrect",
+          "55": "no_incorrect",
+          "56": "no_incorrect",
+          "57": "no_incorrect",
+          "58": "no_incorrect",
+          "60": "no_incorrect",
+          "61": "no_parseable_incorrect",
+          "62": "no_incorrect",
+          "63": "no_incorrect",
+          "64": "no_correct",
+          "65": "no_incorrect",
+          "66": "no_incorrect",
+          "67": "no_correct",
+          "68": "no_incorrect",
+          "69": "no_incorrect",
+          "70": "no_incorrect",
+          "72": "no_incorrect",
+          "73": "no_correct",
+          "75": "no_correct",
+          "76": "no_incorrect",
+          "77": "no_parseable_incorrect",
+          "78": "no_incorrect",
+          "79": "no_incorrect",
+          "80": "no_parseable_incorrect",
+          "82": "no_correct",
+          "84": "no_incorrect",
+          "85": "no_incorrect",
+          "86": "no_incorrect",
+          "87": "no_incorrect",
+          "91": "no_incorrect",
+          "92": "no_correct",
+          "93": "no_incorrect",
+          "94": "no_correct",
+          "95": "no_incorrect",
+          "98": "no_incorrect",
+          "99": "no_correct",
+          "100": "no_correct",
+          "102": "no_incorrect",
+          "104": "no_parseable_incorrect",
+          "105": "no_incorrect",
+          "106": "no_correct",
+          "107": "no_incorrect",
+          "108": "no_parseable_incorrect",
+          "109": "no_correct",
+          "110": "no_correct",
+          "113": "no_incorrect",
+          "114": "no_incorrect",
+          "115": "no_incorrect",
+          "116": "no_incorrect",
+          "117": "no_incorrect",
+          "118": "no_incorrect",
+          "120": "no_correct",
+          "121": "no_incorrect",
+          "124": "no_correct",
+          "126": "no_parseable_incorrect",
+          "127": "no_correct",
+          "130": "no_incorrect",
+          "131": "no_incorrect",
+          "132": "no_incorrect",
+          "133": "no_incorrect",
+          "134": "no_incorrect",
+          "135": "no_incorrect",
+          "136": "no_parseable_incorrect",
+          "137": "no_incorrect",
+          "138": "no_correct",
+          "140": "no_incorrect",
+          "142": "no_incorrect",
+          "144": "no_incorrect",
+          "148": "no_incorrect",
+          "149": "no_parseable_incorrect",
+          "151": "no_incorrect",
+          "152": "no_parseable_incorrect",
+          "153": "no_correct",
+          "154": "no_correct",
+          "155": "no_correct",
+          "156": "no_correct",
+          "157": "no_correct",
+          "159": "no_incorrect",
+          "160": "no_incorrect",
+          "161": "no_incorrect",
+          "162": "no_incorrect",
+          "164": "no_parseable_incorrect",
+          "166": "no_correct",
+          "169": "no_incorrect",
+          "170": "no_parseable_incorrect",
+          "172": "no_incorrect",
+          "173": "no_incorrect",
+          "174": "no_incorrect",
+          "175": "no_incorrect",
+          "176": "no_correct",
+          "178": "no_incorrect",
+          "180": "no_incorrect",
+          "181": "no_correct",
+          "182": "no_parseable_incorrect",
+          "185": "no_incorrect",
+          "186": "no_incorrect",
+          "187": "no_incorrect",
+          "188": "no_incorrect",
+          "189": "no_parseable_incorrect",
+          "190": "no_correct",
+          "191": "no_incorrect",
+          "192": "no_incorrect",
+          "193": "no_incorrect",
+          "194": "no_correct",
+          "195": "no_incorrect",
+          "197": "no_incorrect",
+          "200": "no_parseable_incorrect",
+          "201": "no_incorrect",
+          "203": "no_incorrect",
+          "204": "no_correct",
+          "205": "no_incorrect",
+          "206": "no_correct",
+          "207": "no_incorrect",
+          "208": "no_incorrect",
+          "209": "no_incorrect",
+          "210": "no_incorrect",
+          "211": "no_incorrect",
+          "212": "no_incorrect",
+          "213": "no_parseable_incorrect",
+          "215": "no_incorrect",
+          "217": "no_correct",
+          "218": "no_incorrect",
+          "220": "no_correct",
+          "221": "no_incorrect",
+          "222": "no_parseable_incorrect",
+          "224": "no_correct",
+          "226": "no_incorrect",
+          "227": "no_correct",
+          "229": "no_incorrect",
+          "230": "no_correct",
+          "231": "no_incorrect",
+          "232": "no_correct",
+          "233": "no_correct",
+          "235": "no_correct",
+          "236": "no_correct",
+          "237": "no_incorrect",
+          "238": "no_incorrect",
+          "240": "no_correct",
+          "241": "no_incorrect",
+          "242": "no_correct",
+          "243": "no_incorrect",
+          "247": "no_correct",
+          "248": "no_incorrect",
+          "249": "no_incorrect",
+          "251": "no_incorrect",
+          "252": "no_incorrect",
+          "253": "no_correct",
+          "254": "no_incorrect",
+          "256": "no_correct",
+          "257": "no_correct",
+          "258": "no_incorrect",
+          "259": "no_incorrect",
+          "260": "no_correct",
+          "261": "no_correct",
+          "262": "no_incorrect",
+          "263": "no_incorrect",
+          "264": "no_correct",
+          "265": "no_incorrect",
+          "266": "no_incorrect",
+          "267": "no_correct",
+          "268": "no_incorrect",
+          "269": "no_incorrect",
+          "270": "no_incorrect",
+          "271": "no_incorrect",
+          "273": "no_incorrect",
+          "275": "no_incorrect",
+          "276": "no_incorrect",
+          "277": "no_incorrect",
+          "278": "no_incorrect",
+          "279": "no_incorrect",
+          "280": "no_incorrect",
+          "281": "no_correct",
+          "282": "no_incorrect",
+          "283": "no_incorrect",
+          "285": "no_parseable_incorrect",
+          "288": "no_incorrect",
+          "290": "no_incorrect",
+          "292": "no_incorrect",
+          "300": "no_incorrect",
+          "301": "no_correct",
+          "304": "no_incorrect",
+          "308": "no_parseable_incorrect",
+          "309": "no_parseable_incorrect",
+          "311": "no_incorrect",
+          "312": "no_incorrect",
+          "313": "no_incorrect",
+          "315": "no_incorrect",
+          "316": "no_incorrect",
+          "317": "no_parseable_incorrect",
+          "319": "no_incorrect",
+          "320": "no_correct",
+          "321": "no_incorrect",
+          "322": "no_incorrect",
+          "323": "no_correct",
+          "324": "no_correct",
+          "325": "no_incorrect",
+          "326": "no_correct",
+          "327": "no_parseable_incorrect",
+          "328": "no_incorrect",
+          "330": "no_incorrect",
+          "331": "no_correct",
+          "332": "no_parseable_incorrect",
+          "333": "no_parseable_incorrect",
+          "334": "no_incorrect",
+          "335": "no_incorrect",
+          "337": "no_incorrect",
+          "339": "no_incorrect",
+          "341": "no_incorrect",
+          "342": "no_incorrect",
+          "343": "no_correct",
+          "344": "no_incorrect",
+          "345": "no_incorrect",
+          "347": "no_incorrect",
+          "348": "no_incorrect",
+          "349": "no_parseable_incorrect",
+          "350": "no_incorrect",
+          "352": "no_correct",
+          "356": "no_incorrect",
+          "357": "no_incorrect",
+          "359": "no_incorrect",
+          "361": "no_incorrect",
+          "362": "no_correct",
+          "363": "no_incorrect",
+          "365": "no_parseable_incorrect",
+          "366": "no_incorrect",
+          "367": "no_incorrect",
+          "370": "no_incorrect",
+          "371": "no_parseable_incorrect",
+          "373": "no_incorrect",
+          "374": "no_incorrect",
+          "375": "no_incorrect",
+          "377": "no_incorrect",
+          "378": "no_incorrect",
+          "381": "no_correct",
+          "383": "no_correct",
+          "384": "no_incorrect",
+          "387": "no_incorrect",
+          "389": "no_correct",
+          "390": "no_incorrect",
+          "391": "no_incorrect",
+          "394": "no_correct",
+          "397": "no_incorrect",
+          "398": "no_correct",
+          "400": "no_correct",
+          "401": "no_correct",
+          "402": "no_incorrect",
+          "403": "no_incorrect",
+          "404": "no_incorrect",
+          "405": "no_incorrect",
+          "406": "no_incorrect",
+          "408": "no_correct",
+          "409": "no_incorrect",
+          "410": "no_incorrect",
+          "411": "no_incorrect",
+          "412": "no_parseable_incorrect",
+          "413": "no_incorrect",
+          "414": "no_incorrect",
+          "415": "no_incorrect",
+          "417": "no_incorrect",
+          "419": "no_incorrect",
+          "421": "no_parseable_incorrect",
+          "422": "no_correct",
+          "423": "no_incorrect",
+          "424": "no_incorrect",
+          "426": "no_incorrect",
+          "427": "no_parseable_incorrect",
+          "428": "no_incorrect",
+          "429": "no_incorrect",
+          "430": "no_incorrect",
+          "431": "no_correct",
+          "433": "no_correct",
+          "434": "no_incorrect",
+          "435": "no_incorrect",
+          "437": "no_incorrect",
+          "438": "no_incorrect",
+          "440": "no_incorrect",
+          "443": "no_incorrect",
+          "445": "no_parseable_incorrect",
+          "446": "no_incorrect",
+          "448": "no_incorrect",
+          "450": "no_incorrect",
+          "451": "no_correct",
+          "452": "no_incorrect",
+          "453": "no_incorrect",
+          "454": "no_incorrect",
+          "455": "no_incorrect",
+          "456": "no_correct",
+          "457": "no_incorrect",
+          "458": "no_incorrect",
+          "459": "no_correct",
+          "460": "no_correct",
+          "461": "no_incorrect",
+          "462": "no_incorrect",
+          "463": "no_incorrect",
+          "464": "no_incorrect",
+          "465": "no_incorrect",
+          "470": "no_incorrect",
+          "471": "no_incorrect",
+          "473": "no_parseable_incorrect",
+          "475": "no_parseable_incorrect",
+          "477": "no_incorrect",
+          "479": "no_incorrect",
+          "480": "no_incorrect",
+          "483": "no_correct",
+          "484": "no_incorrect",
+          "486": "no_parseable_incorrect",
+          "488": "no_correct",
+          "489": "no_incorrect",
+          "490": "no_parseable_incorrect",
+          "492": "no_incorrect",
+          "493": "no_incorrect",
+          "494": "no_correct",
+          "496": "no_correct",
+          "497": "no_correct"
+        },
+        "observed_alignment": 0.15482239520875246,
+        "observed_pairwise_cosine": -0.00043077659037048515,
+        "null": {
+          "mean": null,
+          "ci_low": null,
+          "ci_high": null,
+          "p_value": null,
+          "n_valid": 0
+        }
+      },
+      {
+        "fold": 3,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_prompt_vectors": 41,
+        "skipped_prompts": {
+          "0": "no_correct",
+          "1": "no_parseable_incorrect",
+          "2": "no_correct",
+          "3": "no_incorrect",
+          "6": "no_incorrect",
+          "7": "no_correct",
+          "10": "no_parseable_incorrect",
+          "11": "no_correct",
+          "13": "no_incorrect",
+          "15": "no_incorrect",
+          "16": "no_incorrect",
+          "17": "no_parseable_incorrect",
+          "18": "no_parseable_incorrect",
+          "19": "no_incorrect",
+          "20": "no_incorrect",
+          "21": "no_parseable_incorrect",
+          "22": "no_parseable_incorrect",
+          "23": "no_correct",
+          "24": "no_incorrect",
+          "25": "no_correct",
+          "26": "no_correct",
+          "29": "no_incorrect",
+          "30": "no_incorrect",
+          "31": "no_correct",
+          "33": "no_correct",
+          "34": "no_incorrect",
+          "36": "no_correct",
+          "37": "no_incorrect",
+          "39": "no_incorrect",
+          "42": "no_incorrect",
+          "45": "no_incorrect",
+          "46": "no_incorrect",
+          "49": "no_parseable_incorrect",
+          "50": "no_incorrect",
+          "52": "no_incorrect",
+          "54": "no_incorrect",
+          "55": "no_incorrect",
+          "56": "no_incorrect",
+          "57": "no_incorrect",
+          "58": "no_incorrect",
+          "59": "no_incorrect",
+          "60": "no_incorrect",
+          "63": "no_incorrect",
+          "66": "no_incorrect",
+          "67": "no_correct",
+          "68": "no_incorrect",
+          "69": "no_incorrect",
+          "70": "no_incorrect",
+          "72": "no_incorrect",
+          "73": "no_correct",
+          "74": "no_incorrect",
+          "75": "no_correct",
+          "76": "no_incorrect",
+          "77": "no_parseable_incorrect",
+          "78": "no_incorrect",
+          "79": "no_incorrect",
+          "80": "no_parseable_incorrect",
+          "81": "no_incorrect",
+          "82": "no_correct",
+          "83": "no_incorrect",
+          "84": "no_incorrect",
+          "86": "no_incorrect",
+          "87": "no_incorrect",
+          "89": "no_incorrect",
+          "91": "no_incorrect",
+          "92": "no_correct",
+          "93": "no_incorrect",
+          "94": "no_correct",
+          "96": "no_correct",
+          "99": "no_correct",
+          "102": "no_incorrect",
+          "103": "no_parseable_incorrect",
+          "104": "no_parseable_incorrect",
+          "105": "no_incorrect",
+          "106": "no_correct",
+          "108": "no_parseable_incorrect",
+          "109": "no_correct",
+          "110": "no_correct",
+          "111": "no_incorrect",
+          "112": "no_incorrect",
+          "113": "no_incorrect",
+          "114": "no_incorrect",
+          "116": "no_incorrect",
+          "117": "no_incorrect",
+          "118": "no_incorrect",
+          "119": "no_parseable_incorrect",
+          "121": "no_incorrect",
+          "122": "no_incorrect",
+          "123": "no_incorrect",
+          "124": "no_correct",
+          "125": "no_incorrect",
+          "126": "no_parseable_incorrect",
+          "129": "no_correct",
+          "130": "no_incorrect",
+          "131": "no_incorrect",
+          "132": "no_incorrect",
+          "134": "no_incorrect",
+          "137": "no_incorrect",
+          "139": "no_parseable_incorrect",
+          "140": "no_incorrect",
+          "143": "no_incorrect",
+          "144": "no_incorrect",
+          "146": "no_correct",
+          "147": "no_parseable_incorrect",
+          "148": "no_incorrect",
+          "149": "no_parseable_incorrect",
+          "150": "no_incorrect",
+          "151": "no_incorrect",
+          "152": "no_parseable_incorrect",
+          "153": "no_correct",
+          "154": "no_correct",
+          "155": "no_correct",
+          "157": "no_correct",
+          "158": "no_incorrect",
+          "160": "no_incorrect",
+          "161": "no_incorrect",
+          "163": "no_correct",
+          "165": "no_correct",
+          "166": "no_correct",
+          "167": "no_incorrect",
+          "169": "no_incorrect",
+          "172": "no_incorrect",
+          "173": "no_incorrect",
+          "174": "no_incorrect",
+          "175": "no_incorrect",
+          "176": "no_correct",
+          "177": "no_correct",
+          "179": "no_incorrect",
+          "180": "no_incorrect",
+          "181": "no_correct",
+          "182": "no_parseable_incorrect",
+          "183": "no_incorrect",
+          "185": "no_incorrect",
+          "187": "no_incorrect",
+          "188": "no_incorrect",
+          "189": "no_parseable_incorrect",
+          "190": "no_correct",
+          "191": "no_incorrect",
+          "192": "no_incorrect",
+          "193": "no_incorrect",
+          "194": "no_correct",
+          "195": "no_incorrect",
+          "196": "no_incorrect",
+          "198": "no_correct",
+          "199": "no_incorrect",
+          "201": "no_incorrect",
+          "202": "no_correct",
+          "203": "no_incorrect",
+          "204": "no_correct",
+          "205": "no_incorrect",
+          "208": "no_incorrect",
+          "209": "no_incorrect",
+          "210": "no_incorrect",
+          "211": "no_incorrect",
+          "212": "no_incorrect",
+          "217": "no_correct",
+          "218": "no_incorrect",
+          "219": "no_correct",
+          "220": "no_correct",
+          "222": "no_parseable_incorrect",
+          "223": "no_incorrect",
+          "225": "no_incorrect",
+          "227": "no_correct",
+          "229": "no_incorrect",
+          "231": "no_incorrect",
+          "234": "no_incorrect",
+          "235": "no_correct",
+          "237": "no_incorrect",
+          "238": "no_incorrect",
+          "239": "no_incorrect",
+          "241": "no_incorrect",
+          "243": "no_incorrect",
+          "244": "no_incorrect",
+          "245": "no_incorrect",
+          "247": "no_correct",
+          "248": "no_incorrect",
+          "249": "no_incorrect",
+          "250": "no_incorrect",
+          "251": "no_incorrect",
+          "252": "no_incorrect",
+          "253": "no_correct",
+          "255": "no_correct",
+          "257": "no_correct",
+          "259": "no_incorrect",
+          "261": "no_correct",
+          "262": "no_incorrect",
+          "263": "no_incorrect",
+          "264": "no_correct",
+          "265": "no_incorrect",
+          "266": "no_incorrect",
+          "268": "no_incorrect",
+          "269": "no_incorrect",
+          "270": "no_incorrect",
+          "271": "no_incorrect",
+          "273": "no_incorrect",
+          "274": "no_parseable_incorrect",
+          "275": "no_incorrect",
+          "276": "no_incorrect",
+          "277": "no_incorrect",
+          "278": "no_incorrect",
+          "280": "no_incorrect",
+          "281": "no_correct",
+          "284": "no_correct",
+          "286": "no_correct",
+          "287": "no_incorrect",
+          "289": "no_incorrect",
+          "290": "no_incorrect",
+          "291": "no_incorrect",
+          "294": "no_incorrect",
+          "296": "no_correct",
+          "297": "no_incorrect",
+          "298": "no_incorrect",
+          "299": "no_parseable_incorrect",
+          "301": "no_correct",
+          "302": "no_parseable_incorrect",
+          "304": "no_incorrect",
+          "305": "no_correct",
+          "307": "no_incorrect",
+          "308": "no_parseable_incorrect",
+          "309": "no_parseable_incorrect",
+          "310": "no_incorrect",
+          "312": "no_incorrect",
+          "313": "no_incorrect",
+          "315": "no_incorrect",
+          "316": "no_incorrect",
+          "317": "no_parseable_incorrect",
+          "319": "no_incorrect",
+          "320": "no_correct",
+          "321": "no_incorrect",
+          "322": "no_incorrect",
+          "323": "no_correct",
+          "324": "no_correct",
+          "328": "no_incorrect",
+          "330": "no_incorrect",
+          "331": "no_correct",
+          "332": "no_parseable_incorrect",
+          "333": "no_parseable_incorrect",
+          "334": "no_incorrect",
+          "335": "no_incorrect",
+          "339": "no_incorrect",
+          "340": "no_correct",
+          "341": "no_incorrect",
+          "343": "no_correct",
+          "344": "no_incorrect",
+          "345": "no_incorrect",
+          "346": "no_incorrect",
+          "347": "no_incorrect",
+          "348": "no_incorrect",
+          "350": "no_incorrect",
+          "351": "no_correct",
+          "352": "no_correct",
+          "353": "no_incorrect",
+          "354": "no_incorrect",
+          "355": "no_incorrect",
+          "356": "no_incorrect",
+          "357": "no_incorrect",
+          "359": "no_incorrect",
+          "360": "no_correct",
+          "361": "no_incorrect",
+          "362": "no_correct",
+          "363": "no_incorrect",
+          "364": "no_incorrect",
+          "365": "no_parseable_incorrect",
+          "366": "no_incorrect",
+          "367": "no_incorrect",
+          "368": "no_incorrect",
+          "371": "no_parseable_incorrect",
+          "373": "no_incorrect",
+          "374": "no_incorrect",
+          "375": "no_incorrect",
+          "376": "no_incorrect",
+          "377": "no_incorrect",
+          "380": "no_incorrect",
+          "381": "no_correct",
+          "382": "no_correct",
+          "384": "no_incorrect",
+          "386": "no_incorrect",
+          "387": "no_incorrect",
+          "389": "no_correct",
+          "390": "no_incorrect",
+          "391": "no_incorrect",
+          "392": "no_correct",
+          "393": "no_correct",
+          "394": "no_correct",
+          "395": "no_incorrect",
+          "396": "no_incorrect",
+          "399": "no_incorrect",
+          "400": "no_correct",
+          "401": "no_correct",
+          "404": "no_incorrect",
+          "405": "no_incorrect",
+          "406": "no_incorrect",
+          "407": "no_incorrect",
+          "408": "no_correct",
+          "409": "no_incorrect",
+          "410": "no_incorrect",
+          "413": "no_incorrect",
+          "414": "no_incorrect",
+          "415": "no_incorrect",
+          "416": "no_correct",
+          "417": "no_incorrect",
+          "418": "no_incorrect",
+          "419": "no_incorrect",
+          "420": "no_correct",
+          "423": "no_incorrect",
+          "426": "no_incorrect",
+          "427": "no_parseable_incorrect",
+          "428": "no_incorrect",
+          "431": "no_correct",
+          "432": "no_parseable_incorrect",
+          "433": "no_correct",
+          "435": "no_incorrect",
+          "436": "no_incorrect",
+          "437": "no_incorrect",
+          "438": "no_incorrect",
+          "439": "no_incorrect",
+          "440": "no_incorrect",
+          "442": "no_incorrect",
+          "443": "no_incorrect",
+          "444": "no_correct",
+          "445": "no_parseable_incorrect",
+          "447": "no_parseable_incorrect",
+          "449": "no_incorrect",
+          "450": "no_incorrect",
+          "451": "no_correct",
+          "453": "no_incorrect",
+          "454": "no_incorrect",
+          "455": "no_incorrect",
+          "456": "no_correct",
+          "457": "no_incorrect",
+          "458": "no_incorrect",
+          "459": "no_correct",
+          "461": "no_incorrect",
+          "462": "no_incorrect",
+          "464": "no_incorrect",
+          "465": "no_incorrect",
+          "467": "no_correct",
+          "469": "no_incorrect",
+          "470": "no_incorrect",
+          "471": "no_incorrect",
+          "473": "no_parseable_incorrect",
+          "474": "no_incorrect",
+          "475": "no_parseable_incorrect",
+          "477": "no_incorrect",
+          "478": "no_correct",
+          "479": "no_incorrect",
+          "480": "no_incorrect",
+          "481": "no_parseable_incorrect",
+          "483": "no_correct",
+          "486": "no_parseable_incorrect",
+          "487": "no_incorrect",
+          "488": "no_correct",
+          "489": "no_incorrect",
+          "490": "no_parseable_incorrect",
+          "492": "no_incorrect",
+          "493": "no_incorrect",
+          "494": "no_correct",
+          "496": "no_correct",
+          "497": "no_correct"
+        },
+        "observed_alignment": 0.17539193700931863,
+        "observed_pairwise_cosine": 0.006531389857077811,
+        "null": {
+          "mean": null,
+          "ci_low": null,
+          "ci_high": null,
+          "p_value": null,
+          "n_valid": 0
+        }
+      },
+      {
+        "fold": 4,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_prompt_vectors": 33,
+        "skipped_prompts": {
+          "0": "no_correct",
+          "2": "no_correct",
+          "3": "no_incorrect",
+          "4": "no_correct",
+          "6": "no_incorrect",
+          "7": "no_correct",
+          "8": "no_incorrect",
+          "10": "no_parseable_incorrect",
+          "11": "no_correct",
+          "12": "no_incorrect",
+          "14": "no_incorrect",
+          "15": "no_incorrect",
+          "16": "no_incorrect",
+          "17": "no_parseable_incorrect",
+          "18": "no_parseable_incorrect",
+          "19": "no_incorrect",
+          "22": "no_parseable_incorrect",
+          "23": "no_correct",
+          "24": "no_incorrect",
+          "25": "no_correct",
+          "26": "no_correct",
+          "27": "no_incorrect",
+          "28": "no_incorrect",
+          "29": "no_incorrect",
+          "30": "no_incorrect",
+          "31": "no_correct",
+          "32": "no_parseable_incorrect",
+          "33": "no_correct",
+          "35": "no_incorrect",
+          "36": "no_correct",
+          "37": "no_incorrect",
+          "39": "no_incorrect",
+          "40": "no_incorrect",
+          "41": "no_parseable_incorrect",
+          "42": "no_incorrect",
+          "44": "no_incorrect",
+          "45": "no_incorrect",
+          "46": "no_incorrect",
+          "47": "no_incorrect",
+          "51": "no_incorrect",
+          "55": "no_incorrect",
+          "56": "no_incorrect",
+          "57": "no_incorrect",
+          "59": "no_incorrect",
+          "60": "no_incorrect",
+          "61": "no_parseable_incorrect",
+          "62": "no_incorrect",
+          "63": "no_incorrect",
+          "64": "no_correct",
+          "65": "no_incorrect",
+          "66": "no_incorrect",
+          "67": "no_correct",
+          "68": "no_incorrect",
+          "69": "no_incorrect",
+          "70": "no_incorrect",
+          "72": "no_incorrect",
+          "73": "no_correct",
+          "74": "no_incorrect",
+          "75": "no_correct",
+          "76": "no_incorrect",
+          "77": "no_parseable_incorrect",
+          "78": "no_incorrect",
+          "79": "no_incorrect",
+          "81": "no_incorrect",
+          "82": "no_correct",
+          "83": "no_incorrect",
+          "84": "no_incorrect",
+          "85": "no_incorrect",
+          "86": "no_incorrect",
+          "89": "no_incorrect",
+          "92": "no_correct",
+          "93": "no_incorrect",
+          "94": "no_correct",
+          "95": "no_incorrect",
+          "96": "no_correct",
+          "98": "no_incorrect",
+          "100": "no_correct",
+          "103": "no_parseable_incorrect",
+          "104": "no_parseable_incorrect",
+          "107": "no_incorrect",
+          "108": "no_parseable_incorrect",
+          "109": "no_correct",
+          "110": "no_correct",
+          "111": "no_incorrect",
+          "112": "no_incorrect",
+          "113": "no_incorrect",
+          "114": "no_incorrect",
+          "115": "no_incorrect",
+          "116": "no_incorrect",
+          "117": "no_incorrect",
+          "118": "no_incorrect",
+          "119": "no_parseable_incorrect",
+          "120": "no_correct",
+          "122": "no_incorrect",
+          "123": "no_incorrect",
+          "124": "no_correct",
+          "125": "no_incorrect",
+          "126": "no_parseable_incorrect",
+          "127": "no_correct",
+          "129": "no_correct",
+          "131": "no_incorrect",
+          "132": "no_incorrect",
+          "133": "no_incorrect",
+          "135": "no_incorrect",
+          "136": "no_parseable_incorrect",
+          "137": "no_incorrect",
+          "138": "no_correct",
+          "139": "no_parseable_incorrect",
+          "140": "no_incorrect",
+          "142": "no_incorrect",
+          "143": "no_incorrect",
+          "144": "no_incorrect",
+          "146": "no_correct",
+          "147": "no_parseable_incorrect",
+          "148": "no_incorrect",
+          "150": "no_incorrect",
+          "152": "no_parseable_incorrect",
+          "153": "no_correct",
+          "154": "no_correct",
+          "155": "no_correct",
+          "156": "no_correct",
+          "157": "no_correct",
+          "158": "no_incorrect",
+          "159": "no_incorrect",
+          "162": "no_incorrect",
+          "163": "no_correct",
+          "164": "no_parseable_incorrect",
+          "165": "no_correct",
+          "167": "no_incorrect",
+          "170": "no_parseable_incorrect",
+          "172": "no_incorrect",
+          "173": "no_incorrect",
+          "175": "no_incorrect",
+          "176": "no_correct",
+          "177": "no_correct",
+          "178": "no_incorrect",
+          "179": "no_incorrect",
+          "180": "no_incorrect",
+          "181": "no_correct",
+          "182": "no_parseable_incorrect",
+          "183": "no_incorrect",
+          "185": "no_incorrect",
+          "186": "no_incorrect",
+          "192": "no_incorrect",
+          "193": "no_incorrect",
+          "194": "no_correct",
+          "195": "no_incorrect",
+          "196": "no_incorrect",
+          "197": "no_incorrect",
+          "198": "no_correct",
+          "199": "no_incorrect",
+          "200": "no_parseable_incorrect",
+          "202": "no_correct",
+          "203": "no_incorrect",
+          "204": "no_correct",
+          "206": "no_correct",
+          "207": "no_incorrect",
+          "208": "no_incorrect",
+          "209": "no_incorrect",
+          "210": "no_incorrect",
+          "211": "no_incorrect",
+          "213": "no_parseable_incorrect",
+          "215": "no_incorrect",
+          "218": "no_incorrect",
+          "219": "no_correct",
+          "220": "no_correct",
+          "221": "no_incorrect",
+          "222": "no_parseable_incorrect",
+          "223": "no_incorrect",
+          "224": "no_correct",
+          "225": "no_incorrect",
+          "226": "no_incorrect",
+          "227": "no_correct",
+          "229": "no_incorrect",
+          "230": "no_correct",
+          "231": "no_incorrect",
+          "232": "no_correct",
+          "233": "no_correct",
+          "234": "no_incorrect",
+          "236": "no_correct",
+          "237": "no_incorrect",
+          "238": "no_incorrect",
+          "239": "no_incorrect",
+          "240": "no_correct",
+          "242": "no_correct",
+          "244": "no_incorrect",
+          "245": "no_incorrect",
+          "247": "no_correct",
+          "248": "no_incorrect",
+          "249": "no_incorrect",
+          "250": "no_incorrect",
+          "253": "no_correct",
+          "254": "no_incorrect",
+          "255": "no_correct",
+          "256": "no_correct",
+          "258": "no_incorrect",
+          "260": "no_correct",
+          "261": "no_correct",
+          "262": "no_incorrect",
+          "265": "no_incorrect",
+          "266": "no_incorrect",
+          "267": "no_correct",
+          "268": "no_incorrect",
+          "271": "no_incorrect",
+          "274": "no_parseable_incorrect",
+          "275": "no_incorrect",
+          "277": "no_incorrect",
+          "278": "no_incorrect",
+          "279": "no_incorrect",
+          "280": "no_incorrect",
+          "281": "no_correct",
+          "282": "no_incorrect",
+          "283": "no_incorrect",
+          "284": "no_correct",
+          "285": "no_parseable_incorrect",
+          "286": "no_correct",
+          "287": "no_incorrect",
+          "288": "no_incorrect",
+          "289": "no_incorrect",
+          "290": "no_incorrect",
+          "291": "no_incorrect",
+          "292": "no_incorrect",
+          "294": "no_incorrect",
+          "296": "no_correct",
+          "297": "no_incorrect",
+          "298": "no_incorrect",
+          "299": "no_parseable_incorrect",
+          "300": "no_incorrect",
+          "301": "no_correct",
+          "302": "no_parseable_incorrect",
+          "304": "no_incorrect",
+          "305": "no_correct",
+          "307": "no_incorrect",
+          "310": "no_incorrect",
+          "311": "no_incorrect",
+          "312": "no_incorrect",
+          "316": "no_incorrect",
+          "317": "no_parseable_incorrect",
+          "320": "no_correct",
+          "321": "no_incorrect",
+          "322": "no_incorrect",
+          "323": "no_correct",
+          "324": "no_correct",
+          "325": "no_incorrect",
+          "326": "no_correct",
+          "327": "no_parseable_incorrect",
+          "331": "no_correct",
+          "332": "no_parseable_incorrect",
+          "333": "no_parseable_incorrect",
+          "334": "no_incorrect",
+          "335": "no_incorrect",
+          "337": "no_incorrect",
+          "340": "no_correct",
+          "341": "no_incorrect",
+          "342": "no_incorrect",
+          "346": "no_incorrect",
+          "347": "no_incorrect",
+          "349": "no_parseable_incorrect",
+          "351": "no_correct",
+          "352": "no_correct",
+          "353": "no_incorrect",
+          "354": "no_incorrect",
+          "355": "no_incorrect",
+          "356": "no_incorrect",
+          "357": "no_incorrect",
+          "360": "no_correct",
+          "361": "no_incorrect",
+          "362": "no_correct",
+          "364": "no_incorrect",
+          "365": "no_parseable_incorrect",
+          "367": "no_incorrect",
+          "368": "no_incorrect",
+          "370": "no_incorrect",
+          "371": "no_parseable_incorrect",
+          "373": "no_incorrect",
+          "374": "no_incorrect",
+          "375": "no_incorrect",
+          "376": "no_incorrect",
+          "377": "no_incorrect",
+          "378": "no_incorrect",
+          "380": "no_incorrect",
+          "381": "no_correct",
+          "382": "no_correct",
+          "383": "no_correct",
+          "384": "no_incorrect",
+          "386": "no_incorrect",
+          "390": "no_incorrect",
+          "391": "no_incorrect",
+          "392": "no_correct",
+          "393": "no_correct",
+          "394": "no_correct",
+          "395": "no_incorrect",
+          "396": "no_incorrect",
+          "397": "no_incorrect",
+          "398": "no_correct",
+          "399": "no_incorrect",
+          "400": "no_correct",
+          "402": "no_incorrect",
+          "403": "no_incorrect",
+          "404": "no_incorrect",
+          "405": "no_incorrect",
+          "406": "no_incorrect",
+          "407": "no_incorrect",
+          "408": "no_correct",
+          "409": "no_incorrect",
+          "410": "no_incorrect",
+          "411": "no_incorrect",
+          "412": "no_parseable_incorrect",
+          "414": "no_incorrect",
+          "415": "no_incorrect",
+          "416": "no_correct",
+          "417": "no_incorrect",
+          "418": "no_incorrect",
+          "420": "no_correct",
+          "421": "no_parseable_incorrect",
+          "422": "no_correct",
+          "423": "no_incorrect",
+          "424": "no_incorrect",
+          "426": "no_incorrect",
+          "428": "no_incorrect",
+          "429": "no_incorrect",
+          "430": "no_incorrect",
+          "431": "no_correct",
+          "432": "no_parseable_incorrect",
+          "433": "no_correct",
+          "434": "no_incorrect",
+          "436": "no_incorrect",
+          "437": "no_incorrect",
+          "438": "no_incorrect",
+          "439": "no_incorrect",
+          "440": "no_incorrect",
+          "442": "no_incorrect",
+          "444": "no_correct",
+          "446": "no_incorrect",
+          "447": "no_parseable_incorrect",
+          "448": "no_incorrect",
+          "449": "no_incorrect",
+          "450": "no_incorrect",
+          "451": "no_correct",
+          "452": "no_incorrect",
+          "453": "no_incorrect",
+          "454": "no_incorrect",
+          "455": "no_incorrect",
+          "460": "no_correct",
+          "461": "no_incorrect",
+          "462": "no_incorrect",
+          "463": "no_incorrect",
+          "464": "no_incorrect",
+          "465": "no_incorrect",
+          "467": "no_correct",
+          "469": "no_incorrect",
+          "470": "no_incorrect",
+          "471": "no_incorrect",
+          "474": "no_incorrect",
+          "475": "no_parseable_incorrect",
+          "477": "no_incorrect",
+          "478": "no_correct",
+          "479": "no_incorrect",
+          "481": "no_parseable_incorrect",
+          "483": "no_correct",
+          "484": "no_incorrect",
+          "487": "no_incorrect",
+          "489": "no_incorrect",
+          "490": "no_parseable_incorrect",
+          "493": "no_incorrect",
+          "494": "no_correct",
+          "497": "no_correct"
+        },
+        "observed_alignment": 0.2552358816226097,
+        "observed_pairwise_cosine": 0.035931147619785525,
+        "null": {
+          "mean": null,
+          "ci_low": null,
+          "ci_high": null,
+          "p_value": null,
+          "n_valid": 0
+        }
+      }
+    ]
+  },
+  "incremental_readouts": {
+    "supervised": true,
+    "cross_fitted_by_prompt_fold": true,
+    "training_population": "parseable mixed prompts only",
+    "models": {
+      "probe_outputs": {
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ]
+      },
+      "probe_outputs_plus_rmd_high_entropy_q20": {
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ]
+      },
+      "probe_outputs_plus_contrast_high_entropy_q20": {
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "contrast_high_entropy_q20"
+        ]
+      },
+      "probe_b0": {
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ]
+      },
+      "probe_b1": {
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ]
+      },
+      "probe_g_he": {
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ]
+      },
+      "probe_g_random": {
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ]
+      }
+    },
+    "diagnostics": [
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_outputs",
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "logprob": -0.10190142081776499,
+          "entropy": -0.10898274528821071,
+          "length": -0.12934224134996136
+        },
+        "intercept": 0.051683277253419466
+      },
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_outputs_plus_rmd_high_entropy_q20",
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "logprob": -0.0864296913799008,
+          "entropy": -0.08930875281372393,
+          "length": -0.09178400889294273,
+          "rmd_high_entropy_q20": -0.07269913972938792
+        },
+        "intercept": 0.05203557356111724
+      },
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_b0",
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "length": -0.12934224134996133,
+          "entropy": -0.1089827452882107,
+          "logprob": -0.101901420817765
+        },
+        "intercept": 0.05168327725341947
+      },
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_b1",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "length": -0.12040013093398988,
+          "entropy": -0.09985783410117521,
+          "logprob": -0.05280812793921051,
+          "entropy_he": -0.04922952926066978,
+          "logprob_he": -0.11734388237067077
+        },
+        "intercept": 0.05007662867956844
+      },
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_g_he",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "length": -0.08628500802193491,
+          "entropy": -0.08539710264070847,
+          "logprob": -0.0460027425313525,
+          "entropy_he": -0.062202958113411,
+          "logprob_he": -0.11381964257807003,
+          "rmd_high_entropy_q20": -0.07235300653879355
+        },
+        "intercept": 0.05019437157742487
+      },
+      {
+        "layer": 21,
+        "fold": 0,
+        "method": "probe_g_random",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ],
+        "n_train_prompts": 40,
+        "n_train_traces": 290,
+        "n_test_traces": 722,
+        "coefficients": {
+          "length": 0.04481813490320305,
+          "entropy": -0.007208124148075918,
+          "logprob": -0.013903906002043297,
+          "entropy_he": -0.09446739325674981,
+          "logprob_he": -0.13680529911776315,
+          "rmd_random_q20": -0.31688871233840615
+        },
+        "intercept": 0.0544254768956466
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_outputs",
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "logprob": 0.19674528839488092,
+          "entropy": -0.12258727608650544,
+          "length": -0.276444915202037
+        },
+        "intercept": 0.015030321390188254
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_outputs_plus_rmd_high_entropy_q20",
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "logprob": 0.1834159616356162,
+          "entropy": -0.15272789477753604,
+          "length": -0.3245477945178618,
+          "rmd_high_entropy_q20": 0.09312472486866312
+        },
+        "intercept": 0.016213602709525324
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_b0",
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "length": -0.276444915202037,
+          "entropy": -0.12258727608650524,
+          "logprob": 0.19674528839488073
+        },
+        "intercept": 0.015030321390188195
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_b1",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "length": -0.24315482977509215,
+          "entropy": 0.008002902676392351,
+          "logprob": 0.27051335806143967,
+          "entropy_he": 0.2733464619989552,
+          "logprob_he": 0.0410568496042888
+        },
+        "intercept": 0.020928936427411157
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_g_he",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "length": -0.3133295136422171,
+          "entropy": -0.01984307097847993,
+          "logprob": 0.26605157578094024,
+          "entropy_he": 0.3092535073008142,
+          "logprob_he": 0.037654322966745576,
+          "rmd_high_entropy_q20": 0.1446610648709632
+        },
+        "intercept": 0.02370003571478966
+      },
+      {
+        "layer": 21,
+        "fold": 1,
+        "method": "probe_g_random",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 296,
+        "n_test_traces": 750,
+        "coefficients": {
+          "length": -0.24307581617823285,
+          "entropy": 0.007183927032201072,
+          "logprob": 0.27128758913584405,
+          "entropy_he": 0.2727317190125227,
+          "logprob_he": 0.04003057624930701,
+          "rmd_random_q20": 0.00037902195568333824
+        },
+        "intercept": 0.02093492782335071
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_outputs",
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "logprob": -0.013428021694562295,
+          "entropy": -0.0059202593500491865,
+          "length": -0.275388753771246
+        },
+        "intercept": 0.03161239165315704
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_outputs_plus_rmd_high_entropy_q20",
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "logprob": 0.00397152438148662,
+          "entropy": 0.015716238298672035,
+          "length": -0.2369389556531458,
+          "rmd_high_entropy_q20": -0.07939971851671174
+        },
+        "intercept": 0.03277439892217498
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_b0",
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "length": -0.27538875377124566,
+          "entropy": -0.005920259350049461,
+          "logprob": -0.013428021694562213
+        },
+        "intercept": 0.03161239165315691
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_b1",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "length": -0.27663275652339875,
+          "entropy": -0.021303164767850588,
+          "logprob": 0.0077116113007203325,
+          "entropy_he": -0.1046199120779159,
+          "logprob_he": -0.11085983022628092
+        },
+        "intercept": 0.030193863287846893
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_g_he",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "length": -0.23857422331871886,
+          "entropy": -0.0030101356008050634,
+          "logprob": 0.01813004175824317,
+          "entropy_he": -0.11717610224841762,
+          "logprob_he": -0.10714293079625674,
+          "rmd_high_entropy_q20": -0.08545757181149513
+        },
+        "intercept": 0.030349676947845194
+      },
+      {
+        "layer": 21,
+        "fold": 2,
+        "method": "probe_g_random",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 291,
+        "n_test_traces": 725,
+        "coefficients": {
+          "length": -0.2138563867270824,
+          "entropy": 0.013207009604579587,
+          "logprob": 0.026077489084048097,
+          "entropy_he": -0.11588319630692318,
+          "logprob_he": -0.11734069588801756,
+          "rmd_random_q20": -0.11981255070807495
+        },
+        "intercept": 0.029320391048833702
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_outputs",
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "logprob": 0.07040220724500428,
+          "entropy": -0.18062989184096884,
+          "length": -0.18177309177996706
+        },
+        "intercept": 0.04230561949971456
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_outputs_plus_rmd_high_entropy_q20",
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "logprob": 0.11147612658394401,
+          "entropy": -0.12458700688907678,
+          "length": -0.0756190509782748,
+          "rmd_high_entropy_q20": -0.2074502214772184
+        },
+        "intercept": 0.04559277097333362
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_b0",
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "length": -0.181773091779967,
+          "entropy": -0.18062989184096895,
+          "logprob": 0.07040220724500441
+        },
+        "intercept": 0.04230561949971457
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_b1",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "length": -0.1485648051830956,
+          "entropy": -0.08003170799160919,
+          "logprob": 0.14234816967834332,
+          "entropy_he": 0.19835747237497572,
+          "logprob_he": -0.002098156734629945
+        },
+        "intercept": 0.04733567277675661
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_g_he",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "length": -0.05615327283130073,
+          "entropy": -0.04501892138525149,
+          "logprob": 0.16751205154748708,
+          "entropy_he": 0.172607223860126,
+          "logprob_he": 0.007354187137781026,
+          "rmd_high_entropy_q20": -0.1923981907734294
+        },
+        "intercept": 0.04952123073888864
+      },
+      {
+        "layer": 21,
+        "fold": 3,
+        "method": "probe_g_random",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ],
+        "n_train_prompts": 41,
+        "n_train_traces": 294,
+        "n_test_traces": 717,
+        "coefficients": {
+          "length": -0.05980781789128211,
+          "entropy": -0.02791891856456217,
+          "logprob": 0.16931119535047529,
+          "entropy_he": 0.1741904177630283,
+          "logprob_he": -0.018523951505197655,
+          "rmd_random_q20": -0.17355424609266706
+        },
+        "intercept": 0.047532327311822976
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_outputs",
+        "features": [
+          "logprob",
+          "entropy",
+          "length"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "logprob": -0.16619213389621112,
+          "entropy": -0.39600480863676213,
+          "length": 0.1232910391765233
+        },
+        "intercept": 0.09052284160648728
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_outputs_plus_rmd_high_entropy_q20",
+        "features": [
+          "logprob",
+          "entropy",
+          "length",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "logprob": -0.091997584828625,
+          "entropy": -0.29106141684443615,
+          "length": 0.3013529270819122,
+          "rmd_high_entropy_q20": -0.360059293668016
+        },
+        "intercept": 0.10255892523232214
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_b0",
+        "features": [
+          "length",
+          "entropy",
+          "logprob"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "length": 0.1232910391765231,
+          "entropy": -0.3960048086367623,
+          "logprob": -0.16619213389621065
+        },
+        "intercept": 0.0905228416064874
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_b1",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "length": 0.15430166430316236,
+          "entropy": -0.3006675369051311,
+          "logprob": -0.08491797834218703,
+          "entropy_he": 0.17896087383199533,
+          "logprob_he": -0.02920830541907711
+        },
+        "intercept": 0.09306197329820999
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_g_he",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_high_entropy_q20"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "length": 0.3112122095275544,
+          "entropy": -0.23781069399199628,
+          "logprob": -0.048993930618602646,
+          "entropy_he": 0.1174147565556947,
+          "logprob_he": -0.006357814007799921,
+          "rmd_high_entropy_q20": -0.34224548027911905
+        },
+        "intercept": 0.10343614459257473
+      },
+      {
+        "layer": 21,
+        "fold": 4,
+        "method": "probe_g_random",
+        "features": [
+          "length",
+          "entropy",
+          "logprob",
+          "entropy_he",
+          "logprob_he",
+          "rmd_random_q20"
+        ],
+        "n_train_prompts": 33,
+        "n_train_traces": 241,
+        "n_test_traces": 735,
+        "coefficients": {
+          "length": 0.3321812570702746,
+          "entropy": -0.20308634054927047,
+          "logprob": -0.03284576830132734,
+          "entropy_he": 0.1297123566475156,
+          "logprob_he": -0.04488256545816366,
+          "rmd_random_q20": -0.3716374482497497
+        },
+        "intercept": 0.10077287130721642
+      }
+    ]
+  },
+  "hidden_state_probe": {
+    "regions": [
+      "tail_q20"
+    ],
+    "supervised": true,
+    "cross_fitted_by_prompt_fold": true,
+    "estimator": "LinearDiscriminantAnalysis(solver=lsqr, shrinkage=auto)",
+    "features": "mean of PCA-projected hidden states over the region, standardized; same PCA basis as the RMD reference",
+    "training_population": "all parseable training traces, pooled labels",
+    "prespecified": false,
+    "note": "Added 2026-07-29 to bound how much of the geometry signal a supervised readout on the same activations recovers. Its paired deltas are exploratory and are reported separately from the prespecified contrast set.",
+    "diagnostics": [
+      {
+        "fold": 0,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_train": 2927,
+        "n_correct": 2254
+      },
+      {
+        "fold": 1,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_train": 2899,
+        "n_correct": 2245
+      },
+      {
+        "fold": 2,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_train": 2924,
+        "n_correct": 2264
+      },
+      {
+        "fold": 3,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_train": 2932,
+        "n_correct": 2236
+      },
+      {
+        "fold": 4,
+        "layer": 21,
+        "region": "tail_q20",
+        "n_train": 2914,
+        "n_correct": 2217
+      }
+    ]
+  }
+}

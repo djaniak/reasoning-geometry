@@ -200,3 +200,21 @@ docs/superpowers
 !/results/label_efficiency_token_pooling/*.json
 !/results/label_efficiency_token_pooling/*.csv
 !/results/label_efficiency_token_pooling/*.md
+
+# Flat float16 layer caches (analysis/layer_cache.py); rebuildable from the NPZ
+.layer_cache/
+
+# The outer-refit sweep. This is the artifact the 2026-08-21 review's blocker is
+# read out of, it is not a DVC stage, and it costs ~10 h of CPU to regenerate --
+# so the reports, the collected JSON, the per-step logs and the `.done_` markers
+# all go in git. The markers matter: each one records the exact command its step
+# ran, which is the only provenance linking a number here to a parameterization.
+#
+# The OOF CSVs are excluded. Fourteen megabytes of them against 1.6 MB for
+# everything else, and they are pure intermediates -- `abstention` and `probe`
+# consume them and their outputs are committed here. A marker is not enough to
+# skip a step: `Step.done` requires the marker AND its artifact AND a matching
+# command, so a clone without the CSVs re-runs the decompositions rather than
+# silently reusing work that is not there.
+!/results/refit_stability/
+/results/refit_stability/**/*.csv

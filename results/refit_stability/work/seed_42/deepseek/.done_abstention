@@ -1,0 +1,30 @@
+{
+  "cmd": [
+    "/home/djaniak/projects/reasoning-geometry-probe/.venv/bin/python",
+    "-u",
+    "-m",
+    "applications.incremental_abstention",
+    "--oof_csv",
+    "results/refit_stability/work/seed_42/deepseek/decomposition/math500_prompt_decomposition_oof.csv",
+    "--output_dir",
+    "results/refit_stability/work/seed_42/deepseek/abstention",
+    "--model_label",
+    "deepseek",
+    "--dataset_label",
+    "math500",
+    "--layer",
+    "21",
+    "--data_dir",
+    "data/deepseek_bestofn_full/math500",
+    "--max_new_tokens",
+    "8192",
+    "--expected_traces",
+    "8",
+    "--n_bootstrap",
+    "200",
+    "--seed",
+    "42"
+  ],
+  "elapsed_seconds": 3.4,
+  "finished": 1787590305.1701725
+}

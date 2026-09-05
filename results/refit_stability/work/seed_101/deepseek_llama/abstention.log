@@ -1,0 +1,5 @@
+full_population: n=500 B1-B0 AUACC 0.035 [0.001, 0.068] p=0.040
+valid_plurality: n=499 B1-B0 AUACC 0.035 [0.001, 0.068] p=0.050
+cap_free_valid_plurality: n=408 B1-B0 AUACC 0.040 [0.011, 0.070] p=0.010
+cap_free_full_population: n=408 B1-B0 AUACC 0.040 [0.011, 0.070] p=0.010
+all_eight_parseable: n=411 B1-B0 AUACC 0.041 [0.004, 0.081] p=0.020

@@ -179,6 +179,8 @@ def decomposition_step(
         "--load_workers", str(load_workers),
         "--contrastive_regions", "tail_q20",
         "--hidden_probe_regions", "tail_q20",
+        "--localized_rmd_regions",
+        "tail_q10,tail_q20,tail_q50,high_entropy_q20,random_q20",
         "--region_seed", "42",
         "--hidden_dtype", "float16",
         "--compute_dtype", "float32",

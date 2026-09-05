@@ -15,6 +15,7 @@ import json
 import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from analysis import layer_cache
 import matplotlib.pyplot as plt
 from sklearn.covariance import LedoitWolf
 from sklearn.decomposition import PCA
@@ -181,6 +182,7 @@ def _load_trace_batch(
     include_auxiliary: bool,
     auxiliary_fields: set[str] | None = None,
     hidden_dtype: np.dtype | None = None,
+    layer_caches: dict[int, "layer_cache.LayerCache"] | None = None,
 ) -> list[dict]:
     known_auxiliary = {"entropies", "token_logprobs", "tokens"}
     if auxiliary_fields is not None:
@@ -195,6 +197,7 @@ def _load_trace_batch(
         else set()
     )
     traces = []
+    batch_name = os.path.basename(path)
     with np.load(path, allow_pickle=True) as data:
         available = set(data.files)
         for m in data["metadata"]:
@@ -250,7 +253,14 @@ def _load_trace_batch(
                 if key not in available:
                     key = f"hidden_L{layer}_{idx}"
                 if key in available:
-                    hidden = data[key]
+                    # A cache hit is a memmap slice: page-cache backed, and no
+                    # anonymous memory.  It is bit-identical to the NPZ member
+                    # cast to float16, which is what the long-trace models ask
+                    # for, so the cast below is then a no-op and no copy is made.
+                    cache = (layer_caches or {}).get(layer)
+                    hidden = cache.get(batch_name, key) if cache is not None else None
+                    if hidden is None:
+                        hidden = data[key]
                     if hidden_dtype is not None and hidden.dtype != hidden_dtype:
                         hidden = hidden.astype(hidden_dtype, copy=False)
                     trace["hiddens"][layer] = hidden
@@ -267,6 +277,7 @@ def load_all_traces(
     include_auxiliary: bool = True,
     auxiliary_fields: set[str] | None = None,
     hidden_dtype: np.dtype | None = None,
+    use_layer_cache: bool = True,
 ) -> list[dict]:
     """Load trace batches, optionally decompressing independent NPZ files in parallel.
 
@@ -288,6 +299,19 @@ def load_all_traces(
     sizes = [os.path.getsize(path) for path in paths]
     loaded: list[list[dict] | None] = [None] * len(paths)
 
+    # Opened once per call: a hit serves hidden states from a shared memmap
+    # instead of decompressing them into anonymous memory.  Absent or stale
+    # caches return nothing and the NPZ path below is unchanged.
+    layer_caches = (
+        layer_cache.open_caches(data_dir, layers) if use_layer_cache else {}
+    )
+    for layer, cache in sorted(layer_caches.items()):
+        print(
+            f"  Layer {layer}: memory-mapping {len(cache)} traces "
+            f"({cache.nbytes / 2**30:.1f} GiB) from the layer cache",
+            flush=True,
+        )
+
     with tqdm(
         total=sum(sizes),
         desc="Loading trace batches",
@@ -302,7 +326,7 @@ def load_all_traces(
                 try:
                     loaded[index] = _load_trace_batch(
                         path, layers, include_auxiliary, auxiliary_fields,
-                        hidden_dtype,
+                        hidden_dtype, layer_caches,
                     )
                 except Exception as error:
                     print(
@@ -324,6 +348,7 @@ def load_all_traces(
                         include_auxiliary,
                         auxiliary_fields,
                         hidden_dtype,
+                        layer_caches,
                     ): (index, path, size)
                     for index, (path, size) in enumerate(zip(paths, sizes))
                 }

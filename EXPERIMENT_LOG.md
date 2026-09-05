@@ -5,6 +5,140 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-08-25: The refit sweep runs — no quantity's spread exceeds its bootstrap
+
+The sweep registered on 2026-08-22 has run on the two long-trace models. The
+decision rule below was fixed before any refit existed and is applied here
+unchanged.
+
+### Parameterization
+
+```bash
+~/run_refit_long_models.sh 2>&1 | tee ~/refit_long_models.log
+# -> env CUDA_VISIBLE_DEVICES="" python -u ~/no_thp.py controls.refit_stability \
+#      --model deepseek --model deepseek_llama --skip_peer \
+#      --seed 42 --seed 101 --seed 202
+```
+
+Three seeds x two models x three steps = 18 steps, all completed, ~10 h wall on
+2026-08-24/25. Qwen was not included (its seed-42 refit predates this run) and
+`--skip_peer` was passed, so this is deliberately a partial protocol.
+
+Two enabling changes, neither of which touches a fitted component:
+
+1. `analysis/layer_cache.py` (new) builds a flat float16 memmap per layer from
+   the NPZ batches. `analysis/analyze.py` prefers a cache slice when the
+   fingerprint of every source NPZ matches and falls back to the NPZ otherwise,
+   so no command line changes. Measured on qwen layer 21: 15.5 GiB RssAnon from
+   the NPZ against 0.1 GiB from the cache, because a cache hit is a memmap
+   slice. Peak RSS is the wrong gauge here and barely moves — resident
+   file-backed pages count toward it — but those pages are clean and droppable,
+   which anonymous pages on a host with full swap are not.
+2. `~/no_thp.py` sets `PR_SET_THP_DISABLE` before importing anything. The first
+   attempt spent 15 h on fold 1 of 6 with its faulting thread at 100% *system*
+   time and 0.25 s of user time per 30 s. `/proc/vmstat` over 20 s: 931
+   `compact_stall` of which 907 failed, 19 M pages migrate-scanned, 50 M
+   free-scanned, 9 major faults. A 154-day uptime had fragmented free memory, so
+   every 2 MB anonymous fault was triggering a synchronous compaction scan. The
+   box-wide knob is root-owned; the prctl is per-process and is inherited across
+   fork and preserved across execve, so it covers every step subprocess.
+
+### Artifacts
+
+`results/refit_stability/`, committed to git rather than DVC (not a stage, and
+no DVC remote on this host). Reports, collected JSON, per-step logs and `.done_`
+markers; the OOF CSVs are excluded as intermediates. See the README there.
+
+### Reproduction check
+
+Seed 42 is the frozen partition and so is the sweep's own control. It
+reproduces the committed headline **exactly** — bit-identical float64 on
+`full_population`:
+
+| Model | Published `B1 - B0` AURC | Seed-42 refit |
+|:--|---:|---:|
+| deepseek | -0.028365424745836698 | -0.028365424745836698 |
+| deepseek_llama | -0.046945009505890090 | -0.046945009505890090 |
+
+The refit OOF CSVs are *not* byte-identical to the frozen ones, and should not
+be: the frozen artifact carries the three-layer sweep (12001 rows) where the
+refit fits the headline layer only (4001 rows), and the refit adds `tail_q10`
+and `tail_q50` columns (39 vs 37). Row counts here are per (trace, layer) —
+comparing the files without selecting a layer compares different objects.
+
+### Result — refit spread against the frozen bootstrap width
+
+The registered rule asks whether the spread of point estimates *across* refits
+is comparable to the within-refit bootstrap interval. It is not; it is smaller
+everywhere, and every quantity is sign-stable.
+
+| Model | Quantity | Bootstrap CI | width | refit spread | ratio |
+|:--|:--|:--|---:|---:|---:|
+| deepseek | `b1_minus_b0_aurc` | [-0.0526, -0.0048] | 0.0478 | 0.0103 | 0.22x |
+| deepseek | `probe_pooled` | [+0.884, +0.940] | 0.0559 | 0.0186 | 0.33x |
+| deepseek | `probe_macro` | [+0.463, +0.688] | 0.2250 | 0.1035 | 0.46x |
+| deepseek | `probe_pooled_minus_macro` | [+0.226, +0.450] | 0.2239 | 0.0974 | 0.43x |
+| deepseek | `rmd_pooled_minus_macro` | [+0.109, +0.317] | 0.2080 | 0.0189 | 0.09x |
+| deepseek_llama | `b1_minus_b0_aurc` | [-0.0743, -0.0162] | 0.0581 | 0.0176 | 0.30x |
+| deepseek_llama | `probe_pooled` | [+0.881, +0.922] | 0.0418 | 0.0096 | 0.23x |
+| deepseek_llama | `probe_macro` | [+0.670, +0.761] | 0.0907 | 0.0353 | 0.39x |
+| deepseek_llama | `probe_pooled_minus_macro` | [+0.141, +0.232] | 0.0915 | 0.0331 | 0.36x |
+| deepseek_llama | `rmd_pooled_minus_macro` | [+0.084, +0.188] | 0.1042 | 0.0064 | 0.06x |
+
+Bootstrap intervals are the committed seed-42 ones: `B1 - B0` from
+`math500_incremental_abstention_results.json` (`paired_deltas`, 1000 draws),
+the probe and RMD rows from `last_token_probe_results.json` (`parseable`, 1000
+draws). Refit spread is max - min over the three seeds. The whole refit range
+sits inside the published interval in every row.
+
+### Interpretation
+
+Under the registered rule this is the middle branch — sign stable with spread
+*narrower* than the bootstrap width — for every quantity measured. The claims
+stand and the paper reports both spreads. Ruled out: that the frozen-partition
+bootstrap was materially understating uncertainty on `B1 - B0` or on the probe
+decomposition for these two models. The blocker's third quantity, the peer
+residual, is untouched.
+
+Two things the summary table does not show and the draft should carry:
+
+- **The probe's layer selection is not stable, and seed 42 is the outlier.**
+  deepseek selects layers [14, 21] at seed 42 but [7, 14] at both 101 and 202.
+  The published `pooled - macro` of 0.3316 is the *largest* of the three
+  refits; 101 and 202 give 0.2368 and 0.2342, mean 0.2675. Still comfortably
+  positive and well inside the interval, but the frozen partition is the most
+  favourable of the three and the gap should not be quoted as if 0.33 were
+  typical.
+- **The macro instability is a denominator, not a mystery.** deepseek's macro
+  AUROC rests on 49 mixed prompts against deepseek_llama's 158, and its macro
+  spread is ~3x larger (0.1035 vs 0.0353) in exactly that proportion. This is
+  the same small-mixed-prompt limitation already logged on 2026-07-18.
+
+Note that `max drift from frozen` in the generated report is drift from the
+*seed-42 refit value* (`controls/refit_stability.py:479-482`), not from the
+published number. It is an internal anchor. The published-value check is the
+reproduction table above.
+
+### Limitations and next dependent stage
+
+`peer_residual_aurc` is `n: 0`. `--skip_peer` was passed, and the peer rung is
+only a control if target and peers share a partition, so it needs all three
+models at one seed. The 2026-08-21 blocker names three quantities; this closes
+the `B1 - B0` and probe halves and leaves the residual open. **The refit gate is
+partially closed, not closed** — `protocol_complete` requires all four
+registered seeds and all three models and the peer ladder, which is why the
+artifacts carry the `partial` stem, and `PAPER_STRATEGY_RMD.md` should say so in
+those words.
+
+Qwen is absent from seeds 101 and 202. Two of three seeds are genuinely new
+partitions, since 42 is the reproduction check. And the refits share the one
+thing that is not resampled: the collected traces. This measures the stability
+of the fitting path, not of the data collection.
+
+**Next dependent stage:** qwen at seeds 101 and 202 (~1 h each with caches
+built), then the peer step at each of the three seeds (`peak_gb=8`) — roughly
+2.5 h total, and the only remaining work for the residual half.
+
 ## 2026-08-22: Tail-window sensitivity registered after freezing q20
 
 This is a post-hoc robustness analysis. It does not select a detector, and
@@ -239,12 +373,23 @@ failure leaves no marker. `--collect_only` summarises whatever finished. So an
 interrupted sweep is a smaller sweep, not a lost one — three seeds still answer
 the sign question, which is the part the draft is blocked on.
 
+**Amended 2026-08-25, after measurement.** The estimate above was wrong by a
+factor of three on the distill models and is left standing only because this
+entry is a pre-registration. Measured: qwen ~43 min, deepseek ~81 min,
+deepseek_llama ~85 min, ~20 min downstream per model. Three seeds x two distill
+models ran in ~10 h wall. Two conditions are load-bearing and neither was known
+when the estimate was written — a valid `analysis/layer_cache.py` cache for the
+fitted layer, and transparent huge pages disabled for the process tree. Without
+the second, one fold of one step ran for 15 h without finishing. Both are
+documented in `results/refit_stability/README.md`.
+
 ### Status
 
-Harness written, 20 unit tests passing, dry run verified. **No refit results
-exist yet.** `tests/test_refit_stability.py` pins the property this entry is
-about: every stage carries the refit seed, because a stage left at 42 while the
-others move is not a refit.
+**Superseded 2026-08-25 — the sweep has run; see the entry of that date.** As
+registered: harness written, 20 unit tests passing, dry run verified, no refit
+results existing yet. `tests/test_refit_stability.py` pins the property this
+entry is about: every stage carries the refit seed, because a stage left at 42
+while the others move is not a refit.
 
 
 ## 2026-08-22: A last-token probe, reproduced at its strength and then decomposed

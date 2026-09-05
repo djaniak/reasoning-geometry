@@ -1,0 +1,15 @@
+[prompt-decomposition] [1/8] Detecting hidden-state layers
+[prompt-decomposition] Processing deepseek one layer at a time to limit peak memory: 500 prompts x 8 traces, 5 folds, layers [21]
+[prompt-decomposition] [2/8] Loading layer 21 (1/1) with 8 parallel workers
+  Layer 21: memory-mapping 4000 traces (82.8 GiB) from the layer cache
+[prompt-decomposition] [3/8] Validating 4000 traces for layer 21 (82.8 GiB hidden states in memory)
+[prompt-decomposition] [4/8] Generating out-of-fold scores for layer 21 (1/1)
+  Layer 21: PCA var=0.498, fit on 2000000 tokens [capped from 5560629] (LedoitWolf)
+  Layer 21: PCA var=0.497, fit on 2000000 tokens [capped from 5791263] (LedoitWolf)
+  Layer 21: PCA var=0.497, fit on 2000000 tokens [capped from 5570511] (LedoitWolf)
+  Layer 21: PCA var=0.497, fit on 2000000 tokens [capped from 5638447] (LedoitWolf)
+  Layer 21: PCA var=0.498, fit on 2000000 tokens [capped from 5494954] (LedoitWolf)
+[prompt-decomposition] [5/8] Fitting cross-fitted supervised readouts
+[prompt-decomposition] [6/8] Computing decomposition metrics and 200 prompt-bootstrap resamples per layer
+[prompt-decomposition] [7/8] Writing CSV, JSON, and Markdown outputs to results/refit_stability/work/seed_101/deepseek/decomposition
+[prompt-decomposition] [8/8] Complete in 4883.2s

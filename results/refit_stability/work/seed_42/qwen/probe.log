@@ -1,0 +1,8 @@
+[qwen] last-token states from data/qwen_bestofn_full/math500
+  reusing results/last_token_probe/cache/qwen_last_token.npz
+  joined ['probe_hidden_tail_q20', 'rmd_tail_q20'] from results/refit_stability/work/seed_42/qwen/decomposition/math500_prompt_decomposition_oof.csv at layer 21
+  [parseable] 3672 traces, 498 prompts
+  [parseable] bootstrapping 200 prompt resamples
+  [all_traces] 4000 traces, 500 prompts
+  [all_traces] bootstrapping 200 prompt resamples
+wrote results/refit_stability/work/seed_42/qwen/probe in 1134.0s
