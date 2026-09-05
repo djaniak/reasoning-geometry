@@ -390,18 +390,18 @@ def test_localized_rmd_scores_average_only_region_tokens():
         pca_dim=2,
         n_splits=2,
         seed=42,
+        localized_rmd_regions=("tail_q10", "tail_q50"),
         fit_reference=lambda correct, layer, dim: (FakePca(), np.zeros(2)),
         extend_reference=lambda ref, traces, layer: (*ref, "background"),
         raw_distance=lambda hiddens, *ref: np.ones(hiddens.shape[0]),
         relative_distance=lambda hiddens, *ref: per_token_rmd.copy(),
     )
 
-    # 20% of 5 tokens = 1 token: highest entropy is index 1, tail is index 4.
+    # q10 keeps one token and q50 keeps ceil(2.5) = 3 trailing tokens.
     assert all(row["rmd_score"] == pytest.approx(-2.0) for row in rows)
-    assert all(
-        row["rmd_high_entropy_q20_score"] == pytest.approx(-1.0) for row in rows
-    )
-    assert all(row["rmd_tail_q20_score"] == pytest.approx(-4.0) for row in rows)
+    assert all(row["rmd_tail_q10_score"] == pytest.approx(-4.0) for row in rows)
+    assert all(row["rmd_tail_q50_score"] == pytest.approx(-3.0) for row in rows)
+    assert all("rmd_tail_q20_score" not in row for row in rows)
 
 
 def test_generate_oof_scores_layerwise_loads_only_one_layer_at_a_time():

@@ -168,16 +168,25 @@ This run reopens the 2026-08-09 no-window-sweep decision only as a robustness
 check requested during paper review. It does not restore the withdrawn
 tail-aggregator novelty claim.
 
-Implementation: `analysis/rmd_window_sensitivity.py`. The scorer reuses
-`applications.prompt_decomposition` and adds generic fixed `tail_qNN` regions.
-The run is queued behind the active full-refit sweep because both jobs refit the
-same high-memory reference manifolds.
+Implementation: `analysis/rmd_window_sensitivity.py`. The refit decomposition
+now writes q10 and q50 alongside its existing q20, full-trace, high-entropy,
+and random controls. This changes no fitted component: all six summaries pool
+the same tokenwise OOF RMD distances. The sensitivity report reads the three
+seed-42 refit CSVs, so it does not launch a second high-memory fit.
+
+When this reuse decision was recorded, only the Qwen seed-42 decomposition had
+completed and its CSV predated the q10/q50 columns, so the entry said it would
+have to run once more. That is no longer true: the 2026-08-23 layer-cache
+validation re-ran Qwen seed 42 with `--localized_rmd_regions` already in the
+command, and the 2026-08-25 sweep produced the other two the same way. All three
+seed-42 CSVs carry 39 columns including `rmd_tail_q10` and `rmd_tail_q50`, so
+the command below runs as written with no decomposition first.
 
 ```bash
 uv run python -m analysis.rmd_window_sensitivity \
-  --model qwen:data/qwen_bestofn_full/math500:21:1024 \
-  --model deepseek:data/deepseek_bestofn_full/math500:21:8192 \
-  --model deepseek_llama:data/deepseek_llama_bestofn_full/math500:24:12288
+  --oof-model qwen:results/refit_stability/work/seed_42/qwen/decomposition/math500_prompt_decomposition_oof.csv:data/qwen_bestofn_full/math500:21:1024 \
+  --oof-model deepseek:results/refit_stability/work/seed_42/deepseek/decomposition/math500_prompt_decomposition_oof.csv:data/deepseek_bestofn_full/math500:21:8192 \
+  --oof-model deepseek_llama:results/refit_stability/work/seed_42/deepseek_llama/decomposition/math500_prompt_decomposition_oof.csv:data/deepseek_llama_bestofn_full/math500:24:12288
 ```
 
 ## 2026-08-22: Scope — the label-efficiency claim is cut from the paper

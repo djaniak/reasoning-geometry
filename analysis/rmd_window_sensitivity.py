@@ -15,10 +15,12 @@ from applications.incremental_abstention import (
     _group_rows,
     _mean_field,
     _population_ids,
+    _read_oof,
     aggregate_prompt_features,
     crossfit_logistic_predictions,
     paired_bootstrap_delta,
     prompt_metrics,
+    select_layer_rows,
 )
 from applications.prompt_decomposition import generate_oof_scores_layerwise
 
@@ -187,6 +189,33 @@ def analyze_model(
         localized_rmd_regions=LOCALIZED_REGIONS,
         hidden_dtype=np.float16,
     )
+    result = analyze_rows(
+        rows,
+        label=label,
+        layer=layer,
+        max_new_tokens=max_new_tokens,
+        data_dir=data_dir,
+        expected_prompts=expected_prompts,
+        expected_traces=expected_traces,
+        n_bootstrap=n_bootstrap,
+        seed=seed,
+    )
+    result["data_report"] = data_report
+    return result
+
+
+def analyze_rows(
+    rows: Iterable[Mapping],
+    *,
+    label: str,
+    layer: int,
+    max_new_tokens: int,
+    expected_prompts: int,
+    expected_traces: int,
+    n_bootstrap: int,
+    seed: int,
+    data_dir: str | None = None,
+) -> dict:
     features = add_detector_features(
         rows,
         max_new_tokens=max_new_tokens,
@@ -198,6 +227,10 @@ def analyze_model(
         for prompt_id in _population_ids(features)["full_population"]
         if features[prompt_id]["fold"] is not None
     ]
+    if len(prompt_ids) != expected_prompts:
+        raise ValueError(
+            f"expected {expected_prompts} full-population prompts, found {len(prompt_ids)}"
+        )
     result = analyze_population(
         features, prompt_ids, n_bootstrap=n_bootstrap, seed=seed
     )
@@ -206,7 +239,6 @@ def analyze_model(
             "label": label,
             "layer": int(layer),
             "max_new_tokens": int(max_new_tokens),
-            "data_report": data_report,
             "prompt_features": [
                 {
                     key: features[prompt_id][key]
@@ -222,6 +254,37 @@ def analyze_model(
             ],
         }
     )
+    return result
+
+
+def analyze_oof_model(
+    *,
+    label: str,
+    oof_csv: str,
+    layer: int,
+    max_new_tokens: int,
+    expected_prompts: int,
+    expected_traces: int,
+    n_bootstrap: int,
+    seed: int,
+    data_dir: str | None = None,
+) -> dict:
+    """Analyze detector columns already produced by a refit decomposition."""
+    rows, selected_layer = select_layer_rows(
+        _read_oof(oof_csv), layer, context=oof_csv
+    )
+    result = analyze_rows(
+        rows,
+        label=label,
+        layer=selected_layer,
+        max_new_tokens=max_new_tokens,
+        data_dir=data_dir,
+        expected_prompts=expected_prompts,
+        expected_traces=expected_traces,
+        n_bootstrap=n_bootstrap,
+        seed=seed,
+    )
+    result["oof_csv"] = oof_csv
     return result
 
 
@@ -272,9 +335,27 @@ def _model_spec(value: str) -> dict:
         ) from error
 
 
+def _oof_model_spec(value: str) -> dict:
+    try:
+        label, oof_csv, data_dir, layer, max_new_tokens = value.rsplit(":", 4)
+        return {
+            "label": label,
+            "oof_csv": oof_csv,
+            "data_dir": data_dir,
+            "layer": int(layer),
+            "max_new_tokens": int(max_new_tokens),
+        }
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "oof model must be LABEL:OOF_CSV:DATA_DIR:LAYER:MAX_NEW_TOKENS"
+        ) from error
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", action="append", type=_model_spec, required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--model", action="append", type=_model_spec)
+    inputs.add_argument("--oof-model", action="append", type=_oof_model_spec)
     parser.add_argument("--output-dir", default="results/rmd_window_sensitivity")
     parser.add_argument("--expected-prompts", type=int, default=500)
     parser.add_argument("--expected-traces", type=int, default=8)
@@ -291,24 +372,39 @@ def main() -> None:
     args = parse_args()
     set_compute_dtype("float32")
     set_max_reference_tokens(args.max_reference_tokens)
-    models = [
-        analyze_model(
-            **spec,
-            expected_prompts=args.expected_prompts,
-            expected_traces=args.expected_traces,
-            pca_dim=args.pca_dim,
-            n_splits=args.n_splits,
-            n_bootstrap=args.n_bootstrap,
-            seed=args.seed,
-            load_workers=args.load_workers,
-        )
-        for spec in args.model
-    ]
+    if args.oof_model:
+        models = [
+            analyze_oof_model(
+                **spec,
+                expected_prompts=args.expected_prompts,
+                expected_traces=args.expected_traces,
+                n_bootstrap=args.n_bootstrap,
+                seed=args.seed,
+            )
+            for spec in args.oof_model
+        ]
+        score_source = "refit_oof"
+    else:
+        models = [
+            analyze_model(
+                **spec,
+                expected_prompts=args.expected_prompts,
+                expected_traces=args.expected_traces,
+                pca_dim=args.pca_dim,
+                n_splits=args.n_splits,
+                n_bootstrap=args.n_bootstrap,
+                seed=args.seed,
+                load_workers=args.load_workers,
+            )
+            for spec in args.model
+        ]
+        score_source = "hidden_states"
     result = {
         "status": "post_hoc_sensitivity",
         "frozen_detector": FROZEN_DETECTOR,
         "detectors": DETECTOR_SCORE_KEYS,
         "population": "full_population",
+        "score_source": score_source,
         "settings": {
             "pca_dim": args.pca_dim,
             "n_splits": args.n_splits,

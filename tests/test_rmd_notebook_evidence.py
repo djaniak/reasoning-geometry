@@ -103,7 +103,7 @@ def test_ledger_registers_the_tail_window_defense_without_claiming_a_result():
         "q10, q20, q50, ATRMD, high-entropy-q20, and random-q20",
         "Use the robustness sentence only if the registered rule passes",
         '"tail-window cutoff", "status": "registered"',
-        '"no; queued behind refit"',
+        '"no; piggybacked on seed-42 refit"',
     ):
         assert phrase in source
 

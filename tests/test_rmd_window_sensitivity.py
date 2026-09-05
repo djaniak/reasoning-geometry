@@ -14,6 +14,7 @@ from analysis.rmd_window_sensitivity import (
     add_detector_features,
     robustness_verdict,
 )
+from analysis import rmd_window_sensitivity as sensitivity
 
 
 def _rows():
@@ -27,6 +28,7 @@ def _rows():
                     "trace_id": base,
                     "sample_id": trace_id,
                     "fold": prompt_id,
+                    "layer": 21,
                     "is_correct": trace_id == 0,
                     "predicted_answer": "1" if trace_id == 0 else "2",
                     "gold_answer": "1",
@@ -91,3 +93,36 @@ def test_robustness_sentence_is_conditional_on_both_adjacent_windows():
     failed = robustness_verdict(models)
     assert failed["passed"] is False
     assert ROBUSTNESS_SENTENCE not in failed["paper_sentence"]
+
+
+def test_oof_analysis_reuses_refit_scores_without_refitting(monkeypatch):
+    monkeypatch.setattr(sensitivity, "_read_oof", lambda _: _rows(), raising=False)
+    monkeypatch.setattr(
+        sensitivity,
+        "generate_oof_scores_layerwise",
+        lambda **_: pytest.fail("OOF analysis must not refit hidden-state geometry"),
+    )
+    monkeypatch.setattr(
+        sensitivity,
+        "analyze_population",
+        lambda features, prompt_ids, **_: {
+            "n_prompts": len(prompt_ids),
+            "paired_deltas_aurc": {},
+        },
+    )
+
+    result = sensitivity.analyze_oof_model(
+        label="qwen",
+        oof_csv="seed_42_qwen.csv",
+        layer=21,
+        max_new_tokens=10,
+        expected_prompts=2,
+        expected_traces=2,
+        n_bootstrap=10,
+        seed=42,
+    )
+
+    assert result["label"] == "qwen"
+    assert result["layer"] == 21
+    assert result["oof_csv"] == "seed_42_qwen.csv"
+    assert result["n_prompts"] == 2

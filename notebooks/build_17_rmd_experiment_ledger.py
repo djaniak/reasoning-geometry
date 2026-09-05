@@ -733,7 +733,7 @@ notebook output into current evidence.
 | Relative distance is unnecessary | **Background subtraction** reverses the misleading target-only raw Mahalanobis ranking in the retired one-class sweep. | Methods motivation only because the old absolute AUCs are pooled and length-confounded. | `EXPERIMENT_LOG.md`, 2026-07-25 |
 | Output confidence already provides the same signal | **DeepConf** is at chance as a prompt score on two checkpoints and does not improve the eight-sibling vote. | Appendix only; Qwen lacks the cached tokens required for the exact statistic. | Notebook 13 |
 | PCA dimension or layer was tuned to the result | The **PCA dimension** sweep found no consistent advantage beyond 128. The dense layer study motivated the sparse layer grid but used one checkpoint. | Methods appendix; do not claim a cross-model layer mechanism. | Archived notebooks 02 and 09 |
-| Why exactly the final 20%? | `tail_q20` was fixed before this sensitivity run and remains fixed. A registered post-hoc comparison will test q10, q20, q50, ATRMD, high-entropy-q20, and random-q20 without selecting a replacement. | Use the robustness sentence only if the registered rule passes. | `EXPERIMENT_LOG.md`, 2026-08-22 |
+| Why exactly the final 20%? | `tail_q20` was fixed before this sensitivity run and remains fixed. A registered post-hoc comparison will test q10, q20, q50, ATRMD, high-entropy-q20, and random-q20 without selecting a replacement. The extra windows are pooled from the seed-42 refit OOF distances, not fitted in a second run. | Use the robustness sentence only if the registered rule passes. | `EXPERIMENT_LOG.md`, 2026-08-22 |
 | Budget failures should be treated as missing data | **Budget continuation** shows that capped DeepSeek prefixes often finish with more tokens, while `C_B` still scores what was available at the registered budget. | Sensitivity evidence only; it does not relabel the primary outcome. | `budget_outcomes` below |
 | Difficulty ranking should enable reranking or allocation | Tie-breaking has little headroom, and the allocation gate fails because difficulty does not rank marginal sampling gain. | Scope statement, not an application result. | Notebook 11 and section 6 |
 
@@ -748,7 +748,7 @@ DEFENSES = pd.DataFrame([
     {"defense": "background subtraction", "status": "methods", "loaded evidence": "no; retired sweep"},
     {"defense": "DeepConf", "status": "appendix", "loaded evidence": "no; notebook 13"},
     {"defense": "PCA dimension and layer", "status": "methods", "loaded evidence": "no; archived notebooks"},
-    {"defense": "tail-window cutoff", "status": "registered", "loaded evidence": "no; queued behind refit"},
+    {"defense": "tail-window cutoff", "status": "registered", "loaded evidence": "no; piggybacked on seed-42 refit"},
     {"defense": "budget continuation", "status": "appendix", "loaded evidence": "yes; budget_outcomes"},
     {"defense": "reranking and allocation", "status": "limitations", "loaded evidence": "section 6"},
 ])
