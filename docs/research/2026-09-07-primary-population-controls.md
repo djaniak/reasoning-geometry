@@ -25,7 +25,7 @@ an estimated cost, and the retained claim that depends on it.
 
 ## Why these exist
 
-`EXPERIMENT_LOG.md:1132` adopted `full_population` as the primary estimand and fixed
+`EXPERIMENT_LOG.md, section “2026-08-22: Budget-indexed outcomes — the increment survives `C_B`, and the headline population overstates it”` adopted `full_population` as the primary estimand and fixed
 the composition rule: deltas taken under any attenuation must share that base, or two
 corrections land on different denominators and will not compose. Five controls still
 default to `--population cap_free_valid_plurality` and have only ever been run there.
@@ -93,7 +93,7 @@ existing one is retained as sensitivity.
 
 **Writes** `peer_difficulty_control_{report.md,results.json}`; the first `--population`
 becomes the headline the stop rule and Holm table are evaluated on.
-**Cost** ~1-2 CPU-hours (the 2026-08-09 estimate at `EXPERIMENT_LOG.md:3463`).
+**Cost** ~1-2 CPU-hours (the 2026-08-09 estimate at `EXPERIMENT_LOG.md, section “2026-08-09: The two closest cheap baselines, and whether the tail is a window artifact”`).
 **Watch for** whether `stop_rule.triggered` stays `false` on the primary population.
 It is `false` on `cap_free` with exactly one model overlapping zero, so this is the
 one re-run that could change a retained claim rather than only its denominator.
@@ -128,7 +128,7 @@ confidence-weighted vote, and as a confidence filter, with all four of its stati
 
 **These can never become three-model controls.** The exact DeepConf statistic requires
 teacher-forced cached token IDs, and `data/qwen_bestofn_full` stores no token arrays
-(`EXPERIMENT_LOG.md:4646`). Re-running on the primary population fixes the population
+(`EXPERIMENT_LOG.md, section “2026-08-05: The increment does NOT clear DeepConf's tail statistic (DeepSeek)”`). Re-running on the primary population fixes the population
 gap on the two models that can carry it; it does not fix the coverage gap, which is
 permanent and must be stated in the manuscript rather than worked around.
 
@@ -170,7 +170,7 @@ need the re-run; what the re-run buys is a **report** that presents it, since th
 committed `deepconf_weighted_vote_report.md` does not. `deepconf_asymmetry` has no
 `full_population` block at all and does need the run.
 
-Before citing either, reconcile against `EXPERIMENT_LOG.md:4643`, which records that
+Before citing either, reconcile against `EXPERIMENT_LOG.md, section “2026-08-05: The increment does NOT clear DeepConf's tail statistic (DeepSeek)”`, which records that
 "once DeepConf is *added to B0*, the remaining geometry margin is not significant at
 this sample size on the clean population." That statement is about a different rung —
 DeepConf added as a raw feature, not as a confidence-weighted vote — and about the
@@ -182,7 +182,7 @@ raw-feature one. Establish which rung each sentence refers to before writing eit
 
 ## Also outstanding, and not in this file's scope
 
-* **The registered tail-window sensitivity run** (`EXPERIMENT_LOG.md:615`). Registered
+* **The registered tail-window sensitivity run** (`EXPERIMENT_LOG.md, section “2026-08-22: Tail-window sensitivity registered after freezing q20”`). Registered
   rule, registered command, `results/rmd_window_sensitivity/` does not exist. An
   in-memory replication during the 2026-09-06 audit is not this artifact and must not
   be cited; see the 2026-09-07 log entry.

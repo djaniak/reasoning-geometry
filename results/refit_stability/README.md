@@ -58,7 +58,7 @@ obvious:
   long-uptime host with fragmented free memory, every 2 MB anonymous fault
   triggers a synchronous compaction scan; the first attempt at this sweep spent
   15 h on one fold of one step at 100% system time and 0% user before being
-  killed. `~/no_thp.py` sets `PR_SET_THP_DISABLE`, which is inherited across
+  killed. `controls/no_thp.py` (ported from the original home-directory helper) sets `PR_SET_THP_DISABLE`, which is inherited across
   fork and preserved across execve.
 
 ## Completing it

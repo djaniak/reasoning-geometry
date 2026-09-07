@@ -5,7 +5,7 @@ Built by `controls/refit_stability.py`. Each refit re-runs the pipeline end to e
 Refits collected: 3 (seeds 42, 101, 202) over 2 of 3 registered models (deepseek, deepseek_llama).
 Seeds carrying every quantity requested of *this* run: 42, 101, 202; incomplete: none. That is completeness relative to this invocation, not to the registered protocol.
 
-**Registered protocol: NOT complete.** Still outstanding: models qwen; seeds 303; the peer-ladder refit at every seed. Quantities below are therefore a partial read of the registered sweep, and the gate this sweep exists to close is partially closed, not closed.
+**Registered protocol: NOT complete.** Still outstanding: models qwen; seeds 303; missing peer-ladder quantities (see per-refit rows). Quantities below are therefore a partial read of the registered sweep, and the gate this sweep exists to close is partially closed, not closed.
 
 Seed 42 is the frozen-partition reproduction check when it appears among the collected refits.
 

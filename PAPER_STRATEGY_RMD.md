@@ -15,54 +15,40 @@ second literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit
 
 ---
 
-## 1. Current thesis (2026-08-22)
+## 1. Current thesis (2026-09-07)
 
-> **On all 500 MATH-500 prompts under a fixed eight-sample budget, adding a
-> relative-Mahalanobis tail score to mean length, token entropy, token log
-> probability and plurality agreement improves prompt-level selective prediction
-> on three 7B/8B checkpoints. The fixed-pipeline AURC increments are −0.0520,
-> −0.0284 and −0.0469. A high pooled trace AUROC does not establish sibling-level
-> verification: a reproduced last-token probe falls from 0.901/0.914/0.903 pooled
-> to 0.644/0.582/0.718 macro within prompt. A deployable peer-agreement baseline
-> is a genuine paid competitor, not a mechanism control; at one extra generation
-> the six model-pair comparisons yield four ties, one RMD win and one peer win on
-> the raw intervals — a post-hoc family with no multiplicity correction computed.**
+On all 500 MATH-500 prompts, after eight completed generations, adding the frozen
+RMD tail feature to length, entropy, log probability and vote agreement improves
+AURC on three 7–8B models: −0.0520, −0.0284 and −0.0469. These are conditional
+bootstrap results for the frozen fit, not completed full-refit evidence.
 
-The contribution of this work is the evaluation rather than a new geometry
-statistic. Token-level RMD and whole-trace ATRMD are already defined by Vazhentsev
-et al. On both reasoning-distilled models, ATRMD recovers nearly the full increment.
-Restricting the mean to the final 20% of tokens matters only on Qwen2.5-7B-Instruct.
-The paper should therefore present the tail as a model-dependent localization, and
-should foreground the controlled increment over a strong self-consistency baseline.
+The peer-difficulty stop rule triggers on the primary population. Conditioning on
+the other models’ gold-scored pass rates attenuates the increment by 87%, 98% and
+95%; none of the three residuals survives Holm correction. Follow the registered
+consequence: describe the increment as substantially a prompt-difficulty proxy.
+This is an observational diagnostic, not proof of a causal mechanism. The feature
+still improves on the tested deployable output-confidence baseline.
 
-The current evidence supports post-generation abstention and risk ranking after
-eight traces. It does not establish single-trace verification, pre-generation
-routing, adaptive compute allocation, or within-prompt reranking. The allocation
-precheck failed: single-trace geometry ranks the gain from another sample in the
-wrong order on all three models. The remaining evidence gate is the registered
-full-refit stability sweep, which is **partially closed, not closed**: three of four
-registered seeds have run on two of three models with the peer step skipped, so
-Qwen has no refit at any seed and no seed has a peer residual. No new score or
-application experiment precedes closing it.
+Whole-trace RMD recovers similar gains on the two distilled models. Adding the
+tail on top of whole-trace RMD has no statistically resolved increment there;
+it does on Qwen. Random-window comparisons are descriptive point estimates,
+not paired evidence of equivalence or superiority. The frozen 20% cutoff remains;
+the registered 10%/20%/50% sensitivity rule passes.
 
-The label-efficiency result was **cut from the paper on 2026-08-22** and should not
-appear in the manuscript. For the record of why: the −0.033 AURC lead at 50 labelled
-prompts *is* the pooling-matched comparison — it is taken against
-`probe_token_tail_q20` — but its interval spans zero (−0.033 [−0.044, +0.024], sign
-p=0.109, 24 of 30 draws), so it is a direction, not a result. It also decomposes
-into roughly −0.011 supervision and −0.018 decision-function form
-(`EXPERIMENT_LOG.md:3557`), so a write-up claiming the one-class inductive bias is
-what buys the label efficiency must quote −0.011, not −0.033 (`:3562`). The gap disappears at 100 prompts and the probe leads at larger budgets.
-Neither general sample efficiency nor a small-budget advantage is supported.
+The allocation gate passes on the primary population and fails on the cap-free
+population. Allocation benefit remains unresolved. Label efficiency remains cut.
+The six single-peer comparisons give one RMD win, one peer win, and four
+inconclusive results under raw intervals; the family is post hoc.
 
-The second contribution of the paper is methodological. It shows how trace length,
-generation caps, parse failures, layer selection, weak difficulty controls, and
-fixed-prediction uncertainty can inflate claims about reasoning geometry. Prior
-trace-correctness and tail-mechanism claims shrink or fail once these controls are
-applied.
+The full-refit protocol remains partial. Qwen has a seed-42 reproduction but no
+new partition. Qwen 101/202, all missing peer steps, and all models at seed 303
+are required for protocol completion. The manuscript may be drafted while those
+results are pending, but must not claim the protocol has closed.
 
-Full evidence: `EXPERIMENT_LOG.md` entries dated 2026-08-06 through 2026-08-10 and
-`RELATED_WORK.md` §nearest-neighbours.
+Use the [claim table](docs/research/2026-09-07-claim-evidence-table.md) and
+[manuscript draft](docs/research/rmd-preprint-draft.md) for current wording.
+Sections 2 onward retain the historical research record and are not a source of
+current headline claims without rechecking the linked artifacts.
 
 ## 2. Verified, de-confounded findings (what we can claim)
 

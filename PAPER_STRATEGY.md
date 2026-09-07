@@ -6,7 +6,7 @@ one to be applied to the other. They share no model, no dataset, no metric, and 
 
 | Doc | Thread | Status |
 |:---|:---|:---|
-| [`PAPER_STRATEGY_RMD.md`](PAPER_STRATEGY_RMD.md) | Relative Mahalanobis distance for selective prediction on MATH-500; 7–8B models | Evidence largely frozen. Binding constraint is **breadth** (single dataset, §7e), plus two unrun baselines (semantic entropy / EigenScore). |
+| [`PAPER_STRATEGY_RMD.md`](PAPER_STRATEGY_RMD.md) | Relative Mahalanobis distance for selective prediction on MATH-500; 7–8B models | Primary-population controls complete; difficulty interpretation narrowed. Full refit remains partial. Draft from the [current claim table](docs/research/2026-09-07-claim-evidence-table.md). |
 | [`PAPER_STRATEGY_DAG.md`](PAPER_STRATEGY_DAG.md) | Residual-stream activation patching on a synthetic arithmetic DAG; DeepSeek-R1-Distill-Qwen-1.5B | **Workshop-submittable now**, and at its registered N as of 2026-08-16. Main-conference path runs through a clean-valid multi-step format (§6b, G1/G2). The node-influence matrix E4 is **answered and negative on this format**, so it is not pending, and it survives only as a post-G1 experiment. |
 
 Section numbers in `PAPER_STRATEGY_RMD.md` are unchanged from the pre-split file,

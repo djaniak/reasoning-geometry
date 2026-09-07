@@ -330,3 +330,35 @@ def test_collect_only_keeps_an_incomplete_sweep_out_of_the_canonical_result(
     assert partial["complete"] is False
     assert partial["complete_seeds"] == []
     assert partial["incomplete_seeds"] == [42]
+
+
+def test_report_peer_coverage_uses_peer_records_and_requires_both_quantities(tmp_path):
+    from controls.refit_stability import summarize, write_report
+
+    _write_artifacts(tmp_path, 42, "qwen")
+    record = collect_seed(42, [QWEN], tmp_path)
+    body = dict(records=[record], models=["qwen"], complete=False,
+                complete_seeds=[42], incomplete_seeds=[],
+                summary=summarize([record], [QWEN]))
+    report = tmp_path / "report.md"
+    write_report(body, report)
+    assert "and the peer ladder refitted" in report.read_text()
+    record["peer"]["qwen"].pop("residual_deployable_aurc")
+    write_report(body, report)
+    assert "and the peer ladder refitted" not in report.read_text()
+    assert "missing peer-ladder quantities" in report.read_text()
+
+
+def test_resume_accepts_same_venv_alias_but_not_another_environment(tmp_path):
+    first = tmp_path / "venv-a" / "bin"
+    second = tmp_path / "venv-b" / "bin"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    for path in (first / "python", first / "python3", second / "python"):
+        path.symlink_to(sys.executable)
+    args = ["-m", "controls.refit_stability", "--seed", "42"]
+    (tmp_path / "out.json").write_text("{}")
+    (tmp_path / ".done").write_text(json.dumps({"cmd": [str(first / "python3"), *args]}))
+    assert _step(tmp_path, [str(first / "python"), *args]).done
+    assert not _step(tmp_path, [str(second / "python"), *args]).done
+    assert not _step(tmp_path, [str(first / "python"), *args[:-1], "101"]).done

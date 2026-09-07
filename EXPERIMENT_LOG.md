@@ -6070,3 +6070,36 @@ For every completed experiment, append:
 3. primary point estimates and uncertainty;
 4. interpretation and claims ruled in or out;
 5. limitations and next dependent stage.
+
+
+## 2026-09-07 — Preprint claim correction and refit launch verification
+
+Append-only correction after commit 8c1b63e. No prior log text changed.
+
+Corrected the DeepConf left-hand feature set, conditional tail-over-whole-trace
+interpretation, peer comparison headline, and scope of annotated difficulty
+controls. The current strategy now reflects the primary-population difficulty
+verdict and unresolved allocation result. Historical findings remain historical.
+Current log pointers in the claim table and manuscript-facing summaries now use
+section titles rather than mutable line numbers. The new working manuscript is
+`docs/research/rmd-preprint-draft.md`; full-refit-dependent statements remain pending.
+
+Ported the existing THP module wrapper into `controls/no_thp.py`. The old command
+passed an executable where this wrapper requires a module. Replaced the external
+shell launcher with the existing serial planner, all four registered seeds and
+all three models with peers. The old home-directory helpers were left intact.
+Fixed report peer-coverage detection to read the peer records and require both
+peer quantities. Fixed resume checks to accept verified executable aliases in the
+same directory; other environments and changed arguments still invalidate markers.
+The stored partial report was re-rendered from its unchanged JSON.
+
+Validation on argon: 837 tests passed using `tests/` with the documented
+`tests/test_posttraining_error_recovery.py` collection exclusion. The wrapper test
+checks the actual Linux process flag and its inheritance across exec. The four-seed
+dry run skips 21 completed stages and plans 19, without running an experiment.
+All three geometry-layer cache manifests validate. Headline and DeepConf values
+were checked against committed JSONs. Existing numerical artifacts are unchanged.
+
+No refit sweep, new analysis, DVC operation, commit, or push was performed by this
+repair. See `docs/research/2026-09-07-preprint-repair-verification.md` for remaining
+checks and release scope.

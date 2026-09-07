@@ -145,7 +145,21 @@ class Step:
             marker = json.loads(self.marker.read_text())
         except (json.JSONDecodeError, OSError):
             return False
-        return marker.get("cmd") == self.cmd
+        recorded = marker.get("cmd")
+        if recorded == self.cmd:
+            return True
+        # Python/python3 aliases in the same venv are the same runtime. Keep
+        # different environments and every analysis argument distinct.
+        if not isinstance(recorded, list) or not recorded or not self.cmd:
+            return False
+        if recorded[1:] != self.cmd[1:] or not isinstance(recorded[0], str):
+            return False
+        old_python, new_python = Path(recorded[0]), Path(self.cmd[0])
+        return (
+            old_python.is_file() and new_python.is_file()
+            and old_python.parent.resolve() == new_python.parent.resolve()
+            and old_python.resolve() == new_python.resolve()
+        )
 
 
 def _python() -> str:
@@ -522,10 +536,10 @@ def write_report(body: Mapping, path: Path) -> None:
     # The scope line is derived from the records, not asserted: a ``--skip_peer``
     # run used to render the same prose as a full one, which is how the partial
     # report came to claim a peer ladder it never refitted.
-    peer_refitted = any(
-        model.get(name) is not None
+    peer_complete = bool(records) and all(
+        record.get("peer", {}).get(label, {}).get(name) is not None
         for record in records
-        for model in record["models"].values()
+        for label in record["models"]
         for name in ("residual_aurc", "residual_deployable_aurc")
     )
     models_covered = list(body.get("models") or [])
@@ -539,7 +553,7 @@ def write_report(body: Mapping, path: Path) -> None:
         "the last-token probe refitted including its in-fold layer and penalty "
         "choice"
     )
-    if peer_refitted:
+    if peer_complete:
         refitted += ", and the peer ladder refitted across all models at that seed"
 
     lines = [
@@ -569,7 +583,7 @@ def write_report(body: Mapping, path: Path) -> None:
                     f"seeds {', '.join(str(s) for s in missing_seeds)}"
                     if missing_seeds
                     else "",
-                    "" if peer_refitted else "the peer-ladder refit at every seed",
+                    "" if peer_complete else "missing peer-ladder quantities (see per-refit rows)",
                 )
                 if part
             )

@@ -159,9 +159,17 @@ self-consistency / vote-agreement baseline. The papers closest to it fall into t
   increment **+0.066 [+0.021, +0.112]**; Horizon Logic +0.111 [+0.056, +0.169]. Explicitly
   frames this as "hidden-state-based scores improve risk-coverage over shortcut-only scores".
   This is the closest published instance of the repo's *claim shape*. Differences: a frozen 2.6B
-  looped transformer (Ouro-RLTT), not a standard decoder; AUROC/risk-coverage, not AUACC; and
+  looped transformer (Ouro-RLTT), with a strict pre-answer readout; and
   **no vote-agreement term in the baseline** — the shortcut baseline is length + logprob only,
   which is B0 minus entropy and minus vote agreement.
+
+  Selective prediction is also measured: Horizon Logic ΔAUARC +0.0124
+  [＋0.0048, ＋0.0207], with 92.6% versus 88.4% selective accuracy at 70% coverage
+  (v3, §8.6 and Appendix L.1; checked 2026-09-07). AUARC is an accuracy–coverage
+  area, like AUACC, but OPI reports coverage 0.50–1.00; match integration ranges
+  before comparing values. Our target is prompt-level plurality correctness after
+  eight generations, and our tail includes possible answer tokens. These differ
+  from OPI’s pre-answer candidate readout.
 
 ### 1d. The opposite-direction result that threatens the framing
 
@@ -476,7 +484,7 @@ Ordered roughly by closeness. "Differs" is the one-line honest statement.
 7. **Kirin, 2026 — Operational Proto-Introspection in Looped LMs**
    ([arXiv:2607.18553](https://arxiv.org/abs/2607.18553)). Hidden states add **+0.066 AUROC
    [+0.021, +0.112]** over length + logprob on GSM8K, framed as improving risk-coverage over
-   "shortcut-only" scores. **Differs:** looped 2.6B transformer, GSM8K/Horizon Logic, AUROC, and
+   "shortcut-only" scores. It also reports Horizon ΔAUARC +0.0124 [＋0.0048, ＋0.0207] (v3 §8.6, Appendix L.1). **Differs:** looped 2.6B transformer, GSM8K/Horizon Logic, pre-answer readout, and
    the baseline lacks both entropy and vote agreement — but this is the closest published
    instance of the exact claim *shape*, including the CI-excluding-zero increment.
 8. **Orgad et al., ICLR 2025 — LLMs Know More Than They Show**

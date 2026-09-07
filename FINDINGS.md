@@ -1,5 +1,9 @@
 # Hidden-State Geometry Predicts Which Math Problems a Model Will Fail
 
+> Historical findings, retained for provenance. For current RMD claims use the
+> [2026-09-07 claim table](docs/research/2026-09-07-claim-evidence-table.md).
+> Results below span earlier populations and protocols and are not manuscript-ready.
+
 *Retitled 2026-08-03. The old title — "Predicts Math Reasoning Errors" — contradicted
 this document's own conclusion, which is that geometry indicates **which problems are
 hard, not which attempt is right**. The within-prompt (per-attempt) reading failed its
