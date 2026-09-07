@@ -218,3 +218,62 @@ docs/superpowers
 # silently reusing work that is not there.
 !/results/refit_stability/
 /results/refit_stability/**/*.csv
+
+# Exception: the three headline abstention artifacts. These carry the `B1 - B0`
+# point estimates AND the intervals the README and the paper quote, and they are
+# the *only* source for those intervals -- `closest_baselines` reports the same
+# point estimates from a different bootstrap realisation, so its intervals are a
+# different run and must never be substituted for these. 13 KB each. Without them
+# in git the headline is not reproducible from a fresh clone, because there is no
+# DVC remote on this host. Admitted one path at a time, as above.
+!/results/qwen_bestofn_full/
+/results/qwen_bestofn_full/*
+!/results/qwen_bestofn_full/math500/
+/results/qwen_bestofn_full/math500/*
+!/results/qwen_bestofn_full/math500/math500_incremental_abstention_results.json
+!/results/deepseek_bestofn_full/
+/results/deepseek_bestofn_full/*
+!/results/deepseek_bestofn_full/math500/
+/results/deepseek_bestofn_full/math500/*
+!/results/deepseek_bestofn_full/math500/math500_incremental_abstention_results.json
+!/results/deepseek_llama_bestofn_full/
+/results/deepseek_llama_bestofn_full/*
+!/results/deepseek_llama_bestofn_full/math500/
+/results/deepseek_llama_bestofn_full/math500/*
+!/results/deepseek_llama_bestofn_full/math500/math500_incremental_abstention_results.json
+
+# Exception: the 2026-09-07 primary-population control re-runs and the registered
+# window-sensitivity artifact. Each is a report plus its results JSON, re-read from
+# cached OOF rows rather than regenerated, and none is a DVC stage. 1.24 MiB across
+# 12 files, of which rmd_window_sensitivity_results.json is 827 KB on its own (it
+# embeds a 500-entry prompt_features list per model). The originals on `cap_free_*`
+# are preserved untouched in their own directories; these are additions, not
+# replacements.
+#
+# Admitted one extension at a time, as in the dag_patching block above: a bare
+# `!dir/` would let any future .npz, .csv or cache dropped in these directories ride
+# along at any size, which is exactly what the re-ignore lines below prevent.
+!/results/orgad_agreement_control_full_population/
+/results/orgad_agreement_control_full_population/*
+!/results/orgad_agreement_control_full_population/*.json
+!/results/orgad_agreement_control_full_population/*.md
+!/results/peer_difficulty_control_full_population/
+/results/peer_difficulty_control_full_population/*
+!/results/peer_difficulty_control_full_population/*.json
+!/results/peer_difficulty_control_full_population/*.md
+!/results/allocation_precheck_full_population/
+/results/allocation_precheck_full_population/*
+!/results/allocation_precheck_full_population/*.json
+!/results/allocation_precheck_full_population/*.md
+!/results/deepconf_asymmetry_full_population/
+/results/deepconf_asymmetry_full_population/*
+!/results/deepconf_asymmetry_full_population/*.json
+!/results/deepconf_asymmetry_full_population/*.md
+!/results/deepconf_weighted_vote_full_population/
+/results/deepconf_weighted_vote_full_population/*
+!/results/deepconf_weighted_vote_full_population/*.json
+!/results/deepconf_weighted_vote_full_population/*.md
+!/results/rmd_window_sensitivity/
+/results/rmd_window_sensitivity/*
+!/results/rmd_window_sensitivity/*.json
+!/results/rmd_window_sensitivity/*.md

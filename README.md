@@ -75,13 +75,13 @@ it lacks is a refit at any *new* partition.)
 Controls it survives, **with the coverage each one actually has** — no control
 below is a clean three-model replication, and the differences matter:
 
-| Control | Models | Population | Note |
+| Control | Models | Population | Outcome on the primary population |
 |---|---|---|---|
-| MATH-500 annotated level + budget-edge difficulty (`difficulty_control`) | qwen, deepseek | includes `full_population` | DeepSeek-R1-Distill-Llama-8B never run |
-| Cross-model peer pass rate (`peer_difficulty_control`) | all three | `cap_free_valid_plurality` | not run on the primary population |
-| Length residualization | qwen, deepseek | — | predates the Llama collect |
-| DeepConf (arXiv:2508.15260), three forms, all four statistics | deepseek, deepseek_llama | `cap_free_valid_plurality` | **structurally impossible on Qwen** |
-| Vote proxy answering Orgad et al. (arXiv:2410.02707) | all three | `cap_free_valid_plurality` | not run on the primary population |
+| MATH-500 annotated level + budget-edge difficulty (`difficulty_control`) | qwen, deepseek | includes `full_population` | survives; **DeepSeek-R1-Distill-Llama-8B never run** |
+| Cross-model peer pass rate (`peer_difficulty_control`) | all three | `full_population` (2026-09-07) + `cap_free_valid_plurality` | **stop rule triggers** (2 of 3 overlap zero); none of the three survives Holm; see below |
+| Length residualization | qwen, deepseek | — | survives; **DeepSeek-R1-Distill-Llama-8B never run** |
+| DeepConf (arXiv:2508.15260), three forms, all four statistics | deepseek, deepseek_llama | `full_population` (2026-09-07) + `cap_free_valid_plurality` | survives — all four DeepConf statistics sit at chance (AUROC 0.485–0.542); **structurally impossible on Qwen** |
+| Vote proxy answering Orgad et al. (arXiv:2410.02707) | all three | `full_population` (2026-09-07) + `cap_free_valid_plurality` | survives — unanimous-stratum AUROC 0.827 / 0.717 / 0.739 on n = 302 / 424 / 253 |
 
 The DeepConf gap is not a scheduling gap. The exact statistic needs cached token
 IDs and `data/qwen_bestofn_full` stores no token arrays, so it *can never* run on
@@ -89,19 +89,20 @@ Qwen — the model where the increment is strongest. That is a permanent limit o
 this control, not a missing run.
 
 Inside the stratum where the eight siblings agree unanimously and self-consistency
-is silent, geometry scores AUROC 0.71–0.83. That stratum is most of the data: at
-8 samples on MATH-500, **70% / 89% / 52% of prompts are unanimous** (of the 392 /
-393 / 408 prompts in `cap_free_valid_plurality`, not of the 500 in the primary
-population), so every answer-distribution statistic is constant by construction on
-most prompts. That is a limit on self-consistency baselines at this sample count,
-not a property of this feature.
+is silent, geometry scores AUROC **0.72–0.83** on the primary population (0.827
+Qwen / 0.717 DeepSeek-Qwen / 0.739 Llama, on n = 302 / 424 / 253). At 8 samples on
+MATH-500, **60% / 85% / 51% of the 500 prompts are unanimous**, so every
+answer-distribution statistic is constant by construction on most prompts. That is
+a limit on self-consistency baselines at this sample count, not a property of this
+feature. (The corresponding cap-free figures are 70% / 89% / 52% of 392 / 393 / 408,
+with AUROC 0.829 / 0.714 / 0.756 — the same picture on a cleaner subset.)
 
 The vote-proxy control also holds across all agreement levels, not just that
 stratum (2026-08-10). On the primary population, adding the full
 answer-distribution entropy to `B0` buys nothing (−0.0003 / +0.0001 / +0.0016,
 all p > 0.05), and `rmd_tail_q20` still adds on top of it on all three models,
 Holm-corrected over the family of two contrasts × three models pre-declared at
-`EXPERIMENT_LOG.md:2976` (Holm p 0.020 / 0.032 / 0.032). The bootstrap resolves
+`EXPERIMENT_LOG.md:3224` (Holm p 0.020 / 0.032 / 0.032). The bootstrap resolves
 p to 1/1000, so read those as clearing the threshold, not as clearing it by a
 wide margin.
 
@@ -117,27 +118,70 @@ No peer rung is exactly cost-matched to `B1`, so the supported advantage is zero
 additional generations, not superiority to peer uncertainty.
 
 The cross-model difficulty control is a **control, not a competing baseline**, and
-it is reported rather than withdrawn. Its own pre-declared stop rule — call the
+it is reported rather than withdrawn — but on the primary population it comes out
+against us, and that is now the headline reading of it.
+
+Run on `full_population` on 2026-09-07, its pre-declared stop rule — call the
 increment substantially a difficulty proxy if two or more models have an interval
-overlapping zero — did **not** trigger: only DeepSeek-R1-Distill-Qwen-7B overlaps
-(1 of 3). But the two readings of the same run point different ways and both must
-be given: on the raw intervals the increment survives on two of three models, while
-under Holm over that pre-declared family of three only DeepSeek-R1-Distill-Llama-8B
-stays significant (Holm p 0.012 against 0.072 and 0.544). Absorption is 81% / 99% /
-78%. On DeepSeek-R1-Distill-Qwen-7B the increment is **eliminated**, not attenuated:
-−0.0004 [−0.0016, +0.0005] p=0.544, against a remaining headroom of 0.0045, and the
-control's own report warns that a small delta against no headroom is no evidence at
-all. The supported summary is: attenuated but present on two models, gone on the
-third. Two other models' pass rates are not available
+overlapping zero — **triggers**. Two of three models overlap:
+
+| model | `B1 − B0` given two peers' pass rates | absorbed | Holm p |
+|---|---|---:|---:|
+| Qwen2.5-7B-Instruct | −0.0067 [−0.0164, −0.0002] p=0.042 | 87% | 0.126 |
+| DeepSeek-R1-Distill-Qwen-7B | −0.0006 [−0.0016, +0.0003] p=0.194 | 98% | 0.388 |
+| DeepSeek-R1-Distill-Llama-8B | −0.0025 [−0.0069, +0.0026] p=0.280 | 95% | 0.388 |
+
+Under Holm over that pre-declared family of three, **none of the three survives**.
+The share of remaining headroom the tail removes is 20% / 8% / 3%. The pre-declared
+consequence, written before the run, applies: the increment is reported as
+substantially a prompt-difficulty proxy, and the "geometry adds beyond output-side
+confidence" framing narrows accordingly.
+
+Two things this does **not** mean. `B0 + peer` is not deployable — you cannot run
+two other eight-sample models to decide whether to trust this one — so nothing here
+competes with the headline as a method, and the headline increment itself is
+unchanged. And an earlier `cap_free_valid_plurality` run of the same control did
+*not* trigger the rule (1 of 3 overlapping, 81% / 99% / 78% absorbed). Both runs
+are kept; the primary-population one governs, per the reporting rule adopted at
+`EXPERIMENT_LOG.md:1132`. What narrows is the mechanism claim, not the measurement:
+most of what `rmd_tail_q20` contributes over `B0` is prompt difficulty, which an
+exogenous difficulty signal captures too. Two other models' pass rates are not available
 at decision time, so this never competes with the headline; that the measure is
 gold-derived is not a defect in a confound control, exactly as MATH-500's
 human-annotated level is gold-derived.
 
-**It does not extend to sample allocation (2026-08-10).** *(Every number in this
-paragraph is on `cap_free_valid_plurality`, n = 392 / 393 / 408 — the allocation
-precheck has not been run on the primary population. It is reported as a negative,
-so the population gap understates rather than flatters, but the verdict must be
-re-read after that run, not assumed.)* A pre-declared gate
+**Sample allocation: the pre-declared gate passes on the primary population and
+fails on the cap-free one, and the paper should claim neither direction.** Run on
+`full_population` on 2026-09-07, the gate passes 3 of 3 (R² for geometry alone
+against a cross-fitted constant: +0.019 / +0.137 / +0.016, all intervals above
+zero). On `cap_free_valid_plurality` the same gate fails 2 of 3 (−0.0037 / −0.0065
+/ +0.0005). The earlier flat claim that geometry "does not extend to sample
+allocation" was a cap-free result and is **withdrawn**.
+
+The pass should not be read as an allocation result either. The gate's second leg —
+geometry adds over output-alone in out-of-fold Spearman — is decided on a **median
+over eight stage-1 draws**, and the brackets this precheck prints are `median [min,
+max]` across those draws, **not** bootstrap confidence intervals
+(`applications/allocation_precheck.py:553`). The medians are small on every model:
++0.018 [−0.002, +0.039]; +0.006 [−0.016, +0.024]; +0.012 [+0.000, +0.065]. Two of
+the three draw-ranges cross zero and the third is strictly positive by 0.0005, but
+with eight draws and no interval estimate none of that is a significance claim
+either way.
+
+Meanwhile the diagnostic the precheck exists to catch fires on **2 of 3** models
+(`difficulty_not_gain` is true for Qwen and Llama, false for DeepSeek), where on the
+cap-free population it fired on all three. The raw correlation between geometry and
+the gain is negative on all three (−0.064 / −0.293 / −0.060) while its correlation
+with the pass rate is +0.63 / +0.49 / +0.44. The report's own words: "geometry reads
+difficulty but not marginal gain" — and DeepSeek clears the flag only because its
+anti-correlation with gain is *strong*, at −0.293. A fitted readout can exploit an
+inverse relationship, which is why the two legs disagree. What the paper can say is
+that this is unresolved and population-dependent, and that writing `allocation.py`
+is now a licensed next step rather than a ruled-out one.
+
+The rest of this paragraph is the original `cap_free_valid_plurality` analysis
+(n = 392 / 393 / 408), retained because it is what the pre-declared gate was
+registered on. A pre-declared gate
 asked whether single-trace geometry predicts the *gain from buying more samples*,
 `g(p) = a(p,8) − a(p,1)`, with `a(p,k)` the expected plurality-vote correctness
 over all `C(8,k)` sibling subsets. It does not: geometry ranks the gain backwards
@@ -148,7 +192,9 @@ a prompt at 0/8 and one at 8/8 both gain nothing. It is not a sample-size proble
 at one trace the feature holds AUROC 0.790 / 0.674 / 0.688 against its 0.806 /
 0.686 / 0.709 at eight (both on `cap_free_valid_plurality`; the primary-population
 eight-trace values are 0.819 / 0.714 / 0.712). **Ruled out: ranking prompts by predicted gain from more
-samples. Untouched: ranking them by difficulty, for abstention or routing.**
+samples. Untouched: ranking them by difficulty, for abstention or routing.** *(That
+"ruled out" is the cap-free verdict and no longer holds on the primary population —
+see above. Neither direction is established.)*
 
 **The tail window is a Qwen-specific localization, not part of the method.**
 The untailed whole-trace mean `rmd_full` — Vazhentsev et al.'s ATRMD — recovers
@@ -168,11 +214,41 @@ this page claimed. On the primary population the tail's advantage inside Qwen is
 shrinks with window size, which is what the window hypothesis predicts, nor grows
 with it: it peaks in the middle. (The steeper −0.042 / −0.116 gradient quoted
 previously is the `cap_free_all_eight_parseable` stratification at
-`EXPERIMENT_LOG.md:3089`; on the primary population the gap between the two halves
+`EXPERIMENT_LOG.md:3337`; on the primary population the gap between the two halves
 is 0.010, not 0.074.) The Llama short stratum matched to Qwen on window median and
 base accuracy still shows no tail effect, and that matched-window comparison has
 **not** been repeated on the primary population. Every stratified contrast here is
-exploratory and unadjusted (`:3187`). The split follows reasoning distillation, on one
+exploratory and unadjusted (`:3435`).
+
+**The 20% cutoff is not load-bearing (registered sensitivity analysis, run
+2026-09-07).** The rule registered on 2026-08-22, before q10 or q50 were computed,
+required q10, q20 and q50 each to improve AURC over `B0` with a 95% interval below
+zero on every checkpoint. It **passes** on all three models, so the paper may state
+that the result is not specific to this exact cutoff — noting that Qwen's q50 clears
+by 0.0012 (−0.0304 [−0.0596, −0.0012]), which by this repo's own convention for
+near-threshold results is a borderline pass rather than a clean one. Three disclosures come with
+it, and the registration forbids acting on any of them:
+
+| model | `q10` | frozen `q20` | `q50` | `rmd_random_q20` |
+|---|---|---|---|---|
+| Qwen2.5-7B-Instruct | −0.0559 | −0.0520 | −0.0304 | −0.0184 (n.s.) |
+| DeepSeek-R1-Distill-Qwen-7B | −0.0342 | −0.0284 | −0.0376 | **−0.0295** |
+| DeepSeek-R1-Distill-Llama-8B | −0.0572 | −0.0469 | −0.0477 | **−0.0444** |
+
+First, `q10` beats the frozen `q20` on all three models. The registration says 20%
+is not to be called optimal and the frozen feature is not to be replaced, so it is
+not — but a reader will notice, and the paper should say it rather than be caught
+with it. Second, and more damaging: on both distilled models a **random** 20% window lands
+where the tail does (−0.0295 against −0.0284; −0.0444 against −0.0469), while on
+Qwen it does not (−0.0184 against −0.0520). No paired contrast between the two was
+computed, so this compares point estimates rather than testing a difference — the
+supported statement is that the tail shows no measured advantage over a same-sized
+random window on the distilled models, and a large one on Qwen. Read that as the
+absence of evidence for tail-specific localization off Qwen, not as proof that
+window position carries nothing. Third, `rmd_high_entropy_q20` is weak
+everywhere (−0.0148 n.s. / −0.0052 n.s. / −0.0274), which is consistent with the
+entropy-localization gate that failed in 2026-07-29.
+Artifact: `results/rmd_window_sensitivity/`. The split follows reasoning distillation, on one
 non-distilled model, with trace style, budget and base accuracy still collinear
 with it. A third non-distilled model is the test that would settle it.
 

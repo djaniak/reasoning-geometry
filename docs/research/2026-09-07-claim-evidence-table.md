@@ -4,6 +4,24 @@ Built 2026-09-07 from the repaired write-ups. **This is the source for manuscrip
 drafting**: a claim not in this table is not ready to appear in the paper, and every
 number in the paper should be traceable to a row here.
 
+**Every contrast below records its exact left and right feature sets and the JSON
+key it is read from.** Feature sets use the frozen definitions stored in each
+artifact's `feature_definitions` block:
+
+```
+B0            = [length, entropy, logprob, vote_agreement]
+B1            = B0 + [rmd_tail_q20]
+B0_plus_H     = B0 + [neg_answer_entropy]
+B0_plus_peer  = B0 + [peer_pass_rate__<other1>, peer_pass_rate__<other2>]
+B0_plus_dcvote= B0 + [dcvote_deepconf_tail_q20]
+rmd_tail_q20  = mean per-token RMD over the final 20% of generated tokens
+rmd_full      = mean per-token RMD over the whole trace (Vazhentsev ATRMD)
+```
+
+A contrast written `X − Y` is `AURC(X readout) − AURC(Y readout)`, paired on the
+same prompts, so negative favours `X`. Every readout is the frozen cross-fitted
+logistic on the frozen prompt folds.
+
 Conventions. *Prediction unit* is what a single scored item is — a prompt or a trace.
 *Feature timing* is when the feature could be computed in deployment: `post-8` means
 after all eight traces exist, `post-1` after a single trace, `oracle` means it needs
@@ -26,18 +44,23 @@ models.**
 | Prediction unit | prompt |
 | Feature timing | post-8 (aggregates over the eight traces) |
 | Artifact | `results/{model}_bestofn_full/math500/math500_incremental_abstention_results.json` — **the intervals come only from these**. `closest_baselines_report.md` gives the same point estimates with different intervals ([−0.0832,−0.0218] / [−0.0531,−0.0060] / [−0.0773,−0.0178]) because it uses a different bootstrap seed offset. Quote one source per interval and say which. |
-| Value | qwen −0.0520 [−0.0845, −0.0218]; deepseek −0.0284 [−0.0526, −0.0048]; deepseek_llama −0.0469 [−0.0743, −0.0162] |
+| Contrast | left `B1` = [length, entropy, logprob, vote_agreement, rmd_tail_q20] · right `B0` = [length, entropy, logprob, vote_agreement] |
+| JSON key | `populations.full_population.paired_deltas.B1_minus_B0_aurc` |
+| Value | qwen −0.05201702 [−0.08447729, −0.02181222] p=0.000; deepseek −0.02836542 [−0.05261266, −0.00481978] p=0.010; deepseek_llama −0.04694501 [−0.07425313, −0.01616323] p=0.004 |
+| Provenance | seed 42, `n_bootstrap` 1000, layers 21 / 21 / 24, caps 1024 / 8192 / 12288, target `plurality_vote_correctness`. sha256 (first 16) `1a8941c499dcb81a` / `221cd8260a34ec72` / `089f8b1bfdba1d01`. **Now git-tracked** (`.gitignore` exception added 2026-09-07). |
 | Checks completed | reproduced from JSON to the digit; survives the answer-histogram control (A2); reproduced bit-identically at refit seed 42; sign-stable across three refits on the two models refitted, with spread narrower than the bootstrap interval |
-| Limitations | **The three abstention JSONs carrying these intervals are not git-tracked**, so the headline is not reproducible from a fresh clone — fix before submission. Qwen has no refit at a *new* partition (its seed-42 refit is the frozen-partition reproduction check and matches bit-for-bit). The frozen deepseek_llama value is the **largest** of its three refits (mean −0.0372). Single dataset (MATH-500), single budget (N=8), one shared outer prompt partition across all three models (B9, still open). |
+| Limitations | Qwen has no refit at a *new* partition (its seed-42 refit is the frozen-partition reproduction check and matches bit-for-bit). The frozen deepseek_llama value is the **largest** of its three refits (mean −0.0372). Single dataset (MATH-500), single budget (N=8), one shared outer prompt partition across all three models (B9, still open). |
 
 **A2. The increment is not the answer histogram.**
 
 | | |
 |---|---|
 | Models | all three · Population `full_population` · unit prompt · timing post-8 |
-| Artifact | `results/closest_baselines/closest_baselines_report.md` |
-| Value | `H over B0` −0.0003 / +0.0001 / +0.0016, all p > 0.05; `rmd_tail over B0+H` −0.0519 / −0.0281 / −0.0462, Holm p 0.020 / 0.032 / 0.032 |
-| Checks completed | family pre-declared at `EXPERIMENT_LOG.md:2976` ("Pre-declared rules, written before the run"), which is the pre-registration itself — not `:3050`, which is the later results write-up asserting it; Holm computed by `baselines/closest_baselines.py:448` |
+| Artifact | `results/closest_baselines/closest_baselines_results.json` |
+| Contrasts | `H over B0`: left `B0+[neg_answer_entropy]` · right `B0`. `rmd_tail over B0+H`: left `B0+[neg_answer_entropy, rmd_tail_q20]` · right `B0+[neg_answer_entropy]` |
+| JSON key | `models[].populations.full_population.paired_deltas_aurc.{H_over_B0, rmd_tail_over_B0_plus_H}` — the node is `paired_deltas_aurc` and its value *is* the AURC record, so there is no trailing `.aurc`. Model identity is the `label` field, not `model`. **The Holm values are not in this JSON**: `holm_adjusted` runs at report-generation time (`baselines/closest_baselines.py:697`) and writes only to `closest_baselines_report.md`, which is the sole source for 0.020 / 0.032 / 0.032. |
+| Value | `H over B0` −0.0003 p=0.598 / +0.0001 p=0.792 / +0.0016 p=0.056; `rmd_tail over B0+H` −0.0519 / −0.0281 / −0.0462, Holm p 0.020 / 0.032 / 0.032 |
+| Checks completed | family pre-declared at `EXPERIMENT_LOG.md:3224` ("Pre-declared rules, written before the run"), which is the pre-registration itself — not `:3298`, which is the later results write-up asserting it; Holm computed by `baselines/closest_baselines.py:448` |
 | Limitations | The bootstrap resolves p to 1/1000; these clear the threshold but not by a wide margin. The other five contrasts per model are exploratory and unadjusted. |
 
 ## B. Controls the increment survives — with the coverage each actually has
@@ -47,22 +70,23 @@ This is the single largest honesty exposure in the paper and each row states its
 
 | # | Control | Models | Population | Artifact | Result | Gap |
 |---|---|---|---|---|---|---|
-| B1 | Vote proxy (Orgad et al. 2410.02707) | all three | `cap_free_valid_plurality` | `results/orgad_agreement_control/` | AUROC 0.829 / 0.714 / 0.756 inside the unanimous stratum, where `vote_agreement` is constant | never run on `full_population`; its report never names its population |
-| B2 | MATH-500 annotated level + budget-edge difficulty | qwen, deepseek | — | `results/{qwen,deepseek}_bestofn_full/math500/math500_difficulty_control_results.json` | increment is not a difficulty proxy | **deepseek_llama never run** (`EXPERIMENT_LOG.md:4416`) |
-| B3 | Cross-model peer pass rate | all three | `cap_free_valid_plurality` | `results/peer_difficulty_control/` | pre-declared stop rule **not triggered** (1 of 3 overlaps zero, rule needs 2); 81% / 99% / 78% attenuated; Holm leaves only deepseek_llama (p_holm 0.012 vs 0.072, 0.544) | never run on `full_population` |
-| B4 | Length residualization | qwen, deepseek | — | `EXPERIMENT_LOG.md:4827` | increment survives | **deepseek_llama never run** (predates that collect) |
-| B5 | DeepConf (2508.15260), 3 forms, 4 statistics | deepseek, deepseek_llama | `cap_free_valid_plurality` (asymmetry); `full_population` present in the weighted-vote JSON | `results/deepconf_asymmetry/`, `results/deepconf_weighted_vote/` | `B1 − (B0 + dcvote_deepconf_tail_q20)` AURC on `full_population`: −0.0285 [−0.0526, −0.0043] p=0.022 and −0.0463 [−0.0778, −0.0186] p=0.002 | **structurally impossible on Qwen** — no token arrays in `data/qwen_bestofn_full` (`EXPERIMENT_LOG.md:4398`); permanent, not a missing run |
+| B1 | Vote proxy (Orgad et al. 2410.02707) | all three | **`full_population`** (2026-09-07) | `results/orgad_agreement_control_full_population/` | unanimous-stratum AUROC of `rmd_tail_q20` (single feature, no readout) 0.827 [0.774,0.876] qwen / 0.717 [0.660,0.770] deepseek / 0.739 [0.670,0.802] llama, on n = 302 / 424 / 253, where `vote_agreement` is constant. Key `[<i>].strata.unanimous.auroc` (this JSON's top level is a **list** of model records, not an object with a `models` field). **List order is `[0]=DeepSeek-Qwen, [1]=Llama, [2]=Qwen`** — the reverse of this table's usual qwen/deepseek/llama order, because the recorded command passes the models in that order with those labels. Index by `label`, not position. | runs on the primary population now, but this row is a single-feature AUROC inside a stratum, not a replication of the increment contrast — it does not make the control a clean three-model replication of `B1 − B0` |
+| B2 | MATH-500 annotated level + budget-edge difficulty | qwen, deepseek | — | `results/{qwen,deepseek}_bestofn_full/math500/math500_difficulty_control_results.json` | increment is not a difficulty proxy | **deepseek_llama never run** (`EXPERIMENT_LOG.md:4664`) |
+| B3 | Cross-model peer pass rate | all three | **`full_population`** (2026-09-07) | `results/peer_difficulty_control_full_population/` | pre-declared stop rule **TRIGGERED** (deepseek + deepseek_llama overlap zero; rule needs 2 of 3). Contrast `B1_minus_B0_given_peer`: left `B0+peer+[rmd_tail_q20]` · right `B0+peer`, key `models[].populations.full_population.paired_deltas.B1_minus_B0_given_peer_aurc`. −0.0067 [−0.0164,−0.0002] p=0.042 / −0.0006 [−0.0016,+0.0003] p=0.194 / −0.0025 [−0.0069,+0.0026] p=0.280. 87/98/95% absorbed; headroom share removed 20/8/3%; **Holm significant on none** (0.126/0.388/0.388) | none — this is now run on the primary population. The cap-free run (`results/peer_difficulty_control/`) did **not** trigger; both are retained and the primary one governs |
+| B4 | Length residualization | qwen, deepseek | — | `EXPERIMENT_LOG.md:5075` | increment survives | **deepseek_llama never run** (predates that collect) |
+| B5 | DeepConf (2508.15260), 3 forms, 4 statistics | deepseek, deepseek_llama | **`full_population`** (2026-09-07) | `results/deepconf_asymmetry_full_population/`, `results/deepconf_weighted_vote_full_population/` | Contrast: left `B1` · right `B0+[dcvote_deepconf_tail_q20]`, key `models[].populations.full_population.paired_deltas.B1_minus_B0_plus_dcvote_deepconf_tail_q20_aurc` → **−0.02849 [−0.05259, −0.00427] p=0.022** / **−0.04630 [−0.07775, −0.01857] p=0.002**. (Do not use the script's stdout line: it prints `B1-B0+dcvote=+0.0286 … p=0.020`, which is `bottom10_group_confidence` in **AUACC**, a different statistic on a different metric.) All four DeepConf statistics at chance: AUROC 0.497/0.542/0.485/0.485 and 0.496/0.519/0.488/0.491 | **structurally impossible on Qwen** — no token arrays in `data/qwen_bestofn_full` (`EXPERIMENT_LOG.md:4646`); permanent, not a missing run |
 
-**The B3 wording that is supported**: the increment survives on 2 of 3 models on the
-raw intervals and 1 of 3 after the pre-declared Holm correction; on
-DeepSeek-R1-Distill-Qwen-7B it is **eliminated**, not attenuated (−0.0004 [−0.0016,
-+0.0005] p=0.544 against a remaining headroom of 0.0045 — the control's own report
-warns that a small delta against no headroom is no evidence at all). Say both
-readings. Not "absorbed everywhere" and not "withdrawn": the control is a confound
-control, never a deployable baseline, so its gold-derivedness is not a defect — the
-same is true of MATH-500's human-annotated level.
+**The B3 wording that is required.** On the primary population the pre-declared stop
+rule fires, so the registered consequence binds: *report the increment as
+substantially a prompt-difficulty proxy, and narrow the "geometry adds beyond
+output-side confidence" framing accordingly.* Do not report the cap-free run's
+non-triggering as the result. Two limits on how far this cuts: `B0 + peer` is not
+deployable, so nothing here competes with the headline as a method and the headline
+increment is unchanged; and the control is a confound control, not a baseline, so
+its gold-derivedness is not a defect — the same is true of MATH-500's annotated
+level. What narrows is the mechanism claim.
 
-**The B5 wording that is required.** `EXPERIMENT_LOG.md:4400` instructs that any
+**The B5 wording that is required.** `EXPERIMENT_LOG.md:4649` instructs that any
 write-up must state that this baseline can never run on Qwen "rather than implying
 replication". Qwen is the model where the increment is strongest.
 
@@ -95,7 +119,20 @@ non-monotone in window size, not increasing in it.**
 | Artifact | `results/closest_baselines/closest_baselines_report.md` §"1b follow-up", computed on `populations[0]` (`baselines/closest_baselines.py:381`); strata sum to 500 |
 | Value | terciles −0.0448 [−0.0993,−0.0044] / −0.1083 [−0.1682,−0.0489] / −0.0491 [−0.0868,−0.0084]; below median −0.0563 [−0.1038,−0.0163], above median −0.0662 [−0.0998,−0.0288] |
 | Checks completed | both tercile and median splits present on the primary population |
-| Limitations | **Do not write "the advantage grows with window size."** That reading comes from the `cap_free_all_eight_parseable` run (−0.0419 / −0.1158, `EXPERIMENT_LOG.md:3089`), where the gradient is 2.8×; on the primary population it is 1.2× and the terciles are non-monotone (an inverted U). The claim the data supports is only that the advantage does not *decay* with window size, which is what the window hypothesis predicted. The median split was adopted **after** the tercile split was refused for a small minority class, stated as such at the time; every stratified contrast is exploratory and unadjusted (`:3187`). The Llama matched-window stratum (n=154, base acc 0.688 vs Qwen 0.693, −0.0088 p=0.136) exists **only** on `cap_free_all_eight_parseable` and has not been repeated on the primary population; DeepSeek's matched stratum is refused at n=38 with 4 incorrect. |
+| Limitations | **Do not write "the advantage grows with window size."** That reading comes from the `cap_free_all_eight_parseable` run (−0.0419 / −0.1158, `EXPERIMENT_LOG.md:3337`), where the gradient is 2.8×; on the primary population it is 1.2× and the terciles are non-monotone (an inverted U). The claim the data supports is only that the advantage does not *decay* with window size, which is what the window hypothesis predicted. The median split was adopted **after** the tercile split was refused for a small minority class, stated as such at the time; every stratified contrast is exploratory and unadjusted (`:3435`). The Llama matched-window stratum (n=154, base acc 0.688 vs Qwen 0.693, −0.0088 p=0.136) exists **only** on `cap_free_all_eight_parseable` and has not been repeated on the primary population; DeepSeek's matched stratum is refused at n=38 with 4 incorrect. |
+
+**C4. The 20% cutoff is not load-bearing, but the tail's *position* is Qwen-specific.**
+
+| | |
+|---|---|
+| Models | all three · Population `full_population` · unit prompt · timing post-8 |
+| Artifact | `results/rmd_window_sensitivity/rmd_window_sensitivity_results.json` |
+| Contrast | left `B0 + [<detector>]` · right `B0`, for each detector in {`rmd_tail_q10`, `rmd_tail_q20`, `rmd_tail_q50`, `rmd_full`, `rmd_high_entropy_q20`, `rmd_random_q20`} |
+| Registered rule | fixed 2026-08-22 before q10/q50 were computed: q10, q20 and q50 must each improve AURC over `B0` with a 95% interval below zero on every checkpoint |
+| Verdict | **PASSES** on all three models. The sanctioned sentence is "we fixed 20% as a simple localized window; sensitivity analysis shows the result is not specific to this exact cutoff." |
+| Values | q10 / q20 / q50: qwen −0.0559 / −0.0520 / −0.0304; deepseek −0.0342 / −0.0284 / −0.0376; llama −0.0572 / −0.0469 / −0.0477 |
+| Mandatory disclosures | (i) `rmd_tail_q10` beats the frozen q20 on all three. The registration forbids calling 20% optimal or replacing the frozen feature — so do neither, but state it. (ii) On both distilled models a random 20% window lands at the same place as the tail: −0.0295 vs −0.0284 (deepseek) and −0.0444 vs −0.0469 (llama), against −0.0184 vs −0.0520 on Qwen. **No paired contrast between `rmd_random_q20` and `rmd_tail_q20` was computed**, so this is a comparison of point estimates, not a test — state it as "the tail shows no advantage over a random window of the same size on the distilled models, and a large one on Qwen", not as an established equivalence. The direction cuts against the paper, which is why it must be disclosed, but it is not measured. (iii-bis) Qwen's q50 clears the registered rule by 0.0012 (−0.0304 [−0.0596, −0.0012]); by this repo's own convention for near-threshold results, read that as borderline rather than a clean pass. (iii) `rmd_high_entropy_q20` is weak everywhere (−0.0148 n.s. / −0.0052 n.s. / −0.0274), consistent with the 2026-07-29 entropy gate failure. |
+| Limitations | Post-hoc by construction; does not select a detector and does not restore the withdrawn tail-aggregator novelty claim. Reads the three seed-42 refit CSVs, so it inherits that partition. |
 
 ## D. Deployable-peer comparison
 
@@ -111,15 +148,20 @@ non-monotone in window size, not increasing in it.**
 
 ## E. Negative and bounding results the paper keeps
 
-**E1. Geometry does not predict the gain from more samples.**
+**E1. Whether geometry predicts the gain from more samples is UNRESOLVED — the
+pre-declared gate reverses between populations. The former negative claim is removed.**
 
 | | |
 |---|---|
-| Models | all three · Population `cap_free_valid_plurality` · unit prompt · timing post-1 |
-| Artifact | `results/allocation_precheck/allocation_precheck_results.json` |
-| Value | gate **fails on 2 of 3** (qwen R² −0.0037, deepseek R² −0.0065, deepseek_llama PASS at R² +0.0005168); Spearman with gain −0.042 / −0.057 / −0.074 against +0.51 / +0.24 / +0.37 with the pass rate |
-| Checks completed | pre-declared gate; verdicts read from `gate.per_model`; not a power artifact — at one trace the feature still holds AUROC 0.790 / 0.674 / 0.688 |
-| Limitations | Not run on `full_population`; every number in this row and in the matching README paragraph is `cap_free_valid_plurality` (n = 392/393/408), including the "0.806 / 0.686 / 0.709 at eight" comparison, whose primary-population values are 0.819 / 0.714 / 0.712. Reported as a negative, so the population gap is the low-risk one — but the verdict must be re-read after the re-run, not assumed. |
+| Models | all three · unit prompt · timing post-1 |
+| Artifacts | `results/allocation_precheck_full_population/` (primary, 2026-09-07) and `results/allocation_precheck/` (cap-free, original) |
+| JSON key | `gate.per_model.<model>.{geometry_r2_median, spearman_gain_from_geometry_median, passes}`; `gate.models_passing` |
+| Target | `g(p) = a(p,8) − a(p,1)`, expected plurality-vote correctness over all `C(8,k)` sibling subsets |
+| Value — `full_population` | gate **PASSES 3/3**. R² geometry vs cross-fitted constant +0.019 [0.011,0.033] / +0.137 [0.119,0.157] / +0.016 [0.010,0.019] |
+| Value — `cap_free_valid_plurality` | gate **FAILS 2/3**. R² −0.0037 / −0.0065 / +0.0005168 |
+| Checks completed | same pre-declared rule, both populations; diagnostics read on both |
+| **Bracket semantics — read this before quoting E1** | The brackets in this row are **not bootstrap confidence intervals**. `applications/allocation_precheck.py:553` formats them as `median [min, max]` over the **8 stage-1 draws**. They are a spread across resamples of the subset-enumeration, not an inference statement, and they must never be reported as CIs or used to claim significance. This is the one row in this document where the convention stated at the top does not apply. |
+| Limitations | **Do not report either direction as the finding.** Three reasons. (i) The gate's second leg ("geometry adds over output-alone") is decided on a median over 8 draws, and that median is small on every model: +0.018 [−0.002,+0.039] qwen, +0.006 [−0.016,+0.024] deepseek, +0.012 [+0.000,+0.065] deepseek_llama. Two of the three draw-ranges cross zero; deepseek_llama's minimum is +0.000485, so its range is strictly positive — but with n=8 draws and no interval estimate, none of this is a significance claim in either direction. (ii) The diagnostic the precheck exists to catch fires on **2 of 3** models on the primary population — `difficulty_not_gain` is `{qwen: true, deepseek: false, deepseek_llama: true}`, where on the cap-free population it fired on all three. Raw `rho(geometry, g)` is negative on all three (−0.064 / −0.293 / −0.060) while `rho(geometry, pass rate)` is +0.625 / +0.493 / +0.441; the report's own conclusion is "geometry reads difficulty but not marginal gain". On deepseek the flag clears only because |rho| = 0.293 is far from zero, i.e. geometry is *strongly* anti-correlated with gain there. A fitted readout can exploit an inverse relation, which is why the legs disagree. (iii) The gate was *registered* on the cap-free population; the primary population was adopted later (2026-08-22) but before this run, so the switch is not post-hoc — yet the reversal means the gate does not discriminate what it was built to discriminate. |
 
 **E2. Pooled trace discrimination is not sibling verification.**
 
@@ -135,9 +177,9 @@ non-monotone in window size, not increasing in it.**
 
 | Claim | Why cut | Recorded at |
 |---|---|---|
-| Label efficiency: geometry leads a probe by −0.033 AURC at 50 labels | Cut 2026-08-22. The −0.033 **is** the pooling-matched comparison (against `probe_token_tail_q20`), but its interval spans zero: −0.033 [−0.044, +0.024], sign p=0.109. It decomposes into ≈−0.011 supervision + −0.018 decision-function form, so only a claim about the one-class inductive bias must quote −0.011. | `EXPERIMENT_LOG.md:417`, `:3309`, `:3314`; `results/label_efficiency_token_pooling/label_efficiency_report.md` |
-| Entropy-localized RMD beats full-trace and a random control (as a general claim) | Pre-registered gate **failed** on DeepSeek-R1-Distill-Qwen-7B on 2026-07-29 (+0.004 p=0.674; +0.001 p=0.924). Demoted to Qwen-specific by the decision rule fixed in advance. The Llama decomposition collect was cancelled *at that time* but later ran, so `rmd_random_q20` **does** exist for Llama; what was never re-run there is the gate itself. | `EXPERIMENT_LOG.md:5186`; `results/deepseek_llama_bestofn_full/math500/math500_prompt_decomposition_results.json` |
-| Aggregator novelty (leg a) | Withdrawn; the contribution is the evaluation, not a new geometry statistic. | `EXPERIMENT_LOG.md:3177` |
+| Label efficiency: geometry leads a probe by −0.033 AURC at 50 labels | Cut 2026-08-22. The −0.033 **is** the pooling-matched comparison (against `probe_token_tail_q20`), but its interval spans zero: −0.033 [−0.044, +0.024], sign p=0.109. It decomposes into ≈−0.011 supervision + −0.018 decision-function form, so only a claim about the one-class inductive bias must quote −0.011. | `EXPERIMENT_LOG.md:665`, `:3557`, `:3562`; `results/label_efficiency_token_pooling/label_efficiency_report.md` |
+| Entropy-localized RMD beats full-trace and a random control (as a general claim) | Pre-registered gate **failed** on DeepSeek-R1-Distill-Qwen-7B on 2026-07-29 (+0.004 p=0.674; +0.001 p=0.924). Demoted to Qwen-specific by the decision rule fixed in advance. The Llama decomposition collect was cancelled *at that time* but later ran, so `rmd_random_q20` **does** exist for Llama; what was never re-run there is the gate itself. | `EXPERIMENT_LOG.md:5434`; `results/deepseek_llama_bestofn_full/math500/math500_prompt_decomposition_results.json` |
+| Aggregator novelty (leg a) | Withdrawn; the contribution is the evaluation, not a new geometry statistic. | `EXPERIMENT_LOG.md:3425` |
 | Peer pass rates "absorb most of the increment", control withdrawn | The withdrawal was itself wrong and is reversed — see B3. | this table, `EXPERIMENT_LOG.md` 2026-09-07 |
 
 ## G. Evidence gates still open
@@ -145,6 +187,6 @@ non-monotone in window size, not increasing in it.**
 | Gate | State | What closes it |
 |---|---|---|
 | Registered full-refit stability sweep | **partially closed, not closed** — 3 of 4 registered seeds, 2 of 3 models, peer step skipped at every seed | qwen at seeds 101/202; the peer step at each seed; seed 303. ~2.5 h at `peak_gb=8` |
-| Registered tail-window sensitivity | **not run** — `results/rmd_window_sensitivity/` does not exist | the registered command at `EXPERIMENT_LOG.md:367`. An in-memory replication during the 2026-09-06 audit is not this artifact and must not be cited |
-| Five controls on the primary population | not run | `docs/research/2026-09-07-primary-population-controls.md` |
+| Registered tail-window sensitivity | **CLOSED 2026-09-07 — rule passes on all three models** | done; artifact at `results/rmd_window_sensitivity/`. See C4 |
+| Five controls on the primary population | **CLOSED 2026-09-07 — all five run** | done; see B1, B3, B5, E1 and the commands as actually executed in the 2026-09-07 log entry |
 | Shared outer prompt partition (B9) | open, and not optional before submission | all three models share one partition; noted in the 1a/1b limitations |

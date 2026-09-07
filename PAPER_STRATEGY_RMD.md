@@ -51,8 +51,8 @@ prompts *is* the pooling-matched comparison — it is taken against
 `probe_token_tail_q20` — but its interval spans zero (−0.033 [−0.044, +0.024], sign
 p=0.109, 24 of 30 draws), so it is a direction, not a result. It also decomposes
 into roughly −0.011 supervision and −0.018 decision-function form
-(`EXPERIMENT_LOG.md:3309`), so a write-up claiming the one-class inductive bias is
-what buys the label efficiency must quote −0.011, not −0.033 (`:3314`). The gap disappears at 100 prompts and the probe leads at larger budgets.
+(`EXPERIMENT_LOG.md:3557`), so a write-up claiming the one-class inductive bias is
+what buys the label efficiency must quote −0.011, not −0.033 (`:3562`). The gap disappears at 100 prompts and the probe leads at larger budgets.
 Neither general sample efficiency nor a small-budget advantage is supported.
 
 The second contribution of the paper is methodological. It shows how trace length,
