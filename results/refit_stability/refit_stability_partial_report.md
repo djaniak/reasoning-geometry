@@ -1,9 +1,13 @@
 # Full-refit stability
 
-Built by `controls/refit_stability.py`. Each refit re-runs the pipeline end to end on a different prompt partition: the OOF scores are regenerated, the prompt-level readouts refitted, the last-token probe refitted including its in-fold layer and penalty choice, and the peer ladder refitted across all models at that seed.
+Built by `controls/refit_stability.py`. Each refit re-runs the pipeline end to end on a different prompt partition: the OOF scores are regenerated, the prompt-level readouts refitted, and the last-token probe refitted including its in-fold layer and penalty choice.
 
-Complete refits collected: 3 (seeds 42, 101, 202). Incomplete seeds: none.
-Seed 42 is the frozen-partition reproduction check when it appears among the complete refits.
+Refits collected: 3 (seeds 42, 101, 202) over 2 of 3 registered models (deepseek, deepseek_llama).
+Seeds carrying every quantity requested of *this* run: 42, 101, 202; incomplete: none. That is completeness relative to this invocation, not to the registered protocol.
+
+**Registered protocol: NOT complete.** Still outstanding: models qwen; seeds 303; the peer-ladder refit at every seed. Quantities below are therefore a partial read of the registered sweep, and the gate this sweep exists to close is partially closed, not closed.
+
+Seed 42 is the frozen-partition reproduction check when it appears among the collected refits.
 
 The quantity is the **spread of point estimates across refits**. The bootstrap intervals inside any single refit cannot see it, which is why the review says more draws are not a substitute.
 

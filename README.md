@@ -53,72 +53,143 @@ On the primary `full_population` estimand -- correctness available at the stated
 generation budget over all 500 prompts -- in **AURC** (area under the
 risk-coverage curve, lower is better):
 
-| Model | n | `B1 − B0` |
-|---|---:|---|
-| Qwen2.5-7B-Instruct | 500 | −0.0520 [−0.0845, −0.0218] |
-| DeepSeek-R1-Distill-Qwen-7B | 500 | −0.0284 [−0.0526, −0.0048] |
-| DeepSeek-R1-Distill-Llama-8B | 500 | −0.0469 [−0.0743, −0.0162] |
+| Model | n | `B1 − B0` (frozen seed 42) | across-refit range |
+|---|---:|---|---|
+| Qwen2.5-7B-Instruct | 500 | −0.0520 [−0.0845, −0.0218] | not yet refitted |
+| DeepSeek-R1-Distill-Qwen-7B | 500 | −0.0284 [−0.0526, −0.0048] | −0.0343 … −0.0240 (mean −0.0289) |
+| DeepSeek-R1-Distill-Llama-8B | 500 | −0.0469 [−0.0743, −0.0162] | −0.0469 … −0.0294 (mean −0.0372) |
 
-Controls it survives: three difficulty controls, one of them MATH-500's exogenous
-human-annotated level; a length residualization; DeepConf (arXiv:2508.15260) as
-a prompt-level score, as a confidence-weighted vote, and as a confidence filter,
-with all four of its statistics; and a vote-proxy control answering Orgad et al.
-(arXiv:2410.02707) — geometry scores AUROC 0.71–0.83 *inside* the stratum where
-the eight siblings agree unanimously and self-consistency is silent.
+The left column is the frozen primary fit and stays the headline. The right column
+is the partial refit sweep (seeds 42/101/202, two of three models, `--skip_peer`).
+Under the decision rule registered on 2026-08-22, both quantities are sign-stable
+with a spread narrower than their bootstrap interval, so the claim stands and both
+are reported. Read the frozen Llama value knowing it is the **largest** of its three
+refits, not the middle one: the refit mean is −0.0372, about a quarter smaller. The
+same caution applies to the probe's DeepSeek macro AUROC quoted below — the frozen
+0.582 is the **minimum** of its three refits, whose mean is 0.644. Qwen has no refit
+at a new partition, and no seed has run the peer step, so the refit gate is
+**partially closed, not closed**. (Qwen has a seed-42 refit, which is the
+frozen-partition reproduction check and reproduces the headline bit-for-bit; what
+it lacks is a refit at any *new* partition.)
 
-The vote-proxy control now also holds on the **whole** population, not just that
-stratum (2026-08-10). Adding the full answer-distribution entropy to `B0` buys
-nothing (−0.0006 / −0.0035 / +0.0003, all p > 0.05), and `rmd_tail_q20` still
-adds on top of it on all three models, Holm-corrected over the pre-declared
-family of six (Holm p 0.000 / 0.048 / 0.008; DeepSeek-R1-Distill-Qwen-7B is a
-borderline pass — raw p=0.016 against a 0.0167 threshold, and the bootstrap only
-resolves p to 1/1000). The reason the histogram is empty is worth reporting:
-at 8 samples on MATH-500, **70% / 89% / 53% of prompts are unanimous**, so every
-answer-distribution statistic is constant by construction on most of the data.
-That is a limit on self-consistency baselines at this sample count, not a
-property of this feature.
+Controls it survives, **with the coverage each one actually has** — no control
+below is a clean three-model replication, and the differences matter:
+
+| Control | Models | Population | Note |
+|---|---|---|---|
+| MATH-500 annotated level + budget-edge difficulty (`difficulty_control`) | qwen, deepseek | includes `full_population` | DeepSeek-R1-Distill-Llama-8B never run |
+| Cross-model peer pass rate (`peer_difficulty_control`) | all three | `cap_free_valid_plurality` | not run on the primary population |
+| Length residualization | qwen, deepseek | — | predates the Llama collect |
+| DeepConf (arXiv:2508.15260), three forms, all four statistics | deepseek, deepseek_llama | `cap_free_valid_plurality` | **structurally impossible on Qwen** |
+| Vote proxy answering Orgad et al. (arXiv:2410.02707) | all three | `cap_free_valid_plurality` | not run on the primary population |
+
+The DeepConf gap is not a scheduling gap. The exact statistic needs cached token
+IDs and `data/qwen_bestofn_full` stores no token arrays, so it *can never* run on
+Qwen — the model where the increment is strongest. That is a permanent limit of
+this control, not a missing run.
+
+Inside the stratum where the eight siblings agree unanimously and self-consistency
+is silent, geometry scores AUROC 0.71–0.83. That stratum is most of the data: at
+8 samples on MATH-500, **70% / 89% / 52% of prompts are unanimous** (of the 392 /
+393 / 408 prompts in `cap_free_valid_plurality`, not of the 500 in the primary
+population), so every answer-distribution statistic is constant by construction on
+most prompts. That is a limit on self-consistency baselines at this sample count,
+not a property of this feature.
+
+The vote-proxy control also holds across all agreement levels, not just that
+stratum (2026-08-10). On the primary population, adding the full
+answer-distribution entropy to `B0` buys nothing (−0.0003 / +0.0001 / +0.0016,
+all p > 0.05), and `rmd_tail_q20` still adds on top of it on all three models,
+Holm-corrected over the family of two contrasts × three models pre-declared at
+`EXPERIMENT_LOG.md:2976` (Holm p 0.020 / 0.032 / 0.032). The bootstrap resolves
+p to 1/1000, so read those as clearing the threshold, not as clearing it by a
+wide margin.
 
 **A deployable peer is a genuine competitor, not a mechanism control.** A peer's
 agreement with the target answer needs no gold label, but it costs extra
 generations; `B1` uses states from the target's existing eight traces. At the
 cheapest deployable rung, the six target-peer comparisons give four ties, one
-RMD win and one peer win after Holm correction over the six tests. No peer rung
-is exactly cost-matched to `B1`, so the supported advantage is zero additional
-generations, not superiority to peer uncertainty. The older conclusion that
-peer pass rates absorb most of the increment used a gold-aware diagnostic and
-is withdrawn.
+RMD win and one peer win, read off the raw 95% intervals (`B1` over the peer:
+p = 0.170 / 0.062 / 0.008 / 0.408 / 0.878 / 0.000). These six were selected after
+seeing the ladder, are not a pre-declared family, and `controls/peer_cost_ladder.py`
+computes no multiplicity correction over them — so no corrected claim is made here.
+No peer rung is exactly cost-matched to `B1`, so the supported advantage is zero
+additional generations, not superiority to peer uncertainty.
 
-**It does not extend to sample allocation (2026-08-10).** A pre-declared gate
+The cross-model difficulty control is a **control, not a competing baseline**, and
+it is reported rather than withdrawn. Its own pre-declared stop rule — call the
+increment substantially a difficulty proxy if two or more models have an interval
+overlapping zero — did **not** trigger: only DeepSeek-R1-Distill-Qwen-7B overlaps
+(1 of 3). But the two readings of the same run point different ways and both must
+be given: on the raw intervals the increment survives on two of three models, while
+under Holm over that pre-declared family of three only DeepSeek-R1-Distill-Llama-8B
+stays significant (Holm p 0.012 against 0.072 and 0.544). Absorption is 81% / 99% /
+78%. On DeepSeek-R1-Distill-Qwen-7B the increment is **eliminated**, not attenuated:
+−0.0004 [−0.0016, +0.0005] p=0.544, against a remaining headroom of 0.0045, and the
+control's own report warns that a small delta against no headroom is no evidence at
+all. The supported summary is: attenuated but present on two models, gone on the
+third. Two other models' pass rates are not available
+at decision time, so this never competes with the headline; that the measure is
+gold-derived is not a defect in a confound control, exactly as MATH-500's
+human-annotated level is gold-derived.
+
+**It does not extend to sample allocation (2026-08-10).** *(Every number in this
+paragraph is on `cap_free_valid_plurality`, n = 392 / 393 / 408 — the allocation
+precheck has not been run on the primary population. It is reported as a negative,
+so the population gap understates rather than flatters, but the verdict must be
+re-read after that run, not assumed.)* A pre-declared gate
 asked whether single-trace geometry predicts the *gain from buying more samples*,
 `g(p) = a(p,8) − a(p,1)`, with `a(p,k)` the expected plurality-vote correctness
 over all `C(8,k)` sibling subsets. It does not: geometry ranks the gain backwards
 (Spearman −0.042 / −0.057 / −0.074) while correlating +0.51 / +0.24 / +0.37 with
-the pass rate, and the gate fails on 1 of 3 models with the one pass sitting at
-R² = +0.0005. That is the expected shape — gain is non-monotone in difficulty, and
+the pass rate, and the gate fails on 2 of 3 models, with the single pass sitting
+at R² = +0.0005. That is the expected shape — gain is non-monotone in difficulty, and
 a prompt at 0/8 and one at 8/8 both gain nothing. It is not a sample-size problem:
 at one trace the feature holds AUROC 0.790 / 0.674 / 0.688 against its 0.806 /
-0.686 / 0.709 at eight. **Ruled out: ranking prompts by predicted gain from more
+0.686 / 0.709 at eight (both on `cap_free_valid_plurality`; the primary-population
+eight-trace values are 0.819 / 0.714 / 0.712). **Ruled out: ranking prompts by predicted gain from more
 samples. Untouched: ranking them by difficulty, for abstention or routing.**
 
 **The tail window is a Qwen-specific localization, not part of the method.**
 The untailed whole-trace mean `rmd_full` — Vazhentsev et al.'s ATRMD — recovers
-almost the entire increment by itself on both reasoning-distilled models
-(−0.0335 of −0.0355; −0.0509 of −0.0560), and the tail adds nothing separable
-from zero there. Only on Qwen2.5-7B-Instruct does the tail carry the result.
-Window size does not explain the split: inside Qwen the tail advantage *grows*
-with window size (−0.042 below the median window, −0.116 above it), and the
-Llama short stratum matched to Qwen on window median and base accuracy still
-shows no tail effect. The split follows reasoning distillation, on one
+essentially the whole increment by itself on both reasoning-distilled models
+(101% and 95% of the tail's point estimate). On the primary
+population no difference between them is detectable at this n — `rmd_full` −0.0287
+against the tail's −0.0284 on DeepSeek-R1-Distill-Qwen-7B, −0.0445 against −0.0469
+on DeepSeek-R1-Distill-Llama-8B. The tail over `rmd_full` is −0.0030 [−0.0109,
++0.0035] p=0.436 and −0.0041 [−0.0118, +0.0035] p=0.320: those intervals exclude
+any advantage larger than about 0.012, against an increment of 0.03–0.05. That is
+a bound on how much the tail can be adding, not a demonstration that it adds
+exactly nothing. Only on Qwen2.5-7B-Instruct does the tail carry the result.
+Window size does not explain the split, but not in the way an earlier draft of
+this page claimed. On the primary population the tail's advantage inside Qwen is
+**non-monotone** in window size — terciles −0.0448 / −0.1083 / −0.0491, and
+−0.0563 below the median window against −0.0662 above it. The advantage neither
+shrinks with window size, which is what the window hypothesis predicts, nor grows
+with it: it peaks in the middle. (The steeper −0.042 / −0.116 gradient quoted
+previously is the `cap_free_all_eight_parseable` stratification at
+`EXPERIMENT_LOG.md:3089`; on the primary population the gap between the two halves
+is 0.010, not 0.074.) The Llama short stratum matched to Qwen on window median and
+base accuracy still shows no tail effect, and that matched-window comparison has
+**not** been repeated on the primary population. Every stratified contrast here is
+exploratory and unadjusted (`:3187`). The split follows reasoning distillation, on one
 non-distilled model, with trace style, budget and base accuracy still collinear
 with it. A third non-distilled model is the test that would settle it.
 
 **Pooled trace discrimination is not sibling verification.** A nested
 last-token probe reaches pooled AUROC 0.901 / 0.914 / 0.903, but macro
-within-prompt AUROC is 0.644 / 0.582 / 0.718. RMD shows the same qualitative
-gap. Length also loses substantial pooled discrimination, while entropy and
-log-probability lose less. The supported claim is that the prompt-level
-increment survives; a high pooled trace AUROC alone does not establish which
-sibling trace is correct. See [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
+within-prompt AUROC is 0.644 / 0.582 / 0.718 — and on DeepSeek-R1-Distill-Qwen-7B
+that 0.582 carries a 95% interval of [0.463, 0.688], which contains chance. RMD
+shows the same qualitative gap and goes further: its within-prompt macro on that
+model is **0.461, below chance**. Length also loses substantial pooled
+discrimination, while entropy and log-probability lose less of theirs — though on
+both distilled models all three of those baselines sit at or under 0.50 within
+prompts, so "loses less" is a statement about the size of the drop, not about
+retaining usable within-prompt signal. The supported claim is that the
+prompt-level increment survives; a high pooled trace AUROC alone does not
+establish which sibling trace is correct, and on one model the within-prompt
+ranking is not established at all. Trace-level numbers here are on the `parseable`
+population. See [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md).
 
 *Metric note: AURC and AUACC are affinely related at fixed n and both inherit the
 base accuracy, so levels are not comparable across models — only deltas are.
@@ -168,7 +239,7 @@ Configuration is in [params.yaml](params.yaml): model names, layer indices, PCA 
 | `best_of_n.py` | Best-of-N reranking using geometry scores |
 | `prefix_analysis.py` | Retired early-prefix diagnostic (historical) |
 | `prefix_filter.py` | Retired abort/retry diagnostic (historical) |
-| `summarize.py` | Aggregate the current result profile into `results/SUMMARY.md` |
+| `summarize.py` | Aggregate a result profile into `results/SUMMARY.md` (**stale**: the checked-in copy is from 2026-07-29, greedy-era, and does not reflect any Best-of-8 result on this page) |
 
 ## Output structure
 
@@ -177,7 +248,7 @@ data/
   {model}/{dataset}/      # .npz files with hidden states (DVC-tracked, not in git)
 results/
   {model}/{dataset}/      # metrics JSON + plots
-  SUMMARY.md              # aggregated results table
+  SUMMARY.md              # aggregated results table (stale, 2026-07-29 greedy era)
 ```
 
 ## Features

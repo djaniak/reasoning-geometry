@@ -25,8 +25,8 @@ second literature-grounding pass. Sources: `EXPERIMENT_LOG.md` (2026-06-14 audit
 > verification: a reproduced last-token probe falls from 0.901/0.914/0.903 pooled
 > to 0.644/0.582/0.718 macro within prompt. A deployable peer-agreement baseline
 > is a genuine paid competitor, not a mechanism control; at one extra generation
-> the six model-pair comparisons yield four ties, one RMD win and one peer win
-> after Holm correction.**
+> the six model-pair comparisons yield four ties, one RMD win and one peer win on
+> the raw intervals — a post-hoc family with no multiplicity correction computed.**
 
 The contribution of this work is the evaluation rather than a new geometry
 statistic. Token-level RMD and whole-trace ATRMD are already defined by Vazhentsev
@@ -40,12 +40,20 @@ eight traces. It does not establish single-trace verification, pre-generation
 routing, adaptive compute allocation, or within-prompt reranking. The allocation
 precheck failed: single-trace geometry ranks the gain from another sample in the
 wrong order on all three models. The remaining evidence gate is the registered
-full-refit stability sweep; no new score or application experiment precedes it.
+full-refit stability sweep, which is **partially closed, not closed**: three of four
+registered seeds have run on two of three models with the peer step skipped, so
+Qwen has no refit at any seed and no seed has a peer residual. No new score or
+application experiment precedes closing it.
 
-The label-efficiency result is limited to a small budget. At 50 labelled prompts,
-geometry leads a pooling-matched linear probe by −0.033 AURC. The gap disappears at
-100 prompts, and the probe leads at larger budgets. General sample efficiency should
-not be claimed.
+The label-efficiency result was **cut from the paper on 2026-08-22** and should not
+appear in the manuscript. For the record of why: the −0.033 AURC lead at 50 labelled
+prompts *is* the pooling-matched comparison — it is taken against
+`probe_token_tail_q20` — but its interval spans zero (−0.033 [−0.044, +0.024], sign
+p=0.109, 24 of 30 draws), so it is a direction, not a result. It also decomposes
+into roughly −0.011 supervision and −0.018 decision-function form
+(`EXPERIMENT_LOG.md:3309`), so a write-up claiming the one-class inductive bias is
+what buys the label efficiency must quote −0.011, not −0.033 (`:3314`). The gap disappears at 100 prompts and the probe leads at larger budgets.
+Neither general sample efficiency nor a small-budget advantage is supported.
 
 The second contribution of the paper is methodological. It shows how trace length,
 generation caps, parse failures, layer selection, weak difficulty controls, and
@@ -67,7 +75,18 @@ listed below remain historical until clean-budget replications are collected.
   predictor.
 - **On clean Qwen Best-of-8 traces, entropy-localized RMD beats full-trace RMD and a
   matched random-token control at all three layers.** It remains competitive with
-  output baselines and has only suggestive incremental probe value.
+  output baselines and has only suggestive incremental probe value. This is a
+  Qwen-only statement, and it was pre-registered as such. The same gate was run on
+  DeepSeek-R1-Distill-Qwen-7B on 2026-07-29 and **failed on both confirmatory
+  tests** (`rmd_high_entropy_q20 − rmd` +0.004 p=0.674; `− rmd_random_q20` +0.001
+  p=0.924), with every within-prompt cell at or below chance; the decision rule
+  fixed in advance demoted localization to Qwen-specific and cancelled the
+  DeepSeek-R1-Distill-Llama-8B decomposition collect *at that time*; that collect
+  later ran, so `rmd_random_q20` does exist for Llama in
+  `math500_prompt_decomposition_results.json` — what was never re-run there is the
+  pre-registered entropy-localization gate itself. Separately, on the primary
+  population no difference between the tail and the full trace is detectable on
+  either distilled model (p = 0.436 / 0.320).
 - **The signal is between-prompt (solvability) rather than within-prompt.** Pooled
   parseable RMD is positive, whereas within-prompt (per-attempt) performance is at
   chance (Qwen 0.515, DeepSeek 0.27 at n=13).

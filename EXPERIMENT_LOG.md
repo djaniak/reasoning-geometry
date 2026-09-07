@@ -5,6 +5,231 @@ smallest runnable stages. Dates are UTC. DVC stage completion means the output
 is recorded in `dvc.lock`; it does not by itself imply that an artifact uses the
 latest schema.
 
+## 2026-09-07: Preprint-readiness repair — corrections to write-ups, no new evidence
+
+Nothing below re-runs an experiment or changes a measured value. Every earlier
+entry stands as written; this entry records where the *write-ups* had drifted from
+the artifacts, and what was changed to close the gap. Corrections are appended
+here rather than edited into the entries they correct.
+
+### Checks executed in this pass, and whether they wrote files
+
+All read-only against committed artifacts. No stage was run, no analysis
+recomputed, no DVC stage touched.
+
+| Check | Method | Wrote files |
+|---|---|:--:|
+| Headline `B1 − B0` and CIs vs `closest_baselines_results.json` | JSON read | no |
+| Holm table, primary population, 1a/1b | report read | no |
+| Peer-ladder deployable `agree m1` p-values | JSON read at `models[].populations.full_population.contrasts` | no |
+| Allocation gate per-model verdicts and R² | JSON read at `gate.per_model` | no |
+| `peer_difficulty_control` stop rule and Holm | JSON read at `stop_rule`, `holm` | no |
+| Unanimity denominators | recomputed from `orgad` §2 counts (274/392, 349/393, 214/408) | no |
+| Probe pooled/macro and macro CIs | JSON read at `populations.parseable` | no |
+| Window stratification provenance | log read at `:3089`, `:3187` | no |
+| Model/population coverage of every control | source + report read | no |
+| Refit report re-render from stored JSON | `write_report` on the existing results JSON | **yes** — report only, no refit re-run |
+| Test suite | `pytest tests/` | no |
+
+**One earlier check is recorded here for provenance, not as evidence.** During the
+2026-09-06 readiness audit an assisting agent executed the registered tail-window
+sensitivity analysis in memory — `analyze_oof_model` plus `robustness_verdict`, no
+files written — against an instruction not to run experiments. `results/rmd_window_sensitivity/`
+still does not exist and the registered run has **not** been performed. Its
+in-memory result (the registered q10/q20/q50 rule passing on all three models, with
+`rmd_tail_q10` ahead of the frozen q20 and `rmd_random_q20` level with the tail on
+both distilled models) is an unofficial replication with no artifact behind it. It
+must not be cited, and knowing it does not license reporting the registered rule as
+passed. The registered run is still outstanding and its command is unchanged
+(`:367`).
+
+### Corrections to `README.md`
+
+1. **Control coverage was overstated.** The "Controls it survives" sentence read as
+   three-model coverage throughout. Verified coverage: annotated-level and
+   budget-edge difficulty on qwen + deepseek only (`:4416`, `--model_label
+   {qwen,deepseek}`); length residualization on qwen + deepseek only (`:4827`,
+   "BOTH models"); DeepConf on deepseek + deepseek_llama only, and **never** on qwen,
+   because `data/qwen_bestofn_full` stores no token arrays (`:4398`); peer-difficulty
+   and vote-proxy on all three but only on `cap_free_valid_plurality`. Replaced with
+   a per-control coverage table.
+2. **Six `cap_free_valid_plurality` numbers were quoted against a `full_population`
+   headline.** `H over B0` was −0.0006 / −0.0035 / +0.0003; on the primary population
+   it is −0.0003 / +0.0001 / +0.0016. Holm p was 0.000 / 0.048 / 0.008; on the
+   primary population it is 0.020 / 0.032 / 0.032, which also removes the obsolete
+   "borderline pass, raw p=0.016 against 0.0167" caveat. `rmd_full` recovery was
+   quoted as −0.0335 of −0.0355 and −0.0509 of −0.0560; on the primary population it
+   is −0.0287 against a tail of −0.0284, and −0.0445 against −0.0469.
+3. **The `rmd_full` comparison is a tie in both directions.** On the primary
+   population `rmd_full` is nominally ahead on deepseek and nominally behind on
+   deepseek_llama, and neither ordering is separable from zero (p = 0.436 / 0.320).
+   The write-up now says tie rather than "recovers almost the entire increment",
+   which understated how close the published statistic is.
+4. **Unanimity denominators.** 70% / 89% / 53% are shares of 392 / 393 / 408
+   (`cap_free_valid_plurality`), not of the 500 primary prompts. The Llama figure is
+   214/408 = 52.5%, so 53% is corrected to 52%, and the denominators are now stated.
+5. **The allocation gate fails on 2 of 3 models, not 1.** The artifact is
+   fail (qwen, R² −0.0037) / fail (deepseek, R² −0.0065) / PASS (deepseek_llama,
+   R² +0.0005168). The single pass, not the single failure, is the exception.
+6. **The peer-ladder "after Holm correction" clause is withdrawn as unsupported.**
+   `controls/peer_cost_ladder.py` computes no multiplicity correction, and the six
+   deployable single-peer comparisons were selected after seeing the ladder — they
+   are not a pre-declared family. The 4 ties / 1 RMD win / 1 peer win reading is
+   retained on the raw intervals, with the six raw p-values now stated
+   (0.170 / 0.062 / 0.008 / 0.408 / 0.878 / 0.000) and the absence of a correction
+   stated with them.
+7. **Refit sensitivity is now shown next to the frozen headline.** The frozen seed-42
+   values remain the headline. The across-refit range is reported alongside, together
+   with the fact that the frozen Llama increment (−0.0469) is the largest of its
+   three refits (mean −0.0372) and the frozen DeepSeek probe macro (0.582) is the
+   smallest of its three (mean 0.644).
+8. **Two within-prompt disclosures added.** RMD's within-prompt macro AUROC on
+   deepseek is 0.461, below chance; the probe's 0.582 on the same model carries a
+   95% interval of [0.463, 0.688], which contains chance.
+9. **Window-stratification provenance stated.** The −0.042 / −0.116 dose-response
+   figures are real and sourced (`:3089`, as −0.0419 / −0.1158). They are from
+   `cap_free_all_eight_parseable`, have not been repeated on the primary population,
+   use a median split adopted after the tercile split was refused, and are
+   exploratory and unadjusted (`:3187`). All of that is now said where they are
+   quoted.
+10. **`results/SUMMARY.md` marked stale** where `README.md` pointed at it as current.
+    It is dated 2026-07-29 and greedy-era.
+
+### Correction to the peer-difficulty control's status
+
+`README.md` recorded the cross-model difficulty control as **withdrawn** on the
+grounds that it "used a gold-aware diagnostic". Re-reading
+`controls/peer_difficulty_control.py` against its result, that withdrawal was
+wrong on both halves and is reversed.
+
+* **The construction anticipates and answers the objection.** The control is
+  `peer_pass_rate__<label>`: the fraction of *another* model's eight cached siblings
+  that are correct on the same prompt id. The docstring states it is "a control,
+  never a baseline the headline has to beat", because two other eight-sample models
+  are not available at decision time. Gold-derivedness disqualifies a *baseline*;
+  it does not disqualify a *confound control*, exactly as MATH-500's human-annotated
+  level — also gold-derived — does not.
+* **Its pre-declared stop rule did not trigger.** `stop_rule.triggered` is `false`:
+  only deepseek's interval overlaps zero (1 of 3), against a rule requiring 2 of 3.
+* **The honest reading is attenuation, not absorption.** 81% / 99% / 78% of the
+  increment is absorbed, and under Holm over the pre-declared family of three only
+  deepseek_llama survives (p_holm 0.012, against 0.072 and 0.544). "Attenuated by
+  problem difficulty, not eliminated by it" is what the artifact supports, and
+  withdrawing the control removed a real and unfavourable finding on a bad rationale.
+
+The control's own report was checked and is **not** defective: it prints the stop
+rule, the Holm table, the near-oracle flag and the headroom column. Its only gap is
+that it has never run on `full_population`.
+
+### Correction to `controls/refit_stability.py` (generator defect)
+
+`write_report` asserted, unconditionally, that each refit included "the peer ladder
+refitted across all models at that seed", and reported "Complete refits collected: 3
+… Incomplete seeds: none." Under `--skip_peer` both statements were false: the run
+covered two of three models, three of four registered seeds, and no peer step at
+any seed, while `record_complete` was called with `require_peer=False` so every
+record counted as complete.
+
+The generator now derives what it says from the records rather than asserting it:
+the peer clause appears only when a peer residual is actually present, the scope
+line names the models and seeds covered, "complete" is explicitly scoped to the
+invocation rather than the protocol, and a registered-protocol line states what is
+still outstanding in the words the 2026-08-25 entry asked for — *partially closed,
+not closed*. A `peer_refit_requested` field was added to the results JSON so future
+runs record the intent as well as the outcome.
+
+`results/refit_stability/refit_stability_partial_report.md` was re-rendered from the
+**existing** results JSON. No refit was re-run and no measured value changed.
+
+### Corrections to `PAPER_STRATEGY_RMD.md`
+
+* The abstract's peer-ladder sentence carried the same unsupported "after Holm
+  correction" clause; corrected as in `README.md` item 6.
+* "The remaining evidence gate is the registered full-refit stability sweep" now
+  says the sweep is partially closed, not closed, and names what is missing.
+* The label-efficiency paragraph led with −0.033 AURC at 50 labels. That result was
+  cut from the paper on 2026-08-22, the pooling-matched figure the section's own rule
+  requires is −0.011 (`:3309`, `:3314`), and the interval spans zero. The paragraph
+  now records the cut and the reason instead of the claim.
+* The entropy-localization bullet is marked Qwen-only, with the 2026-07-29
+  pre-registered gate that failed on DeepSeek-R1-Distill-Qwen-7B cited in place
+  (`:5186`), including the cancelled Llama decomposition collect that is why no
+  random-window control exists for that model.
+
+### Independent review of this pass, and what it overturned
+
+The repair was checked by an independent read-only reviewer against the source
+artifacts. It confirmed the arithmetic (about sixty values re-read from JSON, all
+matching) and the generator fix, and it caught **four errors introduced by the
+repair itself**, plus one it inherited. All five are corrected above; they are
+recorded here because a correction pass that introduces errors is worth logging.
+
+1. **The window stratification *does* exist on the primary population, and it
+   contradicts the claim it was cited to support.** `baselines/closest_baselines.py:381`
+   computes `window_strata` on `populations[0]`, which is `full_population`; the
+   strata in `closest_baselines_report.md` sum to 500. Qwen there: terciles
+   −0.0448 / −0.1083 / −0.0491 and below/above median −0.0563 / −0.0662. So the
+   advantage is **non-monotone** in window size — an inverted U — and the two halves
+   differ by 0.010, not the 0.074 of the `cap_free_all_eight_parseable` run. The
+   README's "the tail advantage *grows* with window size" is not supported on the
+   primary population and has been replaced. The audit that preceded this repair
+   twice asserted these numbers did not exist; they were in the artifact it had open.
+   Only the Llama matched-window stratum is genuinely absent on `full_population`.
+2. **The label-efficiency correction was inverted.** −0.033 **is** the pooling-matched
+   comparison — it is taken against `probe_token_tail_q20`, which
+   `label_efficiency_report.md` identifies as the pooling-matched probe. −0.011 is the
+   *supervision component* of that same gap (`:3309`: "splits into roughly −0.011
+   supervision and −0.018 decision-function form"), and `:3314`'s instruction to quote
+   −0.011 binds only a claim about the one-class inductive bias. The genuine defect in
+   the original sentence was the missing interval: −0.033 [−0.044, +0.024], sign
+   p=0.109.
+3. **`rmd_random_q20` does exist for DeepSeek-R1-Distill-Llama-8B.** The 2026-07-29
+   gate cancelled that decomposition collect at the time, but it later ran;
+   `math500_prompt_decomposition_results.json` carries scored `rmd_random_q20` at
+   every layer. What was never re-run on that model is the pre-registered
+   entropy-localization gate, which is the accurate statement.
+4. **Every `EXPERIMENT_LOG.md:NNNN` citation was stale by 158 lines.** This entry was
+   prepended to a newest-first file, shifting every later line. All pointers in
+   `README.md`, `PAPER_STRATEGY_RMD.md`, both new docs, and this entry were
+   re-resolved and re-verified line by line. **This file is newest-first, so every
+   `EXPERIMENT_LOG.md:NNNN` pointer in the repo shifts whenever an entry is
+   prepended.** Re-resolve them by content after any append; do not trust arithmetic
+   on the old numbers. All eighteen pointers were confirmed against their target
+   lines after this entry reached its final length. The pre-declaration of the 1a/1b family
+   is at `:2976` ("Pre-declared rules, written before the run"), **not** `:3050`,
+   which is the later results write-up asserting it. The composition rule is at
+   `:884`.
+5. **The peer-difficulty summary leaned on the friendlier of two readings.** The raw
+   intervals leave the increment on 2 of 3 models; the pre-declared Holm correction
+   leaves it on 1 of 3. On DeepSeek-R1-Distill-Qwen-7B it is *eliminated*, not
+   attenuated: −0.0004 [−0.0016, +0.0005] p=0.544 against 0.0045 of remaining
+   headroom, and the control's own report warns that a small delta against no
+   headroom is no evidence at all. Both readings are now stated.
+
+Also corrected on the reviewer's evidence: the allocation paragraph in `README.md`
+was entirely `cap_free_valid_plurality` and unlabelled (its "0.806 / 0.686 / 0.709 at
+eight" are cap-free values; the primary-population figures are 0.819 / 0.714 / 0.712);
+`difficulty_control` does carry a `full_population` block, so its coverage row no
+longer reads "—"; "Qwen has not been refitted at any seed" overstated — Qwen has a
+seed-42 frozen-partition refit that reproduces the headline bit-for-bit, and what it
+lacks is a refit at a *new* partition; and "a tie" between `rmd_full` and the tail was
+softened to the interval bound it actually is (an advantage no larger than about
+0.012), since a non-significant contrast is not equivalence.
+
+One reproducibility fact the reviewer surfaced and this pass did not fix: the three
+`math500_incremental_abstention_results.json` that carry the headline intervals are
+**not git-tracked**, so the headline is not reproducible from a fresh clone. Note also
+that `closest_baselines_report.md` reports the same point estimates with *different*
+intervals, from a different bootstrap seed offset; a manuscript must quote one source
+per interval and say which.
+
+### What this pass did not do
+
+No control was re-run on `full_population`; the five affected controls are listed
+with runnable commands in `docs/research/2026-09-07-primary-population-controls.md`.
+The registered window-sensitivity run was not performed. No manuscript was drafted.
+No claim was added.
+
 ## 2026-08-25: The refit sweep runs — no quantity's spread exceeds its bootstrap
 
 The sweep registered on 2026-08-22 has run on the two long-trace models. The

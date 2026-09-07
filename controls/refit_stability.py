@@ -519,20 +519,67 @@ def write_report(body: Mapping, path: Path) -> None:
     summary = body["summary"]
     seeds = [record["seed"] for record in records]
 
+    # The scope line is derived from the records, not asserted: a ``--skip_peer``
+    # run used to render the same prose as a full one, which is how the partial
+    # report came to claim a peer ladder it never refitted.
+    peer_refitted = any(
+        model.get(name) is not None
+        for record in records
+        for model in record["models"].values()
+        for name in ("residual_aurc", "residual_deployable_aurc")
+    )
+    models_covered = list(body.get("models") or [])
+    registered_models = [spec.label for spec in MODEL_SPECS]
+    missing_models = [label for label in registered_models if label not in models_covered]
+    registered_seeds = list(body.get("registered_seeds") or REGISTERED_SEEDS)
+    missing_seeds = [seed for seed in registered_seeds if seed not in seeds]
+
+    refitted = (
+        "the OOF scores are regenerated, the prompt-level readouts refitted, and "
+        "the last-token probe refitted including its in-fold layer and penalty "
+        "choice"
+    )
+    if peer_refitted:
+        refitted += ", and the peer ladder refitted across all models at that seed"
+
     lines = [
         "# Full-refit stability",
         "",
-        "Built by `controls/refit_stability.py`. Each refit re-runs the pipeline "
-        "end to end on a different prompt partition: the OOF scores are "
-        "regenerated, the prompt-level readouts refitted, the last-token probe "
-        "refitted including its in-fold layer and penalty choice, and the peer "
-        "ladder refitted across all models at that seed.",
+        f"Built by `controls/refit_stability.py`. Each refit re-runs the pipeline "
+        f"end to end on a different prompt partition: {refitted}.",
         "",
-        f"Complete refits collected: {len(records)} "
-        f"(seeds {', '.join(str(s) for s in seeds) or 'none'}). "
-        f"Incomplete seeds: {', '.join(str(s) for s in body['incomplete_seeds']) or 'none'}.",
+        f"Refits collected: {len(records)} "
+        f"(seeds {', '.join(str(s) for s in seeds) or 'none'}) "
+        f"over {len(models_covered)} of {len(registered_models)} registered models "
+        f"({', '.join(models_covered) or 'none'}).",
+        f"Seeds carrying every quantity requested of *this* run: "
+        f"{', '.join(str(s) for s in body['complete_seeds']) or 'none'}; "
+        f"incomplete: {', '.join(str(s) for s in body['incomplete_seeds']) or 'none'}. "
+        f"That is completeness relative to this invocation, not to the registered "
+        f"protocol.",
+        "",
+        (
+            "**Registered protocol: complete.**"
+            if body.get("complete")
+            else "**Registered protocol: NOT complete.** Still outstanding: "
+            + "; ".join(
+                part
+                for part in (
+                    f"models {', '.join(missing_models)}" if missing_models else "",
+                    f"seeds {', '.join(str(s) for s in missing_seeds)}"
+                    if missing_seeds
+                    else "",
+                    "" if peer_refitted else "the peer-ladder refit at every seed",
+                )
+                if part
+            )
+            + ". Quantities below are therefore a partial read of the registered "
+            "sweep, and the gate this sweep exists to close is partially closed, "
+            "not closed."
+        ),
+        "",
         "Seed 42 is the frozen-partition reproduction check when it appears among "
-        "the complete refits.",
+        "the collected refits.",
         "",
         "The quantity is the **spread of point estimates across refits**. The "
         "bootstrap intervals inside any single refit cannot see it, which is why "
@@ -692,6 +739,7 @@ def main() -> None:
         "complete_seeds": complete_seeds,
         "incomplete_seeds": incomplete_seeds,
         "models": [spec.label for spec in specs],
+        "peer_refit_requested": require_peer,
         "headline_population": HEADLINE_POPULATION,
         "peer_residual_contrast": PEER_RESIDUAL_CONTRAST,
         "n_bootstrap": args.n_bootstrap,
