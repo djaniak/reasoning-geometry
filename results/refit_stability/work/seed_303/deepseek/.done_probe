@@ -1,0 +1,20 @@
+{
+  "cmd": [
+    "/home/djaniak/projects/reasoning-geometry-probe/.venv/bin/python",
+    "-u",
+    "-m",
+    "controls.last_token_probe",
+    "--model",
+    "deepseek:data/deepseek_bestofn_full/math500:7,14,21",
+    "--oof",
+    "deepseek:results/refit_stability/work/seed_303/deepseek/decomposition/math500_prompt_decomposition_oof.csv:21",
+    "--n_bootstrap",
+    "200",
+    "--seed",
+    "303",
+    "--output_dir",
+    "results/refit_stability/work/seed_303/deepseek/probe"
+  ],
+  "elapsed_seconds": 991.6,
+  "finished": 1788813991.7324972
+}

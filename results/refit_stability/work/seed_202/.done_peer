@@ -1,0 +1,24 @@
+{
+  "cmd": [
+    "/home/djaniak/projects/reasoning-geometry-probe/.venv/bin/python",
+    "-u",
+    "-m",
+    "controls.peer_cost_ladder",
+    "--model",
+    "qwen:results/refit_stability/work/seed_202/qwen/decomposition/math500_prompt_decomposition_oof.csv:data/qwen_bestofn_full/math500",
+    "--model",
+    "deepseek:results/refit_stability/work/seed_202/deepseek/decomposition/math500_prompt_decomposition_oof.csv:data/deepseek_bestofn_full/math500",
+    "--model",
+    "deepseek_llama:results/refit_stability/work/seed_202/deepseek_llama/decomposition/math500_prompt_decomposition_oof.csv:data/deepseek_llama_bestofn_full/math500",
+    "--population",
+    "full_population",
+    "--n_bootstrap",
+    "200",
+    "--seed",
+    "202",
+    "--output_dir",
+    "results/refit_stability/work/seed_202/peer"
+  ],
+  "elapsed_seconds": 62.5,
+  "finished": 1788805836.0532434
+}
